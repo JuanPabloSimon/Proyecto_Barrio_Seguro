@@ -10,6 +10,7 @@ class AppColors {
   static const emergencia = Color(0xFFD62828); // rojo: SOS y emergencias
   static const resuelta = Color(0xFF2E9E5B);
   static const radio = Color(0xFF2F80ED); // círculo azul del radio del usuario
+  static const ventana = Color(0xFF6A4C93); // guardia de ventana (mayores de 70)
 
   static const fondo = Color(0xFFF4F6F9);
   static const superficie = Colors.white;

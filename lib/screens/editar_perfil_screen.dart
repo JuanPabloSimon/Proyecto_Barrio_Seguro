@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../data/datos_demo.dart';
+import '../data/sesion.dart';
+import '../utils/fechas.dart';
 
 class EditarPerfilScreen extends StatelessWidget {
   const EditarPerfilScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const usuario = usuarioDemo;
+    final usuario = Sesion.usuario;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Editar datos personales')),
@@ -17,6 +18,16 @@ class EditarPerfilScreen extends StatelessWidget {
           TextFormField(
             initialValue: usuario.nombre,
             decoration: const InputDecoration(labelText: 'Nombre y apellido'),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            initialValue: fechaNumerica(usuario.fechaNacimiento),
+            readOnly: true,
+            decoration: const InputDecoration(
+              labelText: 'Fecha de nacimiento',
+              helperText: 'Define tu rol en los turnos. Para corregirla, contactá a la comisión.',
+              helperMaxLines: 2,
+            ),
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -31,7 +42,7 @@ class EditarPerfilScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           TextFormField(
-            initialValue: usuario.cuadra,
+            initialValue: usuario.cuadra.replaceFirst('Cuadra ', ''),
             decoration: const InputDecoration(labelText: 'Cuadra'),
           ),
         ],

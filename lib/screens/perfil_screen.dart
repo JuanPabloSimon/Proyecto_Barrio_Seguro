@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../data/datos_demo.dart';
+import '../data/sesion.dart';
 import '../theme/app_colors.dart';
-import 'disponibilidad_screen.dart';
 import 'editar_perfil_screen.dart';
 import 'login_screen.dart';
+import 'main_shell.dart';
 import 'mis_alertas_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
-  const PerfilScreen({super.key});
+  const PerfilScreen({super.key, required this.onIrA});
+
+  /// Permite abrir otra pestaña (por ejemplo, Turnos) desde el menú.
+  final ValueChanged<int> onIrA;
 
   @override
   State<PerfilScreen> createState() => _PerfilScreenState();
@@ -51,7 +54,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const usuario = usuarioDemo;
+    final usuario = Sesion.usuario;
+    final colorRol = usuario.esGuardiaVentana ? AppColors.ventana : AppColors.primary;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mi perfil')),
@@ -81,14 +85,39 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${usuario.calle}, ${usuario.cuadra}',
+            [usuario.calle, usuario.cuadra].where((t) => t.isNotEmpty).join(', '),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 2),
           Text(
-            usuario.antiguedad,
+            '${usuario.edad} años. ${usuario.antiguedad}',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textoSecundario),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: colorRol.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    usuario.esGuardiaVentana ? Icons.window_outlined : Icons.directions_walk,
+                    size: 16,
+                    color: colorRol,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Turnos: ${usuario.rol.toLowerCase()}',
+                    style: TextStyle(color: colorRol, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 28),
           const _TituloSeccion('Privacidad y avisos'),
@@ -129,9 +158,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.event_available_outlined),
-                  title: const Text('Mi disponibilidad de turnos'),
+                  title: const Text('Mis turnos'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _abrir(const DisponibilidadScreen()),
+                  onTap: () => widget.onIrA(MainShell.turnos),
                 ),
                 const Divider(height: 1),
                 ListTile(

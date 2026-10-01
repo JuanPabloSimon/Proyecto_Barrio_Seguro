@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/datos_demo.dart';
+import '../data/sesion.dart';
 import '../theme/app_colors.dart';
 import 'main_shell.dart';
 import 'registro_screen.dart';
@@ -55,9 +57,13 @@ class LoginScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: () => Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const MainShell()),
-              ),
+              onPressed: () {
+                // Prototipo: siempre ingresa con la vecina de ejemplo.
+                Sesion.usuario = vecinoClara;
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const MainShell()),
+                );
+              },
               child: const Text('Ingresar'),
             ),
             const SizedBox(height: 12),

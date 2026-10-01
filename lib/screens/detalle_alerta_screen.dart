@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/sesion.dart';
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chip_estado.dart';
@@ -25,8 +26,8 @@ class DetalleAlertaScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final puedeCerrarla =
-        alerta.reportadaPorMi && alerta.estado != EstadoAlerta.resuelta;
+    final esMia = alerta.reportadaPor == Sesion.usuario.id;
+    final puedeCerrarla = esMia && alerta.estado != EstadoAlerta.resuelta;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Detalle de la alerta')),
@@ -63,7 +64,7 @@ class DetalleAlertaScreen extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.person_outline),
             title: const Text('Reportada por'),
-            subtitle: Text(alerta.reportadaPorMi ? 'Vos' : 'Un vecino de la zona'),
+            subtitle: Text(esMia ? 'Vos' : 'Un vecino de la zona'),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(

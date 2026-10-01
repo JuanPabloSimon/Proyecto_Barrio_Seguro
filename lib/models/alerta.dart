@@ -24,7 +24,7 @@ class Alerta {
     required this.estado,
     required this.posicion,
     required this.icono,
-    this.reportadaPorMi = false,
+    required this.reportadaPor,
   });
 
   final String id;
@@ -37,5 +37,7 @@ class Alerta {
   /// Posición relativa (de 0 a 1) sobre el mapa ilustrativo.
   final Offset posicion;
   final IconData icono;
-  final bool reportadaPorMi;
+
+  /// Id del vecino que la reportó.
+  final String reportadaPor;
 }

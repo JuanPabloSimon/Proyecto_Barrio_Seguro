@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../data/datos_demo.dart';
+import '../data/sesion.dart';
+import '../data/turnos_repositorio.dart';
 import '../models/alerta.dart';
-import '../models/turno.dart';
 import '../theme/app_colors.dart';
+import '../utils/fechas.dart';
 import '../widgets/dialogo_911.dart';
 import '../widgets/mapa_simulado.dart';
 import '../widgets/tarjeta_alerta.dart';
@@ -22,12 +24,10 @@ class HomeScreen extends StatelessWidget {
         alertasDemo.where((a) => a.estado != EstadoAlerta.resuelta).toList();
     final activas =
         alertasDemo.where((a) => a.estado == EstadoAlerta.activa).length;
-    final proximoTurno = turnosDemo.firstWhere((t) => t.esMio);
-    final nombre = usuarioDemo.nombre.split(' ').first;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Hola, $nombre'),
+        title: Text('Hola, ${Sesion.usuario.primerNombre}'),
         actions: [
           IconButton(
             tooltip: 'Ver alertas',
@@ -37,18 +37,16 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 130),
         children: [
-          if (activas > 0)
+          if (activas > 0) ...[
             _BannerAlertas(
               cantidad: activas,
               onTap: () => onIrA(MainShell.mapa),
             ),
-          const SizedBox(height: 16),
-          _ProximoTurno(
-            turno: proximoTurno,
-            onTap: () => onIrA(MainShell.turnos),
-          ),
+            const SizedBox(height: 16),
+          ],
+          _ProximoTurno(onTap: () => onIrA(MainShell.turnos)),
           const SizedBox(height: 16),
           GestureDetector(
             onTap: () => onIrA(MainShell.mapa),
@@ -172,35 +170,84 @@ class _BannerAlertas extends StatelessWidget {
   }
 }
 
+/// Tarjeta "Tu próximo turno". Se actualiza sola cuando el usuario se anota
+/// o sale de un turno en la pestaña Turnos.
 class _ProximoTurno extends StatelessWidget {
-  const _ProximoTurno({required this.turno, required this.onTap});
+  const _ProximoTurno({required this.onTap});
 
-  final Turno turno;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final companieros = turno.vecinos.where((v) => v != usuarioDemo.nombre).join(', ');
+    return ListenableBuilder(
+      listenable: turnosRepositorio,
+      builder: (context, _) {
+        final usuario = Sesion.usuario;
+        final mios = turnosRepositorio.turnosDe(usuario, mesDeTurnos);
 
-    return Card(
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: const CircleAvatar(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          child: Icon(Icons.directions_walk),
-        ),
-        title: const Text(
-          'Tu próximo turno de patrullaje',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          '${turno.dia} ${turno.diaNumero} ${turno.mes}, ${turno.horario}\nCon $companieros',
-        ),
-        isThreeLine: true,
-        trailing: const Icon(Icons.chevron_right),
-      ),
+        final String titulo;
+        final List<String> lineas = [];
+
+        if (mios.isEmpty) {
+          titulo = 'Todavía no tenés turnos en ${nombreMes(mesDeTurnos.month)}';
+          lineas.add('Elegí un día y un horario en el calendario de turnos.');
+        } else {
+          final turno = mios.first;
+          titulo = usuario.esGuardiaVentana
+              ? 'Tu próxima guardia de ventana'
+              : 'Tu próximo turno de patrullaje';
+          lineas.add('${fechaLarga(turno.fecha)}, ${turno.franja.horario}');
+
+          final patrulla = turno.companierosDe(usuario).map((v) => v.nombre).join(', ');
+          if (usuario.esGuardiaVentana) {
+            lineas.add(patrulla.isEmpty ? 'Sin patrulla anotada todavía' : 'Patrulla: $patrulla');
+          } else {
+            lineas.add(patrulla.isEmpty ? 'Sin compañero todavía' : 'Con $patrulla');
+            final guardia = turno.guardiaVentana;
+            if (guardia != null) lineas.add('Guardia de ventana: ${guardia.nombre}');
+          }
+        }
+
+        return Card(
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    backgroundColor:
+                        usuario.esGuardiaVentana ? AppColors.ventana : AppColors.primary,
+                    foregroundColor: Colors.white,
+                    child: Icon(
+                      usuario.esGuardiaVentana ? Icons.window_outlined : Icons.directions_walk,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          titulo,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          lineas.join('\n'),
+                          style: const TextStyle(color: AppColors.textoSecundario),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/datos_demo.dart';
+import '../data/sesion.dart';
 import '../widgets/tarjeta_alerta.dart';
 import 'detalle_alerta_screen.dart';
 
@@ -9,7 +10,7 @@ class MisAlertasScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mias = alertasDemo.where((a) => a.reportadaPorMi).toList();
+    final mias = alertasDemo.where((a) => a.reportadaPor == Sesion.usuario.id).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mis alertas reportadas')),
@@ -18,7 +19,7 @@ class MisAlertasScreen extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.all(32),
                 child: Text(
-                  'Todavía no reportaste alertas. Si ves algo raro, usá el botón SOS.',
+                  'Todavía no reportaste alertas. Si ves algo raro, mantené presionado el botón SOS.',
                   textAlign: TextAlign.center,
                 ),
               ),
