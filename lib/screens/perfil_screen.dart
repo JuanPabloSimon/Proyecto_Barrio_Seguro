@@ -65,15 +65,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
         children: [
           const SizedBox(height: 8),
           Center(
-            child: CircleAvatar(
-              radius: 44,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                usuario.iniciales,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
+            // Las iniciales son decorativas: el nombre completo se lee debajo.
+            child: ExcludeSemantics(
+              child: CircleAvatar(
+                radius: 44,
+                backgroundColor: AppColors.primary,
+                child: Text(
+                  usuario.iniciales,
+                  style: const TextStyle(
+                    color: AppColors.sobreColor,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -199,11 +202,14 @@ class _TituloSeccion extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(
-        texto,
-        style: const TextStyle(
-          color: AppColors.textoSecundario,
-          fontWeight: FontWeight.w600,
+      child: Semantics(
+        header: true,
+        child: Text(
+          texto,
+          style: const TextStyle(
+            color: AppColors.textoSecundario,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

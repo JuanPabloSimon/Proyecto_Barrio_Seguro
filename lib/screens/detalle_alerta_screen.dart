@@ -36,7 +36,13 @@ class DetalleAlertaScreen extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: SizedBox(height: 200, child: MapaSimulado(alertas: [alerta])),
+            child: Semantics(
+              image: true,
+              label: 'Mapa con la ubicación aproximada de la alerta: ${alerta.direccion}',
+              child: ExcludeSemantics(
+                child: SizedBox(height: 200, child: MapaSimulado(alertas: [alerta])),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           Row(

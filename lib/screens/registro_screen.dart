@@ -65,7 +65,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     final fechaIncompleta = textoFecha.length < 10;
     String? errorFecha;
     if (!fechaIncompleta && _fechaNacimiento == null) {
-      errorFecha = 'Revisá la fecha';
+      errorFecha = 'La fecha no es válida. Escribila como día/mes/año, por ejemplo 14/05/1950';
     } else if (_mostrarErrores && _fechaNacimiento == null) {
       errorFecha = 'Ingresá tu fecha de nacimiento';
     }
@@ -100,11 +100,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
               hintText: 'dd/mm/aaaa',
               prefixIcon: const Icon(Icons.cake_outlined),
               errorText: errorFecha,
+              errorMaxLines: 3,
             ),
           ),
           if (_fechaNacimiento != null) ...[
             const SizedBox(height: 12),
-            _AvisoRol(edad: calcularEdad(_fechaNacimiento!)),
+            // Se anuncia al aparecer: el rol depende de la fecha ingresada.
+            Semantics(
+              liveRegion: true,
+              child: _AvisoRol(edad: calcularEdad(_fechaNacimiento!)),
+            ),
           ],
           const SizedBox(height: 16),
           TextField(

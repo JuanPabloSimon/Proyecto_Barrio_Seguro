@@ -16,22 +16,28 @@ class LoginScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
           children: [
-            Center(
-              child: Container(
-                width: 88,
-                height: 88,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
+            // Logo decorativo: el nombre de la app ya está escrito debajo.
+            ExcludeSemantics(
+              child: Center(
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.shield_outlined, color: AppColors.sobreColor, size: 44),
                 ),
-                child: const Icon(Icons.shield_outlined, color: Colors.white, size: 44),
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Barrio Seguro',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+            Semantics(
+              header: true,
+              child: const Text(
+                'Barrio Seguro',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+              ),
             ),
             const SizedBox(height: 6),
             const Text(

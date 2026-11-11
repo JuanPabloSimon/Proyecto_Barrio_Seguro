@@ -9,6 +9,7 @@ import '../utils/fechas.dart';
 import '../widgets/dialogo_911.dart';
 import '../widgets/mapa_simulado.dart';
 import '../widgets/tarjeta_alerta.dart';
+import '../widgets/tarjeta_tocable.dart';
 import 'detalle_alerta_screen.dart';
 import 'main_shell.dart';
 
@@ -48,33 +49,36 @@ class HomeScreen extends StatelessWidget {
           ],
           _ProximoTurno(onTap: () => onIrA(MainShell.turnos)),
           const SizedBox(height: 16),
-          GestureDetector(
+          // El mapa tiene altura fija pero no lleva texto adentro; el texto
+          // va debajo y crece con el tamaño de fuente.
+          TarjetaTocable(
+            etiqueta: 'Mapa con ${cercanas.length} alertas cerca tuyo. Abrir el mapa',
             onTap: () => onIrA(MainShell.mapa),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                height: 170,
-                child: Stack(
-                  children: [
-                    MapaSimulado(alertas: cercanas, tamanioPin: 28),
-                    Positioned(
-                      right: 10,
-                      bottom: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'Abrir mapa',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 150,
+                  child: MapaSimulado(alertas: cercanas, tamanioPin: 28),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 12, 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.map_outlined, color: AppColors.primary),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Abrir el mapa de alertas',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       ),
-                    ),
-                  ],
+                      Icon(Icons.chevron_right),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -94,10 +98,13 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Alertas cerca tuyo',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    'Alertas cerca tuyo',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
               TextButton(
@@ -133,49 +140,42 @@ class _BannerAlertas extends StatelessWidget {
         ? '1 alerta activa en tu zona'
         : '$cantidad alertas activas en tu zona';
 
-    return Material(
+    return TarjetaTocable(
+      etiqueta: '$texto. Ver en el mapa',
+      onTap: onTap,
       color: AppColors.alerta,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 32),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      texto,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Tocá para verlas en el mapa',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ],
+      forma: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.sobreColor, size: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  texto,
+                  style: const TextStyle(
+                    color: AppColors.sobreColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: Colors.white),
-            ],
+                const SizedBox(height: 2),
+                const Text(
+                  'Tocá para verlas en el mapa',
+                  style: TextStyle(color: AppColors.sobreColor),
+                ),
+              ],
+            ),
           ),
-        ),
+          const Icon(Icons.chevron_right, color: AppColors.sobreColor),
+        ],
       ),
     );
   }
 }
 
-/// Tarjeta "Tu próximo turno". Se actualiza sola cuando el usuario se anota
-/// o sale de un turno en la pestaña Turnos.
 class _ProximoTurno extends StatelessWidget {
   const _ProximoTurno({required this.onTap});
 
@@ -212,43 +212,39 @@ class _ProximoTurno extends StatelessWidget {
           }
         }
 
-        return Card(
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    backgroundColor:
-                        usuario.esGuardiaVentana ? AppColors.ventana : AppColors.primary,
-                    foregroundColor: Colors.white,
-                    child: Icon(
-                      usuario.esGuardiaVentana ? Icons.window_outlined : Icons.directions_walk,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          titulo,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          lineas.join('\n'),
-                          style: const TextStyle(color: AppColors.textoSecundario),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right),
-                ],
+        return TarjetaTocable(
+          etiqueta: '$titulo. ${lineas.join('. ')}. Ver turnos',
+          onTap: onTap,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor:
+                    usuario.esGuardiaVentana ? AppColors.ventana : AppColors.primary,
+                foregroundColor: AppColors.sobreColor,
+                child: Icon(
+                  usuario.esGuardiaVentana ? Icons.window_outlined : Icons.directions_walk,
+                ),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      lineas.join('\n'),
+                      style: const TextStyle(color: AppColors.textoSecundario),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right),
+            ],
           ),
         );
       },
