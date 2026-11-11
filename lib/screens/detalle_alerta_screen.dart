@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../data/sesion.dart';
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
-import '../widgets/chip_estado.dart';
 import '../widgets/aviso.dart';
+import '../widgets/chip_estado.dart';
 import '../widgets/dialogo_911.dart';
 import '../widgets/mapa_simulado.dart';
 
@@ -39,6 +39,7 @@ class DetalleAlertaScreen extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Semantics(
+              container: true,
               image: true,
               label: 'Mapa con la ubicación aproximada de la alerta: ${alerta.direccion}',
               child: ExcludeSemantics(

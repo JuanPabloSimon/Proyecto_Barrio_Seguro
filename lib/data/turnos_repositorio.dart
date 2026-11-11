@@ -8,9 +8,21 @@ import 'datos_demo.dart';
 /// Avisa a las pantallas cuando algo cambia (ChangeNotifier).
 class TurnosRepositorio extends ChangeNotifier {
   TurnosRepositorio(List<Turno> iniciales) {
-    for (final turno in iniciales) {
+    _cargar(iniciales);
+  }
+
+  void _cargar(List<Turno> turnos) {
+    for (final turno in turnos) {
       _turnos[_clave(turno.fecha, turno.franja)] = turno;
     }
+  }
+
+  /// Vuelve a los turnos de ejemplo. Lo usan los tests para que cada uno
+  /// arranque del mismo estado aunque otro se haya anotado en un turno.
+  void reiniciar() {
+    _turnos.clear();
+    _cargar(turnosDemo());
+    notifyListeners();
   }
 
   static const maxTurnosPorMes = 2;
