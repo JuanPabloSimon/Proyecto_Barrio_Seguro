@@ -152,7 +152,7 @@ const alertasDemo = <Alerta>[
     direccion: 'Los Olmos 300',
     hace: 'Hace 3 días',
     estado: EstadoAlerta.resuelta,
-    posicion: Offset(0.48, 0.85),
+    posicion: Offset(0.12, 0.80),
     icono: Icons.hearing,
     reportadaPor: 'rosa',
   ),

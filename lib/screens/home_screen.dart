@@ -37,7 +37,7 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 130),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 140),
         children: [
           if (activas > 0) ...[
             _BannerAlertas(
@@ -78,13 +78,17 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => mostrarDialogo911(context),
-            icon: const Icon(Icons.phone),
-            label: const Text('Llamar al 911'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.emergencia,
-              side: const BorderSide(color: AppColors.emergencia, width: 1.5),
+          // Con el ancho de su texto: el SOS tiene que ser el botón más grande.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => mostrarDialogo911(context),
+              icon: const Icon(Icons.phone),
+              label: const Text('Llamar al 911'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.emergencia,
+                side: const BorderSide(color: AppColors.emergencia, width: 1.5),
+              ),
             ),
           ),
           const SizedBox(height: 24),

@@ -3,116 +3,67 @@ import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 
-/// Botón SOS: hay que mantenerlo presionado [duracion] para enviar la alerta.
-/// Un anillo muestra el progreso; si se suelta antes, se cancela.
-class BotonSos extends StatefulWidget {
-  const BotonSos({super.key, required this.onActivado});
+/// Botón SOS flotante. Un solo toque abre la pantalla de confirmación,
+/// donde se envía la alerta con otro toque: es lo más fácil para personas
+/// mayores (no exige mantener el dedo apretado) y evita envíos accidentales.
+///
+/// Es el botón más grande de las pantallas principales (mínimo 184x88 dp)
+/// y crece con el tamaño de texto del sistema.
+class BotonSos extends StatelessWidget {
+  const BotonSos({super.key, required this.onPressed});
 
-  static const duracion = Duration(seconds: 3);
+  static const anchoMinimo = 184.0;
+  static const altoMinimo = 88.0;
 
-  final VoidCallback onActivado;
+  final VoidCallback onPressed;
 
-  @override
-  State<BotonSos> createState() => _BotonSosState();
-}
-
-class _BotonSosState extends State<BotonSos> with SingleTickerProviderStateMixin {
-  late final AnimationController _progreso = AnimationController(
-    vsync: this,
-    duration: BotonSos.duracion,
-    reverseDuration: const Duration(milliseconds: 250),
-  )..addStatusListener(_alCambiarEstado);
-
-  @override
-  void dispose() {
-    _progreso.dispose();
-    super.dispose();
-  }
-
-  void _alCambiarEstado(AnimationStatus estado) {
-    if (estado != AnimationStatus.completed) return;
-    HapticFeedback.heavyImpact();
-    _progreso.reset();
-    widget.onActivado();
-  }
-
-  void _presionar() {
-    HapticFeedback.selectionClick();
-    _progreso.forward(from: 0);
-  }
-
-  void _soltar() {
-    if (!_progreso.isAnimating || _progreso.status != AnimationStatus.forward) return;
-    _progreso.reverse();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Mantené presionado SOS durante 3 segundos para enviar la alerta'),
-        ),
-      );
+  void _tocar() {
+    HapticFeedback.mediumImpact();
+    onPressed();
   }
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      container: true,
       button: true,
-      label: 'SOS. Mantené presionado 3 segundos para enviar una alerta',
-      child: Listener(
-        onPointerDown: (_) => _presionar(),
-        onPointerUp: (_) => _soltar(),
-        onPointerCancel: (_) => _soltar(),
-        child: AnimatedBuilder(
-          animation: _progreso,
-          builder: (context, _) {
-            return SizedBox(
-              width: 92,
-              height: 92,
-              child: Stack(
-                alignment: Alignment.center,
+      label: 'SOS. Pedir ayuda a los vecinos',
+      onTap: _tocar,
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.emergencia,
+        elevation: 6,
+        shape: const StadiumBorder(
+          side: BorderSide(color: AppColors.superficie, width: 4),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _tocar,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minWidth: anchoMinimo,
+              minHeight: altoMinimo,
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
-                    width: 92,
-                    height: 92,
-                    child: CircularProgressIndicator(
-                      value: _progreso.value,
-                      strokeWidth: 6,
-                      color: AppColors.emergencia,
-                      backgroundColor: Colors.transparent,
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: 1 - 0.08 * _progreso.value,
-                    child: Container(
-                      width: 74,
-                      height: 74,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.emergencia,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        'SOS',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                  Icon(Icons.campaign, color: AppColors.sobreColor, size: 34),
+                  SizedBox(width: 10),
+                  Text(
+                    'SOS',
+                    style: TextStyle(
+                      color: AppColors.sobreColor,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );

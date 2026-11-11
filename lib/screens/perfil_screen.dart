@@ -31,6 +31,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('¿Cerrar sesión?'),
         content: const Text('Vas a dejar de recibir alertas hasta que vuelvas a ingresar.'),
+        actionsOverflowButtonSpacing: 8,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -60,7 +61,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Mi perfil')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
         children: [
           const SizedBox(height: 8),
           Center(

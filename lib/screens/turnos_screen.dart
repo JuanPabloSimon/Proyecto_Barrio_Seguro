@@ -7,7 +7,7 @@ import '../models/turno.dart';
 import '../models/vecino.dart';
 import '../theme/app_colors.dart';
 import '../utils/fechas.dart';
-import '../widgets/calendario_mes.dart';
+import '../widgets/selector_dia.dart';
 
 class TurnosScreen extends StatefulWidget {
   const TurnosScreen({super.key});
@@ -68,7 +68,7 @@ class _TurnosScreenState extends State<TurnosScreen> {
           final mios = turnosRepositorio.turnosDe(usuario, mesDeTurnos);
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
             children: [
               SegmentedButton<bool>(
                 segments: const [
@@ -99,25 +99,28 @@ class _TurnosScreenState extends State<TurnosScreen> {
     return [
       Card(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 12),
-                child: Text(
-                  mesYAnio(mesDeTurnos),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-              ),
-              CalendarioMes(
+              SelectorDia(
                 mes: mesDeTurnos,
                 seleccionado: _dia,
                 onSeleccionar: (dia) => setState(() => _dia = dia),
                 marcaDe: (dia) => _marcaDe(dia, usuario),
+                iconoPropio: usuario.esGuardiaVentana
+                    ? Icons.window_outlined
+                    : Icons.directions_walk,
               ),
               const SizedBox(height: 12),
-              const _LeyendaCalendario(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _LeyendaCalendario(
+                  iconoPropio: usuario.esGuardiaVentana
+                      ? Icons.window_outlined
+                      : Icons.directions_walk,
+                ),
+              ),
             ],
           ),
         ),
@@ -155,9 +158,11 @@ class _TurnosScreenState extends State<TurnosScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () => setState(() => _soloMios = false),
-                  child: const Text('Elegir en el calendario'),
+                Center(
+                  child: FilledButton(
+                    onPressed: () => setState(() => _soloMios = false),
+                    child: const Text('Elegir en el calendario'),
+                  ),
                 ),
               ],
             ),
@@ -229,7 +234,9 @@ class _ResumenCupo extends StatelessWidget {
 }
 
 class _LeyendaCalendario extends StatelessWidget {
-  const _LeyendaCalendario();
+  const _LeyendaCalendario({required this.iconoPropio});
+
+  final IconData iconoPropio;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +245,7 @@ class _LeyendaCalendario extends StatelessWidget {
           children: [
             muestra,
             const SizedBox(width: 6),
-            Text(texto, style: const TextStyle(fontSize: 14)),
+            Flexible(child: Text(texto, style: const TextStyle(fontSize: 14))),
           ],
         );
 
@@ -248,25 +255,18 @@ class _LeyendaCalendario extends StatelessWidget {
       children: [
         item(
           Container(
-            width: 6,
-            height: 6,
+            width: 8,
+            height: 8,
             decoration: const BoxDecoration(
-              color: AppColors.textoSecundario,
+              color: AppColors.texto,
               shape: BoxShape.circle,
             ),
           ),
-          'Días con turnos',
+          'Días con turnos de otros vecinos',
         ),
         item(
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: AppColors.primarioSuave,
-              shape: BoxShape.circle,
-            ),
-          ),
-          'Tus turnos',
+          Icon(iconoPropio, size: 18, color: AppColors.texto),
+          'Días con turno tuyo',
         ),
       ],
     );
@@ -359,23 +359,30 @@ class _TarjetaFranja extends StatelessWidget {
             else
               _GuardiaVentana(vecino: guardia, esUsuario: guardia.id == usuario.id),
             const SizedBox(height: 14),
+            // Los botones ocupan el ancho de su texto, no toda la tarjeta,
+            // para que el SOS siga siendo el botón más grande de la pantalla.
             if (esMio)
-              OutlinedButton(
-                onPressed: () => onSalir(turno),
-                child: const Text('Salir del turno'),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton(
+                  onPressed: () => onSalir(turno),
+                  child: const Text('Salir del turno'),
+                ),
               )
             else ...[
-              FilledButton(
-                onPressed: motivo == null ? () => onAnotar(turno) : null,
-                child: Text(
-                  usuario.esGuardiaVentana ? 'Anotarme como guardia de ventana' : 'Anotarme',
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton(
+                  onPressed: motivo == null ? () => onAnotar(turno) : null,
+                  child: Text(
+                    usuario.esGuardiaVentana ? 'Anotarme como guardia de ventana' : 'Anotarme',
+                  ),
                 ),
               ),
               if (motivo != null) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   motivo,
-                  textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textoSecundario, fontSize: 14),
                 ),
               ],

@@ -19,7 +19,7 @@ class MisAlertasScreen extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.all(32),
                 child: Text(
-                  'Todavía no reportaste alertas. Si ves algo raro, mantené presionado el botón SOS.',
+                  'Todavía no reportaste alertas. Si ves algo raro, tocá el botón SOS.',
                   textAlign: TextAlign.center,
                 ),
               ),

@@ -83,7 +83,7 @@ class DetalleAlertaScreen extends StatelessWidget {
               style: FilledButton.styleFrom(backgroundColor: AppColors.resuelta),
               child: const Text('Marcar como resuelta'),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
             TextButton(
               onPressed: () => _cerrarCon(context, 'Cancelaste la alerta: falsa alarma'),
               child: const Text('Fue una falsa alarma'),

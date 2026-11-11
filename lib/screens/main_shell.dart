@@ -9,7 +9,7 @@ import 'turnos_screen.dart';
 
 /// Contenedor principal: barra de navegación inferior + botón SOS
 /// visible en las cuatro pantallas principales.
-/// El SOS se activa manteniéndolo presionado 3 segundos.
+/// El SOS abre una pantalla de confirmación antes de enviar la alerta.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -48,7 +48,7 @@ class _MainShellState extends State<MainShell> {
           PerfilScreen(onIrA: _irA),
         ],
       ),
-      floatingActionButton: BotonSos(onActivado: _abrirSos),
+      floatingActionButton: BotonSos(onPressed: _abrirSos),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indice,
