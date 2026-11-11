@@ -91,7 +91,7 @@ class _CeldaDia extends StatelessWidget {
     if (seleccionada) {
       fondo = AppColors.primary;
     } else if (esMia) {
-      fondo = AppColors.primary.withValues(alpha: 0.14);
+      fondo = AppColors.primarioSuave;
     } else {
       fondo = Colors.transparent;
     }

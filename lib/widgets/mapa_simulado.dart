@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
+import 'pin_alerta.dart';
 
 /// Mapa dibujado a mano para el prototipo. En el Sprint 2 se reemplaza
 /// por la API de mapas real, manteniendo los mismos pines y el radio.
@@ -13,7 +14,7 @@ class MapaSimulado extends StatelessWidget {
     required this.alertas,
     this.onAlertaTap,
     this.mostrarRadio = true,
-    this.tamanioPin = 36,
+    this.tamanioPin = 32,
   });
 
   final List<Alerta> alertas;
@@ -42,39 +43,32 @@ class MapaSimulado extends StatelessWidget {
                     height: radio * 2,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.radio.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: AppColors.radio.withValues(alpha: 0.6),
-                        width: 2,
-                      ),
+                      color: AppColors.radio.withValues(alpha: 0.10),
+                      border: Border.all(color: AppColors.radio, width: 2),
                     ),
                   ),
                 ),
               Positioned(
-                left: ancho / 2 - 9,
-                top: alto / 2 - 9,
+                left: ancho / 2 - 13,
+                top: alto / 2 - 13,
                 child: Container(
-                  width: 18,
-                  height: 18,
+                  width: 26,
+                  height: 26,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.radio,
-                    border: Border.all(color: Colors.white, width: 3),
+                    color: AppColors.superficie,
+                    border: Border.all(color: AppColors.radio, width: 3),
                   ),
+                  child: const Icon(Icons.my_location, size: 14, color: AppColors.radio),
                 ),
               ),
               for (final alerta in alertas)
                 Positioned(
                   left: alerta.posicion.dx * ancho - tamanioPin / 2,
-                  top: alerta.posicion.dy * alto - tamanioPin,
+                  top: alerta.posicion.dy * alto - tamanioPin / 2,
                   child: GestureDetector(
                     onTap: onAlertaTap == null ? null : () => onAlertaTap!(alerta),
-                    child: Icon(
-                      Icons.location_on,
-                      size: tamanioPin,
-                      color: alerta.estado.color,
-                      shadows: const [Shadow(color: Colors.black26, blurRadius: 4)],
-                    ),
+                    child: PinAlerta(estado: alerta.estado, diametro: tamanioPin),
                   ),
                 ),
             ],
@@ -90,7 +84,7 @@ class _CallesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE9ECE6));
+    canvas.drawRect(Offset.zero & size, Paint()..color = AppColors.mapaFondo);
 
     final calle = Paint()
       ..color = Colors.white

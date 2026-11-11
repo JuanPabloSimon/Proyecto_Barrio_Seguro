@@ -2,16 +2,48 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
+/// Cada estado tiene texto, ícono y color: la información nunca depende
+/// solo del color.
 enum EstadoAlerta {
-  activa('Activa', 'Activas', AppColors.emergencia),
-  enAtencion('En atención', 'En atención', AppColors.alerta),
-  resuelta('Resuelta', 'Resueltas', AppColors.resuelta);
+  activa(
+    'Activa',
+    'Activas',
+    Icons.priority_high,
+    AppColors.emergencia,
+    AppColors.emergenciaSuave,
+  ),
+  enAtencion(
+    'En atención',
+    'En atención',
+    Icons.directions_run,
+    AppColors.alerta,
+    AppColors.alertaSuave,
+  ),
+  resuelta(
+    'Resuelta',
+    'Resueltas',
+    Icons.check,
+    AppColors.resuelta,
+    AppColors.resueltaSuave,
+  );
 
-  const EstadoAlerta(this.etiqueta, this.etiquetaFiltro, this.color);
+  const EstadoAlerta(
+    this.etiqueta,
+    this.etiquetaFiltro,
+    this.icono,
+    this.color,
+    this.colorSuave,
+  );
 
   final String etiqueta;
   final String etiquetaFiltro;
+  final IconData icono;
+
+  /// Color sólido: lleva texto e íconos blancos encima.
   final Color color;
+
+  /// Fondo suave para íconos del color sólido.
+  final Color colorSuave;
 }
 
 class Alerta {

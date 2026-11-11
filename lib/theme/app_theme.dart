@@ -6,16 +6,24 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData get light {
+    // Los colores que llevan texto se fijan explícitamente para que su
+    // contraste sea el verificado en AppColors.paresDeContraste.
     final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       primary: AppColors.primary,
+      onPrimary: AppColors.sobreColor,
       error: AppColors.emergencia,
+      onError: AppColors.sobreColor,
       surface: AppColors.superficie,
+      onSurface: AppColors.texto,
+      onSurfaceVariant: AppColors.textoSecundario,
+      outline: AppColors.bordeCampo,
+      outlineVariant: AppColors.borde,
     );
 
     final bordeCampo = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.borde),
+      borderSide: const BorderSide(color: AppColors.bordeCampo),
     );
 
     return ThemeData(

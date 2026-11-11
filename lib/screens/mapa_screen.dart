@@ -5,6 +5,7 @@ import '../models/alerta.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chip_estado.dart';
 import '../widgets/mapa_simulado.dart';
+import '../widgets/pin_alerta.dart';
 import 'detalle_alerta_screen.dart';
 
 class MapaScreen extends StatefulWidget {
@@ -67,7 +68,9 @@ class _MapaScreenState extends State<MapaScreen> {
       child: ChoiceChip(
         label: Text(texto),
         selected: seleccionada,
-        showCheckmark: false,
+        // El check marca la opción elegida además del color.
+        showCheckmark: true,
+        checkmarkColor: AppColors.sobreColor,
         onSelected: (_) => setState(() => _filtro = valor),
         selectedColor: AppColors.primary,
         backgroundColor: AppColors.superficie,
@@ -75,7 +78,7 @@ class _MapaScreenState extends State<MapaScreen> {
           color: seleccionada ? Colors.white : AppColors.texto,
           fontWeight: FontWeight.w600,
         ),
-        shape: const StadiumBorder(side: BorderSide(color: AppColors.borde)),
+        shape: const StadiumBorder(side: BorderSide(color: AppColors.bordeCampo)),
       ),
     );
   }
@@ -120,23 +123,15 @@ class _Leyenda extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget fila(Color color, String texto, {bool circulo = false}) {
+    Widget fila(Widget muestra, String texto) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: circulo ? color.withValues(alpha: 0.15) : color,
-                border: circulo ? Border.all(color: color, width: 2) : null,
-              ),
-            ),
+            muestra,
             const SizedBox(width: 8),
-            Text(texto, style: const TextStyle(fontSize: 12)),
+            Text(texto, style: const TextStyle(fontSize: 14)),
           ],
         ),
       );
@@ -145,14 +140,27 @@ class _Leyenda extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: AppColors.superficie,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final estado in EstadoAlerta.values) fila(estado.color, estado.etiqueta),
-          fila(AppColors.radio, 'Tu radio', circulo: true),
+          for (final estado in EstadoAlerta.values)
+            fila(PinAlerta(estado: estado, diametro: 22), estado.etiqueta),
+          fila(
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.superficie,
+                border: Border.all(color: AppColors.radio, width: 3),
+              ),
+              child: const Icon(Icons.my_location, size: 12, color: AppColors.radio),
+            ),
+            'Vos y tu radio',
+          ),
         ],
       ),
     );

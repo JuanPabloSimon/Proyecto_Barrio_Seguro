@@ -16,7 +16,7 @@ class TarjetaAlerta extends StatelessWidget {
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: CircleAvatar(
-          backgroundColor: alerta.estado.color.withValues(alpha: 0.12),
+          backgroundColor: alerta.estado.colorSuave,
           child: Icon(alerta.icono, color: alerta.estado.color),
         ),
         title: Text(
