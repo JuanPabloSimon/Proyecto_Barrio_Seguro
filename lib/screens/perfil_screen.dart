@@ -99,7 +99,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: colorRol.withValues(alpha: 0.1),
+                color: usuario.esGuardiaVentana
+                    ? AppColors.ventanaSuave
+                    : AppColors.primarioSuave,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(

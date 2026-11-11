@@ -76,7 +76,8 @@ class _TurnosScreenState extends State<TurnosScreen> {
                   ButtonSegment(value: true, label: Text('Mis turnos')),
                 ],
                 selected: {_soloMios},
-                showSelectedIcon: false,
+                // El ícono de check marca la opción elegida además del color.
+                showSelectedIcon: true,
                 onSelectionChanged: (seleccion) =>
                     setState(() => _soloMios = seleccion.first),
               ),
@@ -197,7 +198,7 @@ class _ResumenCupo extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: color.withValues(alpha: 0.12),
+              backgroundColor: esGuardia ? AppColors.ventanaSuave : AppColors.primarioSuave,
               foregroundColor: color,
               child: Icon(esGuardia ? Icons.window_outlined : Icons.directions_walk),
             ),
@@ -215,7 +216,7 @@ class _ResumenCupo extends StatelessWidget {
                     esGuardia
                         ? 'Participás como guardia de ventana: vigilás desde tu casa, sin salir a patrullar.'
                         : 'Participás en el patrullaje. Máximo $maximo turnos por mes.',
-                    style: const TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+                    style: const TextStyle(color: AppColors.textoSecundario, fontSize: 14),
                   ),
                 ],
               ),
@@ -237,7 +238,7 @@ class _LeyendaCalendario extends StatelessWidget {
           children: [
             muestra,
             const SizedBox(width: 6),
-            Text(texto, style: const TextStyle(fontSize: 12)),
+            Text(texto, style: const TextStyle(fontSize: 14)),
           ],
         );
 
@@ -261,7 +262,7 @@ class _LeyendaCalendario extends StatelessWidget {
             width: 16,
             height: 16,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.14),
+              color: AppColors.primarioSuave,
               shape: BoxShape.circle,
             ),
           ),
@@ -321,7 +322,11 @@ class _TarjetaFranja extends StatelessWidget {
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                 ),
-                if (esMio) const _Etiqueta(texto: 'Tu turno', color: AppColors.primary),
+                if (esMio) const _Etiqueta(
+                    texto: 'Tu turno',
+                    color: AppColors.primary,
+                    fondo: AppColors.primarioSuave,
+                  ),
               ],
             ),
             const SizedBox(height: 10),
@@ -371,7 +376,7 @@ class _TarjetaFranja extends StatelessWidget {
                 Text(
                   motivo,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+                  style: const TextStyle(color: AppColors.textoSecundario, fontSize: 14),
                 ),
               ],
             ],
@@ -478,9 +483,9 @@ class _GuardiaVentana extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.ventana.withValues(alpha: 0.08),
+        color: AppColors.ventanaSuave,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.ventana.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.ventana),
       ),
       child: Row(
         children: [
@@ -496,7 +501,7 @@ class _GuardiaVentana extends StatelessWidget {
                 ),
                 Text(
                   'Guardia de ventana, mayor de ${Vecino.edadGuardiaVentana} años',
-                  style: const TextStyle(color: AppColors.ventana, fontSize: 13),
+                  style: const TextStyle(color: AppColors.ventana, fontSize: 14),
                 ),
               ],
             ),
@@ -525,7 +530,7 @@ class _NombreVecino extends StatelessWidget {
         children: [
           const Icon(Icons.directions_walk, size: 14, color: AppColors.textoSecundario),
           const SizedBox(width: 4),
-          Text(nombre, style: const TextStyle(fontSize: 13)),
+          Text(nombre, style: const TextStyle(fontSize: 14)),
         ],
       ),
     );
@@ -543,7 +548,7 @@ class _Subtitulo extends StatelessWidget {
       texto,
       style: const TextStyle(
         color: AppColors.textoSecundario,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -551,22 +556,23 @@ class _Subtitulo extends StatelessWidget {
 }
 
 class _Etiqueta extends StatelessWidget {
-  const _Etiqueta({required this.texto, required this.color});
+  const _Etiqueta({required this.texto, required this.color, required this.fondo});
 
   final String texto;
   final Color color;
+  final Color fondo;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: fondo,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         texto,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold),
       ),
     );
   }

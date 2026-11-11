@@ -166,9 +166,9 @@ class _AvisoRol extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: esGuardia ? AppColors.ventanaSuave : AppColors.primarioSuave,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
