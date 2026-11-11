@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../utils/fechas.dart';
 import '../widgets/dialogo_911.dart';
 import '../widgets/mapa_simulado.dart';
+import '../widgets/objetivo_tactil.dart';
 import '../widgets/tarjeta_alerta.dart';
 import '../widgets/tarjeta_tocable.dart';
 import 'detalle_alerta_screen.dart';
@@ -96,15 +97,17 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Row(
+          // Wrap: con texto grande el botón baja a la línea siguiente.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: ObjetivoTactil.separacion,
             children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    'Alertas cerca tuyo',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+              Semantics(
+                header: true,
+                child: const Text(
+                  'Alertas cerca tuyo',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
               TextButton(

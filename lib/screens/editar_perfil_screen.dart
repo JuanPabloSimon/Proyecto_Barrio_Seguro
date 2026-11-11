@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sesion.dart';
 import '../utils/fechas.dart';
+import '../widgets/aviso.dart';
 
 class EditarPerfilScreen extends StatelessWidget {
   const EditarPerfilScreen({super.key});
@@ -11,7 +12,7 @@ class EditarPerfilScreen extends StatelessWidget {
     final usuario = Sesion.usuario;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Editar datos personales')),
+      appBar: AppBar(title: const Text('Editar mis datos')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -26,7 +27,7 @@ class EditarPerfilScreen extends StatelessWidget {
             decoration: const InputDecoration(
               labelText: 'Fecha de nacimiento',
               helperText: 'Define tu rol en los turnos. Para corregirla, contactá a la comisión.',
-              helperMaxLines: 2,
+              helperMaxLines: 4,
             ),
           ),
           const SizedBox(height: 16),
@@ -52,11 +53,9 @@ class EditarPerfilScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: FilledButton(
             onPressed: () {
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.of(context).pop();
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Datos actualizados')),
-              );
+              final anterior = Navigator.of(context);
+              anterior.pop();
+              mostrarAviso(anterior.context, 'Datos actualizados');
             },
             child: const Text('Guardar cambios'),
           ),

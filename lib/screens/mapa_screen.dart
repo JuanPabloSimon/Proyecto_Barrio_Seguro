@@ -24,16 +24,20 @@ class _MapaScreenState extends State<MapaScreen> {
       context: context,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (ctx) => Padding(
+      // Con texto grande la hoja puede crecer y desplazarse.
+      isScrollControlled: true,
+      builder: (ctx) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 ChipEstado(estado: alerta.estado),
-                const Spacer(),
                 Text(
                   alerta.hace,
                   style: const TextStyle(color: AppColors.textoSecundario),
@@ -104,19 +108,20 @@ class _MapaScreenState extends State<MapaScreen> {
               ],
             ),
           ),
+          // La leyenda va arriba del mapa y no encima: con texto grande se
+          // reacomoda en varias líneas sin tapar los pines.
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _Leyenda(),
+          ),
           Expanded(
-            child: Stack(
-              children: [
-                Semantics(
-                  container: true,
-                  explicitChildNodes: true,
-                  label: visibles.isEmpty
-                      ? 'Mapa sin alertas para este filtro'
-                      : 'Mapa con ${visibles.length} alertas. Tocá un pin para ver el resumen',
-                  child: MapaSimulado(alertas: visibles, onAlertaTap: _mostrarResumen),
-                ),
-                const Positioned(left: 12, top: 12, child: _Leyenda()),
-              ],
+            child: Semantics(
+              container: true,
+              explicitChildNodes: true,
+              label: visibles.isEmpty
+                  ? 'Mapa sin alertas para este filtro'
+                  : 'Mapa con ${visibles.length} alertas. Tocá un pin para ver el resumen',
+              child: MapaSimulado(alertas: visibles, onAlertaTap: _mostrarResumen),
             ),
           ),
         ],
@@ -130,46 +135,37 @@ class _Leyenda extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget fila(Widget muestra, String texto) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            muestra,
-            const SizedBox(width: 8),
-            Text(texto, style: const TextStyle(fontSize: 14)),
-          ],
-        ),
+    Widget item(Widget muestra, String texto) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          muestra,
+          const SizedBox(width: 6),
+          Flexible(child: Text(texto, style: const TextStyle(fontSize: 14))),
+        ],
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.superficie,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final estado in EstadoAlerta.values)
-            fila(PinAlerta(estado: estado, diametro: 22), estado.etiqueta),
-          fila(
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.superficie,
-                border: Border.all(color: AppColors.radio, width: 3),
-              ),
-              child: const Icon(Icons.my_location, size: 12, color: AppColors.radio),
+    return Wrap(
+      spacing: 16,
+      runSpacing: 6,
+      children: [
+        for (final estado in EstadoAlerta.values)
+          item(PinAlerta(estado: estado, diametro: 22), estado.etiqueta),
+        item(
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.superficie,
+              border: Border.all(color: AppColors.radio, width: 3),
             ),
-            'Vos y tu radio',
+            child: const Icon(Icons.my_location, size: 12, color: AppColors.radio),
           ),
-        ],
-      ),
+          'Vos y tu radio',
+        ),
+      ],
     );
   }
 }

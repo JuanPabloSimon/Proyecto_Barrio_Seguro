@@ -7,6 +7,7 @@ import '../models/turno.dart';
 import '../models/vecino.dart';
 import '../theme/app_colors.dart';
 import '../utils/fechas.dart';
+import '../widgets/aviso.dart';
 import '../widgets/selector_dia.dart';
 import '../widgets/tarjeta_tocable.dart';
 
@@ -28,11 +29,7 @@ class _TurnosScreenState extends State<TurnosScreen> {
     _dia = mios.isNotEmpty ? mios.first.fecha : mesDeTurnos;
   }
 
-  void _avisar(String mensaje) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(mensaje)));
-  }
+  void _avisar(String mensaje) => mostrarAviso(context, mensaje);
 
   void _anotar(Turno turno) {
     turnosRepositorio.anotar(Sesion.usuario, turno.fecha, turno.franja);
@@ -543,7 +540,7 @@ class _NombreVecino extends StatelessWidget {
         children: [
           const Icon(Icons.directions_walk, size: 14, color: AppColors.textoSecundario),
           const SizedBox(width: 4),
-          Text(nombre, style: const TextStyle(fontSize: 14)),
+          Flexible(child: Text(nombre, style: const TextStyle(fontSize: 14))),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'transiciones.dart';
 
 class AppTheme {
   AppTheme._();
@@ -30,14 +31,17 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.fondo,
+      pageTransitionsTheme: transicionesAccesibles,
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.fondo,
         foregroundColor: AppColors.texto,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        // 20 sp: con el texto del sistema agrandado, Flutter escala el título
+        // hasta 1,34x; así los títulos siguen entrando en una línea.
         titleTextStyle: TextStyle(
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
           color: AppColors.texto,
         ),
