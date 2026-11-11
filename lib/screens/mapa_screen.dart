@@ -75,7 +75,7 @@ class _MapaScreenState extends State<MapaScreen> {
         selectedColor: AppColors.primary,
         backgroundColor: AppColors.superficie,
         labelStyle: TextStyle(
-          color: seleccionada ? Colors.white : AppColors.texto,
+          color: seleccionada ? AppColors.sobreColor : AppColors.texto,
           fontWeight: FontWeight.w600,
         ),
         shape: const StadiumBorder(side: BorderSide(color: AppColors.bordeCampo)),
@@ -107,7 +107,14 @@ class _MapaScreenState extends State<MapaScreen> {
           Expanded(
             child: Stack(
               children: [
-                MapaSimulado(alertas: visibles, onAlertaTap: _mostrarResumen),
+                Semantics(
+                  container: true,
+                  explicitChildNodes: true,
+                  label: visibles.isEmpty
+                      ? 'Mapa sin alertas para este filtro'
+                      : 'Mapa con ${visibles.length} alertas. Tocá un pin para ver el resumen',
+                  child: MapaSimulado(alertas: visibles, onAlertaTap: _mostrarResumen),
+                ),
                 const Positioned(left: 12, top: 12, child: _Leyenda()),
               ],
             ),

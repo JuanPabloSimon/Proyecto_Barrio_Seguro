@@ -8,6 +8,7 @@ import '../models/vecino.dart';
 import '../theme/app_colors.dart';
 import '../utils/fechas.dart';
 import '../widgets/selector_dia.dart';
+import '../widgets/tarjeta_tocable.dart';
 
 class TurnosScreen extends StatefulWidget {
   const TurnosScreen({super.key});
@@ -126,9 +127,12 @@ class _TurnosScreenState extends State<TurnosScreen> {
         ),
       ),
       const SizedBox(height: 20),
-      Text(
-        fechaLarga(_dia),
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+      Semantics(
+        header: true,
+        child: Text(
+          fechaLarga(_dia),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
       ),
       const SizedBox(height: 10),
       for (final franja in Franja.values)
@@ -418,62 +422,64 @@ class _MiTurno extends StatelessWidget {
       }
     }
 
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
+    final etiqueta = '${fechaLarga(turno.fecha)}, ${turno.franja.horario}. '
+        '${lineas.join('. ')}. Ver en el calendario';
+
+    return TarjetaTocable(
+      etiqueta: etiqueta,
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          // Ancho mínimo (no fijo) para que la fecha crezca con el texto.
+          Container(
+            constraints: const BoxConstraints(minWidth: 64),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  nombreDiaCorto(turno.fecha),
+                  style: const TextStyle(color: AppColors.sobreColor),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      nombreDiaCorto(turno.fecha),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    Text(
-                      '${turno.fecha.day}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      nombreMes(turno.fecha.month).substring(0, 3),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ],
+                Text(
+                  '${turno.fecha.day}',
+                  style: const TextStyle(
+                    color: AppColors.sobreColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      turno.franja.horario,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      lineas.join('\n'),
-                      style: const TextStyle(color: AppColors.textoSecundario),
-                    ),
-                  ],
+                Text(
+                  nombreMes(turno.fecha.month).substring(0, 3),
+                  style: const TextStyle(color: AppColors.sobreColor),
                 ),
-              ),
-              const Icon(Icons.chevron_right),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  turno.franja.horario,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  lineas.join('\n'),
+                  style: const TextStyle(color: AppColors.textoSecundario),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right),
+        ],
       ),
     );
   }
