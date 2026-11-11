@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
+import 'objetivo_tactil.dart';
 import 'pin_alerta.dart';
 
 /// Mapa dibujado a mano para el prototipo. En el Sprint 2 se reemplaza
@@ -63,14 +64,25 @@ class MapaSimulado extends StatelessWidget {
                 ),
               ),
               for (final alerta in alertas)
-                Positioned(
-                  left: alerta.posicion.dx * ancho - tamanioPin / 2,
-                  top: alerta.posicion.dy * alto - tamanioPin / 2,
-                  child: GestureDetector(
-                    onTap: onAlertaTap == null ? null : () => onAlertaTap!(alerta),
+                if (onAlertaTap == null)
+                  Positioned(
+                    left: alerta.posicion.dx * ancho - tamanioPin / 2,
+                    top: alerta.posicion.dy * alto - tamanioPin / 2,
                     child: PinAlerta(estado: alerta.estado, diametro: tamanioPin),
+                  )
+                else
+                  // El pin se ve de [tamanioPin], pero el área táctil es de
+                  // 48 dp centrada en el mismo punto.
+                  Positioned(
+                    left: alerta.posicion.dx * ancho - ObjetivoTactil.tamanioMinimo / 2,
+                    top: alerta.posicion.dy * alto - ObjetivoTactil.tamanioMinimo / 2,
+                    child: ObjetivoTactil(
+                      etiqueta: 'Alerta: ${alerta.tipo}, ${alerta.estado.etiqueta.toLowerCase()}, '
+                          '${alerta.direccion}. Ver resumen',
+                      onTap: () => onAlertaTap!(alerta),
+                      child: PinAlerta(estado: alerta.estado, diametro: tamanioPin),
+                    ),
                   ),
-                ),
             ],
           ),
         );

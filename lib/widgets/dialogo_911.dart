@@ -11,6 +11,9 @@ Future<void> mostrarDialogo911(BuildContext context) async {
       icon: const Icon(Icons.phone_in_talk, color: AppColors.emergencia, size: 32),
       title: const Text('¿Llamar al 911?'),
       content: const Text('Se va a abrir el teléfono para llamar a emergencias.'),
+      // Si los botones no entran en una fila (texto grande), se apilan
+      // separados 8 dp.
+      actionsOverflowButtonSpacing: 8,
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
