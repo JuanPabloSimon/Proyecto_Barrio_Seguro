@@ -51,7 +51,8 @@ Future<void> abrirApp(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Lleva el elemento a la vista.
+/// Lleva el elemento a la vista. No pasarle buscadores con .first o .at():
+/// fallan si el elemento todavía no se construyó.
 ///
 /// Los ListView solo construyen lo que está cerca de la pantalla: con el
 /// texto al 200 % un botón puede ni siquiera existir todavía. En ese caso
@@ -127,7 +128,9 @@ final pantallas = <Pantalla>[
   }),
   Pantalla('Detalle de alerta', (tester) async {
     await ingresar(tester);
-    await tocar(tester, find.byType(TarjetaAlerta).first);
+    // Un buscador concreto (no .first): .first falla si la tarjeta todavía
+    // no se construyó, antes de poder desplazar la lista hasta ella.
+    await tocar(tester, find.widgetWithText(TarjetaAlerta, 'Intento de robo'));
     expect(find.text('Detalle de alerta'), findsOneWidget);
   }),
   Pantalla('Turnos', (tester) => irAPestania(tester, 'Turnos')),
