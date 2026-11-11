@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import 'aviso.dart';
 
 /// Diálogo de confirmación para llamar al 911.
 /// Por ahora la llamada es simulada: solo muestra un aviso.
@@ -8,6 +9,8 @@ Future<void> mostrarDialogo911(BuildContext context) async {
   final llamar = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
+      // Con texto grande el diálogo se desplaza en vez de desbordar.
+      scrollable: true,
       icon: const Icon(Icons.phone_in_talk, color: AppColors.emergencia, size: 32),
       title: const Text('¿Llamar al 911?'),
       content: const Text('Se va a abrir el teléfono para llamar a emergencias.'),
@@ -32,8 +35,6 @@ Future<void> mostrarDialogo911(BuildContext context) async {
   );
 
   if (llamar == true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Llamada simulada: todavía no se marca el 911')),
-    );
+    mostrarAviso(context, 'Llamada simulada: todavía no se marca el 911');
   }
 }

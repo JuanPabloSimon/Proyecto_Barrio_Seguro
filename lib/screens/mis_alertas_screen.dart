@@ -13,7 +13,7 @@ class MisAlertasScreen extends StatelessWidget {
     final mias = alertasDemo.where((a) => a.reportadaPor == Sesion.usuario.id).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis alertas reportadas')),
+      appBar: AppBar(title: const Text('Mis alertas')),
       body: mias.isEmpty
           ? const Center(
               child: Padding(

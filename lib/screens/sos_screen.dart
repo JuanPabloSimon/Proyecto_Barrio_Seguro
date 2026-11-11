@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../widgets/aviso.dart';
 import '../widgets/dialogo_911.dart';
 
 /// Se abre al tocar el botón SOS. Primero pide confirmación con un botón
@@ -30,11 +31,9 @@ class _SosScreenState extends State<SosScreen> {
   }
 
   void _cerrar([String? mensaje]) {
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    if (mensaje != null) {
-      messenger.showSnackBar(SnackBar(content: Text(mensaje)));
-    }
+    final anterior = Navigator.of(context);
+    anterior.pop();
+    if (mensaje != null) mostrarAviso(anterior.context, mensaje);
   }
 
   @override

@@ -100,7 +100,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               hintText: 'dd/mm/aaaa',
               prefixIcon: const Icon(Icons.cake_outlined),
               errorText: errorFecha,
-              errorMaxLines: 3,
+              errorMaxLines: 4,
             ),
           ),
           if (_fechaNacimiento != null) ...[
@@ -142,7 +142,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
             decoration: InputDecoration(
               labelText: 'Código de la comisión vecinal',
               helperText: 'Lo entrega la comisión para validar que vivís en el barrio.',
-              helperMaxLines: 2,
+              helperMaxLines: 4,
               prefixIcon: Icon(Icons.verified_user_outlined),
             ),
           ),

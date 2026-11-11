@@ -4,6 +4,7 @@ import '../data/sesion.dart';
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chip_estado.dart';
+import '../widgets/aviso.dart';
 import '../widgets/dialogo_911.dart';
 import '../widgets/mapa_simulado.dart';
 
@@ -19,9 +20,10 @@ class DetalleAlertaScreen extends StatelessWidget {
   }
 
   void _cerrarCon(BuildContext context, String mensaje) {
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    messenger.showSnackBar(SnackBar(content: Text(mensaje)));
+    // El aviso se muestra en la pantalla anterior, que es la que queda.
+    final anterior = Navigator.of(context);
+    anterior.pop();
+    mostrarAviso(anterior.context, mensaje);
   }
 
   @override
@@ -30,7 +32,7 @@ class DetalleAlertaScreen extends StatelessWidget {
     final puedeCerrarla = esMia && alerta.estado != EstadoAlerta.resuelta;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle de la alerta')),
+      appBar: AppBar(title: const Text('Detalle de alerta')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
@@ -45,10 +47,12 @@ class DetalleAlertaScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ChipEstado(estado: alerta.estado),
-              const SizedBox(width: 8),
               Text(alerta.hace, style: const TextStyle(color: AppColors.textoSecundario)),
             ],
           ),

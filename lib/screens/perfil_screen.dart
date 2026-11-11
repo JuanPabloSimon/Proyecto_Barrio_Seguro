@@ -29,6 +29,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('¿Cerrar sesión?'),
         content: const Text('Vas a dejar de recibir alertas hasta que vuelvas a ingresar.'),
         actionsOverflowButtonSpacing: 8,
@@ -70,12 +71,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
               child: CircleAvatar(
                 radius: 44,
                 backgroundColor: AppColors.primary,
-                child: Text(
-                  usuario.iniciales,
-                  style: const TextStyle(
-                    color: AppColors.sobreColor,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                // Las iniciales se achican si no entran en el círculo.
+                child: FittedBox(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      usuario.iniciales,
+                      style: const TextStyle(
+                        color: AppColors.sobreColor,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -117,9 +124,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     color: colorRol,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Turnos: ${usuario.rol.toLowerCase()}',
-                    style: TextStyle(color: colorRol, fontWeight: FontWeight.w700),
+                  Flexible(
+                    child: Text(
+                      'Turnos: ${usuario.rol.toLowerCase()}',
+                      style: TextStyle(color: colorRol, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
