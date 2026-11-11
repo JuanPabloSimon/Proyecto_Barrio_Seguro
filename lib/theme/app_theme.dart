@@ -86,6 +86,12 @@ class AppTheme {
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
       ),
+      // Fondos blancos en diálogos y hojas: el texto secundario mantiene su
+      // contraste verificado (sobre los grises derivados quedaba al límite).
+      dialogTheme: const DialogThemeData(backgroundColor: AppColors.superficie),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.superficie,
+      ),
     );
   }
 }

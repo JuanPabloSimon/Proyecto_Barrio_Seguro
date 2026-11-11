@@ -6,4 +6,7 @@ class Sesion {
   Sesion._();
 
   static Vecino usuario = vecinoClara;
+
+  /// Vuelve al usuario de ejemplo. Lo usan los tests.
+  static void reiniciar() => usuario = vecinoClara;
 }

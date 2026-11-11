@@ -107,6 +107,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
             const SizedBox(height: 12),
             // Se anuncia al aparecer: el rol depende de la fecha ingresada.
             Semantics(
+              container: true,
               liveRegion: true,
               child: _AvisoRol(edad: calcularEdad(_fechaNacimiento!)),
             ),
