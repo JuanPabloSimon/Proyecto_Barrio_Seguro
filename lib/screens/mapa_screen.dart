@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' show CameraFit, MapController;
 
+import '../data/barrio.dart';
 import '../data/datos_demo.dart';
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chip_estado.dart';
-import '../widgets/mapa_simulado.dart';
+import '../widgets/mapa_barrio.dart';
+import '../widgets/objetivo_tactil.dart';
 import '../widgets/pin_alerta.dart';
 import 'detalle_alerta_screen.dart';
 
@@ -16,8 +19,32 @@ class MapaScreen extends StatefulWidget {
 }
 
 class _MapaScreenState extends State<MapaScreen> {
+  /// Deja libre la parte de abajo del mapa, donde flota el botón SOS.
+  static const _margenMapa = EdgeInsets.fromLTRB(16, 16, 72, 120);
+
+  final _controlador = MapController();
+
   /// null = "Todas"
   EstadoAlerta? _filtro;
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  // Botones de zoom: pellizcar la pantalla es difícil para mucha gente.
+  void _cambiarZoom(double cambio) {
+    final camara = _controlador.camera;
+    final zoom = (camara.zoom + cambio).clamp(MapaBarrio.zoomMinimo, MapaBarrio.zoomMaximo);
+    _controlador.move(camara.center, zoom);
+  }
+
+  void _verTodoElRadio() {
+    _controlador.fitCamera(
+      CameraFit.bounds(bounds: Barrio.limitesDelRadio, padding: _margenMapa),
+    );
+  }
 
   void _mostrarResumen(Alerta alerta) {
     showModalBottomSheet<void>(
@@ -115,13 +142,37 @@ class _MapaScreenState extends State<MapaScreen> {
             child: _Leyenda(),
           ),
           Expanded(
-            child: Semantics(
-              container: true,
-              explicitChildNodes: true,
-              label: visibles.isEmpty
-                  ? 'Mapa sin alertas para este filtro'
-                  : 'Mapa con ${visibles.length} alertas. Tocá un pin para ver el resumen',
-              child: MapaSimulado(alertas: visibles, onAlertaTap: _mostrarResumen),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Semantics(
+                    container: true,
+                    explicitChildNodes: true,
+                    label: visibles.isEmpty
+                        ? 'Mapa del ${Barrio.nombre} sin alertas para este filtro'
+                        : 'Mapa del ${Barrio.nombre} con ${visibles.length} alertas. '
+                            'Tocá un pin para ver el resumen',
+                    child: MapaBarrio(
+                      alertas: visibles,
+                      onAlertaTap: _mostrarResumen,
+                      controlador: _controlador,
+                      margen: _margenMapa,
+                      // Abre encuadrando las alertas para que los pines queden
+                      // separados; "Ver todo el radio" muestra el círculo entero.
+                      encuadre: EncuadreMapa.alertas,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: _ControlesMapa(
+                    onAcercar: () => _cambiarZoom(1),
+                    onAlejar: () => _cambiarZoom(-1),
+                    onVerTodo: _verTodoElRadio,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -163,7 +214,56 @@ class _Leyenda extends StatelessWidget {
             ),
             child: const Icon(Icons.my_location, size: 12, color: AppColors.radio),
           ),
-          'Vos y tu radio',
+          'Vos y el radio de alertas (1 km)',
+        ),
+      ],
+    );
+  }
+}
+
+/// Botones para acercar, alejar y volver a ver todo el radio de alertas.
+class _ControlesMapa extends StatelessWidget {
+  const _ControlesMapa({
+    required this.onAcercar,
+    required this.onAlejar,
+    required this.onVerTodo,
+  });
+
+  final VoidCallback onAcercar;
+  final VoidCallback onAlejar;
+  final VoidCallback onVerTodo;
+
+  @override
+  Widget build(BuildContext context) {
+    final estilo = IconButton.styleFrom(
+      backgroundColor: AppColors.superficie,
+      foregroundColor: AppColors.texto,
+      side: const BorderSide(color: AppColors.bordeCampo),
+      minimumSize: const Size.square(ObjetivoTactil.tamanioMinimo),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Acercar el mapa',
+          style: estilo,
+          icon: const Icon(Icons.add),
+          onPressed: onAcercar,
+        ),
+        const SizedBox(height: ObjetivoTactil.separacion),
+        IconButton(
+          tooltip: 'Alejar el mapa',
+          style: estilo,
+          icon: const Icon(Icons.remove),
+          onPressed: onAlejar,
+        ),
+        const SizedBox(height: ObjetivoTactil.separacion),
+        IconButton(
+          tooltip: 'Ver todo el radio de alertas',
+          style: estilo,
+          icon: const Icon(Icons.zoom_out_map),
+          onPressed: onVerTodo,
         ),
       ],
     );

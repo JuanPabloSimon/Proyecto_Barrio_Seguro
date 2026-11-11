@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
 
 import '../theme/app_colors.dart';
 
@@ -54,7 +55,7 @@ class Alerta {
     required this.direccion,
     required this.hace,
     required this.estado,
-    required this.posicion,
+    required this.ubicacion,
     required this.icono,
     required this.reportadaPor,
   });
@@ -66,8 +67,8 @@ class Alerta {
   final String hace;
   final EstadoAlerta estado;
 
-  /// Posición relativa (de 0 a 1) sobre el mapa ilustrativo.
-  final Offset posicion;
+  /// Dónde ocurrió, en coordenadas reales.
+  final LatLng ubicacion;
   final IconData icono;
 
   /// Id del vecino que la reportó.

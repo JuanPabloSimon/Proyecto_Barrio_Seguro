@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
 
 import '../models/alerta.dart';
 import '../models/turno.dart';
@@ -19,7 +20,7 @@ final vecinoClara = Vecino(
   nombre: 'Clara Medina',
   fechaNacimiento: DateTime(1981, 5, 14),
   telefono: '261 555-0142',
-  calle: 'Los Álamos 1240',
+  calle: 'Cabildo de Mendoza',
   cuadra: 'Cuadra 12',
   antiguedad: 'Vecina desde marzo de 2021',
 );
@@ -97,7 +98,7 @@ List<Turno> turnosDemo() => [
     ];
 
 // ---------------------------------------------------------------------------
-// Alertas
+// Alertas (todas dentro del radio de 1000 m del Barrio Soberanía)
 // ---------------------------------------------------------------------------
 
 const alertasDemo = <Alerta>[
@@ -105,21 +106,21 @@ const alertasDemo = <Alerta>[
     id: 'a1',
     tipo: 'Actividad sospechosa',
     descripcion: 'Dos personas revisando autos estacionados sobre la vereda.',
-    direccion: 'Los Álamos al 1200',
+    direccion: 'Calle Plantamura',
     hace: 'Hace 5 minutos',
     estado: EstadoAlerta.activa,
-    posicion: Offset(0.60, 0.40),
+    ubicacion: LatLng(-32.877264, -68.868785),
     icono: Icons.visibility_outlined,
     reportadaPor: 'clara',
   ),
   Alerta(
     id: 'a2',
     tipo: 'Moto a alta velocidad',
-    descripcion: 'Moto sin patente dando vueltas alrededor de la plaza.',
-    direccion: 'Plaza San Martín',
+    descripcion: 'Moto sin patente pasando varias veces a toda velocidad.',
+    direccion: 'Santiago Felipe Llaver',
     hace: 'Hace 18 minutos',
     estado: EstadoAlerta.enAtencion,
-    posicion: Offset(0.25, 0.52),
+    ubicacion: LatLng(-32.874338, -68.868583),
     icono: Icons.two_wheeler,
     reportadaPor: 'martin',
   ),
@@ -127,10 +128,10 @@ const alertasDemo = <Alerta>[
     id: 'a3',
     tipo: 'Intento de robo',
     descripcion: 'Forzaron el portón de un garage. No hubo heridos.',
-    direccion: 'Las Acacias 850',
+    direccion: 'Calle Gran Cap. Sur',
     hace: 'Hace 1 hora',
     estado: EstadoAlerta.activa,
-    posicion: Offset(0.78, 0.70),
+    ubicacion: LatLng(-32.875574, -68.872913),
     icono: Icons.lock_open,
     reportadaPor: 'pedro',
   ),
@@ -138,10 +139,10 @@ const alertasDemo = <Alerta>[
     id: 'a4',
     tipo: 'Arrebato',
     descripcion: 'Le sacaron el celular a una vecina en la parada del colectivo.',
-    direccion: 'Av. Principal y Los Olmos',
+    direccion: 'Parada de colectivo de Carlos W. Lencinas',
     hace: 'Ayer a las 21:40',
     estado: EstadoAlerta.resuelta,
-    posicion: Offset(0.18, 0.22),
+    ubicacion: LatLng(-32.879792, -68.868027),
     icono: Icons.phone_android,
     reportadaPor: 'clara',
   ),
@@ -149,10 +150,10 @@ const alertasDemo = <Alerta>[
     id: 'a5',
     tipo: 'Ruidos en terreno baldío',
     descripcion: 'Ruidos y linternas de noche en el terreno de la esquina.',
-    direccion: 'Los Olmos 300',
+    direccion: 'Democracia y Cabildo de Mendoza',
     hace: 'Hace 3 días',
     estado: EstadoAlerta.resuelta,
-    posicion: Offset(0.12, 0.80),
+    ubicacion: LatLng(-32.878272, -68.871144),
     icono: Icons.hearing,
     reportadaPor: 'rosa',
   ),

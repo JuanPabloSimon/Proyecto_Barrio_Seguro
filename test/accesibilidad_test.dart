@@ -11,12 +11,15 @@
 // Los tests usan una fuente de prueba con letras cuadradas, más ancha que
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
+import 'package:BarrioSeguro/data/barrio.dart';
+import 'package:BarrioSeguro/data/datos_demo.dart';
 import 'package:BarrioSeguro/data/sesion.dart';
 import 'package:BarrioSeguro/data/turnos_repositorio.dart';
 import 'package:BarrioSeguro/main.dart';
 import 'package:BarrioSeguro/theme/app_colors.dart';
 import 'package:BarrioSeguro/theme/transiciones.dart';
 import 'package:BarrioSeguro/widgets/boton_sos.dart';
+import 'package:BarrioSeguro/widgets/mapa_barrio.dart';
 import 'package:BarrioSeguro/widgets/tarjeta_alerta.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -40,8 +43,10 @@ void configurarPantalla(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 }
 
-/// Cada test arranca con el usuario y los turnos de ejemplo.
+/// Cada test arranca con el usuario y los turnos de ejemplo. El mapa se
+/// dibuja sin descargar calles, para no depender de internet.
 void reiniciarDatos() {
+  MapaBarrio.cargarCalles = false;
   Sesion.reiniciar();
   turnosRepositorio.reiniciar();
 }
@@ -209,6 +214,19 @@ void main() {
           greaterThanOrEqualTo(par.minimo),
           reason: '${par.descripcion}: ${par.ratio.toStringAsFixed(2)}:1, '
               'mínimo ${par.minimo}:1',
+        );
+      }
+    });
+  });
+
+  group('Barrio', () {
+    test('Todas las alertas de ejemplo están dentro del radio de alertas', () {
+      for (final alerta in alertasDemo) {
+        expect(
+          Barrio.estaDentroDelRadio(alerta.ubicacion),
+          isTrue,
+          reason: '${alerta.tipo} está a '
+              '${Barrio.distanciaAlCentro(alerta.ubicacion).round()} m del centro',
         );
       }
     });

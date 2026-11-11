@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Para descargar las calles del mapa. Sin esto, la versión de release
+         (la que se publica) muestra el mapa vacío. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="flutter_application_1"
         android:name="${applicationName}"
