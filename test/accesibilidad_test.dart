@@ -51,10 +51,28 @@ Future<void> abrirApp(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Lleva a la vista el elemento (si está fuera de pantalla) y lo toca.
-Future<void> tocar(WidgetTester tester, Finder finder) async {
+/// Lleva el elemento a la vista.
+///
+/// Los ListView solo construyen lo que está cerca de la pantalla: con el
+/// texto al 200 % un botón puede ni siquiera existir todavía. En ese caso
+/// se desplaza la lista visible hasta que aparezca.
+Future<void> mostrar(WidgetTester tester, Finder finder) async {
+  if (finder.evaluate().isEmpty) {
+    final listaVisible = find
+        .byWidgetPredicate(
+          (widget) => widget is Scrollable && widget.axisDirection == AxisDirection.down,
+        )
+        .hitTestable()
+        .first;
+    await tester.scrollUntilVisible(finder, 200, scrollable: listaVisible);
+  }
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
+}
+
+/// Lleva el elemento a la vista y lo toca.
+Future<void> tocar(WidgetTester tester, Finder finder) async {
+  await mostrar(tester, finder);
   await tester.tap(finder);
   await tester.pumpAndSettle();
 }
@@ -96,7 +114,7 @@ final pantallas = <Pantalla>[
     await abrirApp(tester);
     await tocar(tester, find.text('Todavía no tengo cuenta'));
     final fecha = find.widgetWithText(TextField, 'Fecha de nacimiento');
-    await tester.ensureVisible(fecha);
+    await mostrar(tester, fecha);
     await tester.enterText(fecha, '14051950');
     await tester.pumpAndSettle();
     expect(find.text('Vas a participar como guardia de ventana'), findsOneWidget);
