@@ -49,6 +49,9 @@ class SesionFalsa implements SesionRepository {
   Vecino? usuario;
 
   @override
+  Future<void> restaurar() async {}
+
+  @override
   Future<Vecino> ingresar({
     required String usuario,
     required String clave,
@@ -85,6 +88,9 @@ class AlertasFalsas implements AlertasRepository {
   final List<Alerta> alertas;
   bool falla;
   int pedidos = 0;
+
+  @override
+  bool sinConexion = false;
 
   void _quizasFallar() {
     if (falla) throw Exception('sin conexión');
@@ -137,6 +143,9 @@ class TurnosFalsos implements TurnosRepository {
   bool falla = false;
 
   @override
+  bool sinConexion = false;
+
+  @override
   Future<List<Turno>> obtenerTurnos(
     DateTime mes, {
     bool refrescar = false,
@@ -161,12 +170,15 @@ class TurnosFalsos implements TurnosRepository {
 }
 
 /// Servicio que cuenta cuántas veces se le pidió algo, para probar la caché.
+/// Con [falla] en true, simula que no hay conexión.
 class AlertasServiceContador implements AlertasService {
   int pedidos = 0;
+  bool falla = false;
 
   @override
   Future<List<Map<String, dynamic>>> obtenerAlertas() async {
     pedidos++;
+    if (falla) throw Exception('sin conexión');
     return [alertaDePrueba().toJson()];
   }
 
@@ -185,6 +197,7 @@ class CapacidadesFalsas implements Capacidades {
   const CapacidadesFalsas({
     this.puedeHacerLlamadas = true,
     this.recibeNotificacionesPush = true,
+    this.tieneBaseDeDatosLocal = false,
   });
 
   @override
@@ -192,6 +205,9 @@ class CapacidadesFalsas implements Capacidades {
 
   @override
   final bool recibeNotificacionesPush;
+
+  @override
+  final bool tieneBaseDeDatosLocal;
 }
 
 class PoliticasFalsas implements Politicas {

@@ -1,7 +1,15 @@
 import 'data/repositories/alertas_repository.dart';
 import 'data/repositories/sesion_repository.dart';
 import 'data/repositories/turnos_repository.dart';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'data/services/bus_de_eventos.dart';
+import 'data/services/local/alertas_dao.dart';
+import 'data/services/local/almacen_seguro.dart';
+import 'data/services/local/preferencias.dart';
+import 'data/services/local/turnos_dao.dart';
 import 'data/services/reloj.dart';
 import 'data/services/simulados/alertas_service_simulado.dart';
 import 'data/services/simulados/servidor_simulado.dart';
@@ -28,11 +36,15 @@ class Dependencias {
     required this.capacidades,
     required this.politicas,
     required this.telefono,
+    required this.preferencias,
   });
 
   /// Los datos vienen del [ServidorSimulado], sin internet. Las
-  /// capacidades, las políticas y el teléfono son los verdaderos, salvo que
-  /// una prueba pase otros.
+  /// capacidades, las políticas, el teléfono y el almacenamiento son los
+  /// verdaderos, salvo que una prueba pase otros.
+  ///
+  /// Con [alertasDao] y [turnosDao] se guarda una copia en el teléfono para
+  /// usar sin conexión; sin ellos (en la web o en pruebas), solo memoria.
   factory Dependencias.simuladas({
     Reloj reloj = const RelojDelSistema(),
     Duration demora = const Duration(milliseconds: 400),
@@ -40,7 +52,12 @@ class Dependencias {
     Capacidades capacidades = const Capacidades(),
     Politicas politicas = const Politicas(),
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
+    Preferencias? preferencias,
+    AlmacenSeguro? almacenSeguro,
+    AlertasDao? alertasDao,
+    TurnosDao? turnosDao,
   }) {
+    final prefs = preferencias ?? Preferencias(SharedPreferencesAsync());
     final servidor = ServidorSimulado(
       reloj: reloj,
       demora: demora,
@@ -49,9 +66,17 @@ class Dependencias {
     return Dependencias(
       alertas: AlertasRepositoryRemoto(
         service: AlertasServiceSimulado(servidor),
+        dao: alertasDao,
       ),
-      turnos: TurnosRepositoryRemoto(service: TurnosServiceSimulado(servidor)),
-      sesion: SesionRepositoryRemoto(service: VecinosServiceSimulado(servidor)),
+      turnos: TurnosRepositoryRemoto(
+        service: TurnosServiceSimulado(servidor),
+        dao: turnosDao,
+      ),
+      sesion: SesionRepositoryRemoto(
+        service: VecinosServiceSimulado(servidor),
+        preferencias: prefs,
+        almacen: almacenSeguro ?? AlmacenSeguro(const FlutterSecureStorage()),
+      ),
       bus: BusDeEventos(),
       reloj: reloj,
       // Mes que muestra el calendario de turnos en el prototipo.
@@ -59,6 +84,7 @@ class Dependencias {
       capacidades: capacidades,
       politicas: politicas,
       telefono: telefono,
+      preferencias: prefs,
     );
   }
 
@@ -76,4 +102,7 @@ class Dependencias {
   final Politicas politicas;
 
   final TelefonoService telefono;
+
+  /// Ajustes del vecino que sobreviven al cierre de la app.
+  final Preferencias preferencias;
 }

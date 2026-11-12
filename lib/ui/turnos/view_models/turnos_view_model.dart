@@ -41,6 +41,9 @@ class TurnosViewModel extends ChangeNotifier {
   EstadoCarga _estado = EstadoCarga.inicial;
   EstadoCarga get estado => _estado;
 
+  /// True si no hubo conexión y se muestran los turnos guardados.
+  bool get sinConexion => _repositorio.sinConexion;
+
   List<Turno> _turnos = [];
   bool _diaElegidoPorElUsuario = false;
 

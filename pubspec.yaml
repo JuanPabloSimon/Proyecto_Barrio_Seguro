@@ -39,10 +39,19 @@ dependencies:
   latlong2: ^0.9.1
   # Abrir el teléfono con el 911 marcado (link tel:).
   url_launcher: ^6.3.1
+  # Persistencia local (apunte de persistencia):
+  # valores sueltos, secretos y la copia de alertas y turnos.
+  shared_preferences: ^2.5.3
+  flutter_secure_storage: ^11.1.1
+  sqflite: ^2.4.2
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Pruebas sin emulador: SQLite en la PC y preferencias en memoria.
+  sqflite_common_ffi: ^2.3.6
+  shared_preferences_platform_interface: ^2.4.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

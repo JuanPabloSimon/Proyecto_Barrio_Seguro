@@ -48,6 +48,26 @@ void main() {
     }
   });
 
+  group('Base de datos local', () {
+    for (final plataforma in [
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    ]) {
+      test('en ${plataforma.name} hay sqflite', () {
+        simularPlataforma(plataforma);
+        expect(capacidades.tieneBaseDeDatosLocal, isTrue);
+      });
+    }
+
+    for (final plataforma in [TargetPlatform.windows, TargetPlatform.linux]) {
+      test('en ${plataforma.name} no hay sqflite', () {
+        simularPlataforma(plataforma);
+        expect(capacidades.tieneBaseDeDatosLocal, isFalse);
+      });
+    }
+  });
+
   group('Políticas', () {
     test('en Android hay que avisar antes de compartir la ubicación', () {
       simularPlataforma(TargetPlatform.android);

@@ -26,6 +26,9 @@ class MapaViewModel extends ChangeNotifier {
   EstadoCarga _estado = EstadoCarga.inicial;
   EstadoCarga get estado => _estado;
 
+  /// True si no hubo conexión y se muestran las alertas guardadas.
+  bool get sinConexion => _repositorio.sinConexion;
+
   List<Alerta> _alertas = [];
 
   EstadoAlerta? _filtro;

@@ -60,6 +60,9 @@ class InicioViewModel extends ChangeNotifier {
   ResumenTurno? _proximoTurno;
   ResumenTurno? get proximoTurno => _proximoTurno;
 
+  /// True si no hubo conexión y se muestran los datos guardados.
+  bool get sinConexion => _alertas.sinConexion || _turnos.sinConexion;
+
   String get saludo => 'Hola, ${_sesion.usuario?.primerNombre ?? 'vecino'}';
 
   String hace(Alerta alerta) =>

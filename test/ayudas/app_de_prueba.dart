@@ -6,6 +6,7 @@ import 'package:BarrioSeguro/plataforma/capacidades.dart';
 import 'package:BarrioSeguro/plataforma/politicas.dart';
 import 'package:BarrioSeguro/ui/core/widgets/mapa_barrio.dart';
 
+import 'bases_de_prueba.dart';
 import 'falsos.dart';
 
 /// Hora fija para todas las pruebas: así las edades y los "hace 5 minutos"
@@ -19,6 +20,9 @@ final relojDePrueba = RelojFijo(DateTime(2026, 10, 1, 12));
 /// Las capacidades y políticas son falsas: la prueba decide qué puede y
 /// qué debe hacer la app, sin importar en qué computadora corre. El
 /// teléfono también es falso, para que "Llamar" no intente abrir nada.
+///
+/// Las preferencias y el almacenamiento seguro arrancan vacíos y en
+/// memoria: la app abre en el login, como la primera vez.
 BarrioSeguroApp appDePrueba({
   Capacidades capacidades = const CapacidadesFalsas(),
   Politicas politicas = const PoliticasFalsas(),
@@ -32,6 +36,8 @@ BarrioSeguroApp appDePrueba({
       capacidades: capacidades,
       politicas: politicas,
       telefono: telefono ?? TelefonoFalso(),
+      preferencias: preferenciasEnMemoria(),
+      almacenSeguro: almacenSeguroEnMemoria(),
     ),
   );
 }

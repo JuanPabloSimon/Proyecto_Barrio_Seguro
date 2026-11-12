@@ -64,7 +64,8 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       reloj: d.reloj,
       capacidades: d.capacidades,
       politicas: d.politicas,
-    );
+      preferencias: d.preferencias,
+    )..cargar();
   }
 
   @override

@@ -53,8 +53,14 @@ class ServidorSimulado {
 
   Map<String, dynamic> ingresar(String usuario, String clave) {
     // Prototipo: cualquier usuario entra como la vecina de ejemplo.
-    return Map.of(_vecinos[idVecinaDeEjemplo]!);
+    return _sesion(idVecinaDeEjemplo);
   }
+
+  /// Lo que devuelve la API al ingresar o registrarse.
+  Map<String, dynamic> _sesion(String vecinoId) => {
+    'token': 'token-simulado-$vecinoId',
+    'vecino': Map.of(_vecinos[vecinoId]!),
+  };
 
   Map<String, dynamic> registrar(Map<String, dynamic> datos) {
     final hoy = _reloj.ahora();
@@ -64,7 +70,7 @@ class ServidorSimulado {
       'vecino_desde': hoy.toIso8601String().substring(0, 10),
     };
     _vecinos[vecino['id'] as String] = vecino;
-    return Map.of(vecino);
+    return _sesion(vecino['id'] as String);
   }
 
   Map<String, dynamic> actualizarVecino(String id, Map<String, dynamic> datos) {

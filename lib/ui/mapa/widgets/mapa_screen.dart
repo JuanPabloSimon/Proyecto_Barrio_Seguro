@@ -8,6 +8,7 @@ import '../../alerta_detalle/widgets/detalle_alerta_screen.dart';
 import '../../core/estado_carga.dart';
 import '../../core/presentacion_alerta.dart';
 import '../../core/tema/app_colors.dart';
+import '../../core/widgets/aviso_sin_conexion.dart';
 import '../../core/widgets/boton_sos.dart';
 import '../../core/widgets/chip_estado.dart';
 import '../../core/widgets/estado_de_carga.dart';
@@ -170,6 +171,8 @@ class _MapaScreenState extends State<MapaScreen> {
 
     return Column(
       children: [
+        if (_vm.sinConexion)
+          const AvisoSinConexion(margen: EdgeInsets.fromLTRB(16, 0, 16, 12)),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 0, 8, 12),

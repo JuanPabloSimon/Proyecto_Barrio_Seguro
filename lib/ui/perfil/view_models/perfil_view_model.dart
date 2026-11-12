@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/sesion_repository.dart';
 import '../../../data/services/bus_de_eventos.dart';
+import '../../../data/services/local/preferencias.dart';
 import '../../../data/services/reloj.dart';
 import '../../../domain/evento_de_app.dart';
 import '../../../domain/models/vecino.dart';
@@ -18,6 +19,7 @@ class PerfilViewModel extends ChangeNotifier {
     required this._reloj,
     required this._capacidades,
     required this._politicas,
+    required this._preferencias,
   }) {
     // Si se editan los datos, el perfil se vuelve a dibujar.
     _suscripcion = bus.de<PerfilActualizado>().listen((_) => notifyListeners());
@@ -27,6 +29,7 @@ class PerfilViewModel extends ChangeNotifier {
   final Reloj _reloj;
   final Capacidades _capacidades;
   final Politicas _politicas;
+  final Preferencias _preferencias;
   StreamSubscription<PerfilActualizado>? _suscripcion;
 
   Vecino? get usuario => _sesion.usuario;
@@ -53,8 +56,9 @@ class PerfilViewModel extends ChangeNotifier {
     return '$edad En la red desde ${nombreMes(desde.month)} de ${desde.year}';
   }
 
-  // Preferencias del vecino. Por ahora viven en memoria; en la rama de
-  // persistencia se guardan con shared_preferences.
+  // Preferencias del vecino, guardadas en el teléfono con [Preferencias].
+  // Los valores por defecto (ubicación apagada, notificaciones prendidas)
+  // están definidos ahí, en un solo lugar.
 
   /// Arranca apagado: la ubicación exacta se comparte recién cuando el
   /// vecino lo acepta.
@@ -73,14 +77,35 @@ class PerfilViewModel extends ChangeNotifier {
   bool _notificaciones = true;
   bool get notificaciones => puedeRecibirNotificaciones && _notificaciones;
 
-  void cambiarCompartirUbicacion(bool valor) {
-    _compartirUbicacion = valor;
+  /// Lee las preferencias guardadas. Se llama al crear el ViewModel.
+  Future<void> cargar() async {
+    try {
+      _compartirUbicacion = await _preferencias.compartirUbicacion();
+      _notificaciones = await _preferencias.notificaciones();
+    } catch (_) {
+      // Si no se pueden leer, quedan los valores por defecto.
+    }
     notifyListeners();
   }
 
-  void cambiarNotificaciones(bool valor) {
+  /// Primero la pantalla (respuesta inmediata), después el disco.
+  Future<void> cambiarCompartirUbicacion(bool valor) async {
+    _compartirUbicacion = valor;
+    notifyListeners();
+    await _guardar(() => _preferencias.guardarCompartirUbicacion(valor));
+  }
+
+  Future<void> cambiarNotificaciones(bool valor) async {
     _notificaciones = valor;
     notifyListeners();
+    await _guardar(() => _preferencias.guardarNotificaciones(valor));
+  }
+
+  /// Si el disco falla, el cambio queda igual mientras la app está abierta.
+  Future<void> _guardar(Future<void> Function() escribir) async {
+    try {
+      await escribir();
+    } catch (_) {}
   }
 
   Future<void> cerrarSesion() => _sesion.cerrarSesion();
