@@ -47,6 +47,8 @@ dependencies:
   path: ^1.9.1
   # APIs REST: la app le habla al backend de /backend.
   http: ^1.5.0
+  # Ubicación real del teléfono para el SOS.
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

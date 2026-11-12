@@ -65,6 +65,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       capacidades: d.capacidades,
       politicas: d.politicas,
       preferencias: d.preferencias,
+      ubicacion: d.ubicacion,
     )..cargar();
   }
 
@@ -85,8 +86,14 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => ConViewModel(
-          crear: () =>
-              SosViewModel(alertas: d.alertas, sesion: d.sesion, bus: d.bus),
+          crear: () => SosViewModel(
+            alertas: d.alertas,
+            sesion: d.sesion,
+            bus: d.bus,
+            preferencias: d.preferencias,
+            ubicacion: d.ubicacion,
+            capacidades: d.capacidades,
+          ),
           builder: (_, vm) => SosScreen(
             viewModel: vm,
             capacidades: d.capacidades,

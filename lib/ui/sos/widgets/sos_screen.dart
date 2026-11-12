@@ -211,9 +211,13 @@ class SosScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
-          'Avisamos a los vecinos de tu zona con tu ubicación. '
-          'Si estás en peligro, llamá al 911.',
+        Text(
+          viewModel.conUbicacionExacta
+              ? 'Avisamos a los vecinos de tu zona con tu ubicación exacta. '
+                    'Si estás en peligro, llamá al 911.'
+              : 'Avisamos a los vecinos de tu zona. Les mandamos la zona del '
+                    'barrio, no tu ubicación exacta. '
+                    'Si estás en peligro, llamá al 911.',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.sobreColor, fontSize: 18),
         ),

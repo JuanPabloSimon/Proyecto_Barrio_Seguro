@@ -31,6 +31,14 @@ class Capacidades {
         defaultTargetPlatform == TargetPlatform.macOS;
   }
 
+  /// Si el dispositivo tiene GPS para mandar la ubicación exacta en una
+  /// alerta. Simplificación por plataforma, como [puedeHacerLlamadas].
+  bool get tieneGps {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
   /// Si la app puede recibir notificaciones push de alertas.
   ///
   /// Firebase Cloud Messaging no funciona en Windows ni en Linux, y por

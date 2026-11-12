@@ -75,6 +75,7 @@ void main() {
           capacidades: const CapacidadesFalsas(),
           politicas: const PoliticasFalsas(),
           preferencias: preferencias,
+          ubicacion: UbicacionFalsa(),
         );
 
         final primeraVez = crear();

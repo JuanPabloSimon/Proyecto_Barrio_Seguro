@@ -66,6 +66,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- El motivo que muestra iOS al pedir la ubicación. Es el "aviso"
+	     de iOS (ver Politicas.exigeAvisoAntesDeUbicacion). -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Cuando envíes una alerta o un SOS, Barrio Seguro les manda a los vecinos de la red el punto exacto donde estás, para que sepan adónde ir.</string>
 	<!-- Permite http:// solo a direcciones locales (el backend en la PC
 	     mientras se desarrolla). El resto tiene que ir por https://. -->
 	<key>NSAppTransportSecurity</key>

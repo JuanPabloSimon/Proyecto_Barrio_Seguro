@@ -22,6 +22,7 @@ import 'data/services/simulados/turnos_service_simulado.dart';
 import 'data/services/simulados/vecinos_service_simulado.dart';
 import 'data/services/telefono_service.dart';
 import 'data/services/turnos_service.dart';
+import 'data/services/ubicacion_service.dart';
 import 'data/services/vecinos_service.dart';
 import 'plataforma/capacidades.dart';
 import 'plataforma/politicas.dart';
@@ -46,6 +47,7 @@ class Dependencias {
     required this.politicas,
     required this.telefono,
     required this.preferencias,
+    required this.ubicacion,
   });
 
   /// Los datos vienen del [ServidorSimulado], sin internet. Las
@@ -61,6 +63,7 @@ class Dependencias {
     Capacidades capacidades = const Capacidades(),
     Politicas politicas = const Politicas(),
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
+    UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
@@ -79,6 +82,7 @@ class Dependencias {
       capacidades: capacidades,
       politicas: politicas,
       telefono: telefono,
+      ubicacion: ubicacion,
       preferencias: preferencias,
       almacenSeguro: almacenSeguro,
       alertasDao: alertasDao,
@@ -95,6 +99,7 @@ class Dependencias {
     Capacidades capacidades = const Capacidades(),
     Politicas politicas = const Politicas(),
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
+    UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
@@ -111,6 +116,7 @@ class Dependencias {
       capacidades: capacidades,
       politicas: politicas,
       telefono: telefono,
+      ubicacion: ubicacion,
       preferencias: preferencias,
       almacenSeguro: almacen,
       alertasDao: alertasDao,
@@ -127,6 +133,7 @@ class Dependencias {
     required Capacidades capacidades,
     required Politicas politicas,
     required TelefonoService telefono,
+    required UbicacionService ubicacion,
     required Preferencias? preferencias,
     required AlmacenSeguro? almacenSeguro,
     required AlertasDao? alertasDao,
@@ -152,6 +159,7 @@ class Dependencias {
       politicas: politicas,
       telefono: telefono,
       preferencias: prefs,
+      ubicacion: ubicacion,
     );
   }
 
@@ -172,4 +180,7 @@ class Dependencias {
 
   /// Ajustes del vecino que sobreviven al cierre de la app.
   final Preferencias preferencias;
+
+  /// El GPS del teléfono.
+  final UbicacionService ubicacion;
 }
