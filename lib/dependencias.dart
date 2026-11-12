@@ -13,13 +13,16 @@ import 'data/services/http/turnos_service_http.dart';
 import 'data/services/http/vecinos_service_http.dart';
 import 'data/services/local/alertas_dao.dart';
 import 'data/services/local/almacen_seguro.dart';
+import 'data/services/local/pendientes_dao.dart';
 import 'data/services/local/preferencias.dart';
+import 'data/services/notificaciones_service.dart';
 import 'data/services/local/turnos_dao.dart';
 import 'data/services/reloj.dart';
 import 'data/services/simulados/alertas_service_simulado.dart';
 import 'data/services/simulados/servidor_simulado.dart';
 import 'data/services/simulados/turnos_service_simulado.dart';
 import 'data/services/simulados/vecinos_service_simulado.dart';
+import 'data/services/tareas/tareas_service.dart';
 import 'data/services/telefono_service.dart';
 import 'data/services/turnos_service.dart';
 import 'data/services/ubicacion_service.dart';
@@ -48,6 +51,7 @@ class Dependencias {
     required this.telefono,
     required this.preferencias,
     required this.ubicacion,
+    required this.notificaciones,
   });
 
   /// Los datos vienen del [ServidorSimulado], sin internet. Las
@@ -64,10 +68,13 @@ class Dependencias {
     Politicas politicas = const Politicas(),
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
+    NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
+    TareasService tareas = const TareasNinguna(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
     TurnosDao? turnosDao,
+    PendientesDao? pendientesDao,
   }) {
     final servidor = ServidorSimulado(
       reloj: reloj,
@@ -83,10 +90,13 @@ class Dependencias {
       politicas: politicas,
       telefono: telefono,
       ubicacion: ubicacion,
+      notificaciones: notificaciones,
+      tareas: tareas,
       preferencias: preferencias,
       almacenSeguro: almacenSeguro,
       alertasDao: alertasDao,
       turnosDao: turnosDao,
+      pendientesDao: pendientesDao,
     );
   }
 
@@ -100,10 +110,13 @@ class Dependencias {
     Politicas politicas = const Politicas(),
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
+    NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
+    TareasService tareas = const TareasNinguna(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
     TurnosDao? turnosDao,
+    PendientesDao? pendientesDao,
   }) {
     final almacen =
         almacenSeguro ?? AlmacenSeguro(const FlutterSecureStorage());
@@ -117,10 +130,13 @@ class Dependencias {
       politicas: politicas,
       telefono: telefono,
       ubicacion: ubicacion,
+      notificaciones: notificaciones,
+      tareas: tareas,
       preferencias: preferencias,
       almacenSeguro: almacen,
       alertasDao: alertasDao,
       turnosDao: turnosDao,
+      pendientesDao: pendientesDao,
     );
   }
 
@@ -134,16 +150,22 @@ class Dependencias {
     required Politicas politicas,
     required TelefonoService telefono,
     required UbicacionService ubicacion,
+    required NotificacionesService notificaciones,
+    required TareasService tareas,
     required Preferencias? preferencias,
     required AlmacenSeguro? almacenSeguro,
     required AlertasDao? alertasDao,
     required TurnosDao? turnosDao,
+    required PendientesDao? pendientesDao,
   }) {
     final prefs = preferencias ?? Preferencias(SharedPreferencesAsync());
     return Dependencias(
       alertas: AlertasRepositoryRemoto(
         service: alertasService,
         dao: alertasDao,
+        pendientes: pendientesDao,
+        tareas: tareas,
+        reloj: reloj,
       ),
       turnos: TurnosRepositoryRemoto(service: turnosService, dao: turnosDao),
       sesion: SesionRepositoryRemoto(
@@ -160,6 +182,7 @@ class Dependencias {
       telefono: telefono,
       preferencias: prefs,
       ubicacion: ubicacion,
+      notificaciones: notificaciones,
     );
   }
 
@@ -183,4 +206,7 @@ class Dependencias {
 
   /// El GPS del teléfono.
   final UbicacionService ubicacion;
+
+  /// Avisos de alertas nuevas.
+  final NotificacionesService notificaciones;
 }

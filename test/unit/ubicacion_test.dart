@@ -88,6 +88,7 @@ void main() {
       politicas: const PoliticasFalsas(),
       preferencias: preferencias,
       ubicacion: gps,
+      notificacionesService: NotificacionesFalsas(),
     );
 
     test('con permiso, la ubicación queda activada y guardada', () async {

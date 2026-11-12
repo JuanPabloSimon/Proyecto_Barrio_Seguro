@@ -54,6 +54,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
     if (problema != null) mostrarAvisoEn(mensajero, problema);
   }
 
+  /// El permiso de notificaciones se pide acá, en contexto: cuando el
+  /// vecino pide que le avisen, no al abrir la app.
+  Future<void> _cambiarAvisos(bool valor) async {
+    if (!valor) {
+      await _vm.cambiarNotificaciones(false);
+      return;
+    }
+    final mensajero = ScaffoldMessenger.of(context);
+    final problema = await _vm.activarAvisos();
+    if (problema != null) mostrarAvisoEn(mensajero, problema);
+  }
+
   void _abrirMisAlertas() {
     final d = widget.dependencias;
     Navigator.of(context).push(
@@ -244,17 +256,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   ),
                 const Divider(height: 1),
                 SwitchListTile(
-                  title: const Text('Notificaciones push'),
+                  title: const Text('Avisarme de alertas nuevas'),
                   subtitle: Text(
                     _vm.puedeRecibirNotificaciones
-                        ? 'Avisos de alertas cerca tuyo'
-                        : 'Este dispositivo no recibe notificaciones. '
-                              'Activalas desde tu celular.',
+                        ? 'Un aviso en el teléfono cuando un vecino reporta '
+                              'algo o pide ayuda'
+                        : 'Este dispositivo no muestra avisos. '
+                              'Activalos desde tu celular.',
                   ),
                   value: _vm.notificaciones,
                   // null deja el interruptor desactivado.
                   onChanged: _vm.puedeRecibirNotificaciones
-                      ? _vm.cambiarNotificaciones
+                      ? _cambiarAvisos
                       : null,
                 ),
               ],

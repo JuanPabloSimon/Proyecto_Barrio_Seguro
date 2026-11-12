@@ -35,8 +35,10 @@ class Preferencias {
   Future<void> guardarCompartirUbicacion(bool valor) =>
       _prefs.setBool(claveCompartirUbicacion, valor);
 
+  /// Arranca apagado: el permiso del sistema se pide recién cuando el
+  /// vecino activa los avisos desde el perfil.
   Future<bool> notificaciones() async =>
-      await _prefs.getBool(claveNotificaciones) ?? true;
+      await _prefs.getBool(claveNotificaciones) ?? false;
 
   Future<void> guardarNotificaciones(bool valor) =>
       _prefs.setBool(claveNotificaciones, valor);

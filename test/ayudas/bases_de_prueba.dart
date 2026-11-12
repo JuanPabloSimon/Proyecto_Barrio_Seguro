@@ -21,6 +21,7 @@ Future<Database> baseEnMemoria() {
       onCreate: (db, version) async {
         await db.execute(sqlCrearAlertas);
         await db.execute(sqlCrearTurnos);
+        await db.execute(sqlCrearPendientes);
       },
     ),
   );

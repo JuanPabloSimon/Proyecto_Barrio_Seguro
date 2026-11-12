@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:BarrioSeguro/data/repositories/alertas_repository.dart';
 import 'package:BarrioSeguro/data/repositories/sesion_repository.dart';
 import 'package:BarrioSeguro/data/repositories/turnos_repository.dart';
 import 'package:BarrioSeguro/data/services/alertas_service.dart';
+import 'package:BarrioSeguro/data/services/notificaciones_service.dart';
+import 'package:BarrioSeguro/data/services/tareas/tareas_service.dart';
 import 'package:BarrioSeguro/data/services/telefono_service.dart';
 import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
 import 'package:BarrioSeguro/domain/models/alerta.dart';
@@ -96,6 +100,14 @@ class AlertasFalsas implements AlertasRepository {
 
   @override
   bool sinConexion = false;
+
+  int enviosDePendientes = 0;
+
+  @override
+  bool estaPendiente(String id) => false;
+
+  @override
+  Future<void> enviarPendientes() async => enviosDePendientes++;
 
   void _quizasFallar() {
     if (falla) throw Exception('sin conexión');
@@ -202,22 +214,26 @@ class AlertasServiceContador implements AlertasService {
 class CapacidadesFalsas implements Capacidades {
   const CapacidadesFalsas({
     this.puedeHacerLlamadas = true,
-    this.recibeNotificacionesPush = true,
+    this.muestraNotificaciones = true,
     this.tieneBaseDeDatosLocal = false,
     this.tieneGps = true,
+    this.correTareasEnSegundoPlano = false,
   });
 
   @override
   final bool puedeHacerLlamadas;
 
   @override
-  final bool recibeNotificacionesPush;
+  final bool muestraNotificaciones;
 
   @override
   final bool tieneBaseDeDatosLocal;
 
   @override
   final bool tieneGps;
+
+  @override
+  final bool correTareasEnSegundoPlano;
 }
 
 class PoliticasFalsas implements Politicas {
@@ -272,4 +288,40 @@ class UbicacionFalsa implements UbicacionService {
 
   @override
   Future<void> abrirAjustes() async => ajustesAbiertos++;
+}
+
+/// Anota los avisos en vez de mostrarlos. [permiso] decide qué responde
+/// el sistema cuando se pide.
+class NotificacionesFalsas implements NotificacionesService {
+  NotificacionesFalsas({this.permiso = true, this.abrioLaApp});
+
+  bool permiso;
+  final String? abrioLaApp;
+  final List<Alerta> avisadas = [];
+  final _tocadas = StreamController<String>.broadcast();
+
+  /// Simula que el vecino tocó el aviso de la alerta [id].
+  void tocar(String id) => _tocadas.add(id);
+
+  @override
+  Future<void> inicializar() async {}
+
+  @override
+  Future<bool> pedirPermiso() async => permiso;
+
+  @override
+  Future<void> avisarAlerta(Alerta alerta) async => avisadas.add(alerta);
+
+  @override
+  Stream<String> get alertasTocadas => _tocadas.stream;
+
+  @override
+  Future<String?> alertaQueAbrioLaApp() async => abrioLaApp;
+}
+
+class TareasFalsas implements TareasService {
+  int programadas = 0;
+
+  @override
+  Future<void> programarEnvioDePendientes() async => programadas++;
 }

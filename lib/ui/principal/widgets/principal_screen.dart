@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../dependencias.dart';
+import '../../alerta_detalle/widgets/detalle_alerta_screen.dart';
 import '../../core/widgets/boton_sos.dart';
 import '../../core/widgets/con_view_model.dart';
 import '../../inicio/view_models/inicio_view_model.dart';
@@ -14,6 +17,7 @@ import '../../sos/widgets/sos_screen.dart';
 import '../../turnos/view_models/turnos_view_model.dart';
 import '../../turnos/widgets/turnos_screen.dart';
 import '../pestanias.dart';
+import '../vigilante_de_alertas.dart';
 
 /// Contenedor principal: barra de navegación inferior y botón SOS visible
 /// en las cuatro secciones. El SOS abre una pantalla de confirmación antes
@@ -36,6 +40,9 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
   late final TurnosViewModel _turnos;
   late final MapaViewModel _mapa;
   late final PerfilViewModel _perfil;
+
+  late final VigilanteDeAlertas _vigilante;
+  StreamSubscription<String>? _toques;
 
   @override
   void initState() {
@@ -66,11 +73,42 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       politicas: d.politicas,
       preferencias: d.preferencias,
       ubicacion: d.ubicacion,
+      notificacionesService: d.notificaciones,
     )..cargar();
+
+    _vigilante = VigilanteDeAlertas(
+      alertas: d.alertas,
+      sesion: d.sesion,
+      notificaciones: d.notificaciones,
+      preferencias: d.preferencias,
+      bus: d.bus,
+    )..empezar();
+
+    // Tocar un aviso abre el detalle de esa alerta: con la app abierta o
+    // en segundo plano llega por el Stream; si el aviso abrió la app, se
+    // pregunta una vez al arrancar.
+    _toques = d.notificaciones.alertasTocadas.listen(_abrirAlerta);
+    d.notificaciones.alertaQueAbrioLaApp().then((id) {
+      if (id != null) _abrirAlerta(id);
+    });
+  }
+
+  Future<void> _abrirAlerta(String id) async {
+    final d = widget.dependencias;
+    try {
+      final alertas = await d.alertas.obtenerAlertas();
+      final alerta = alertas.where((a) => a.id == id).firstOrNull;
+      if (alerta == null || !mounted) return;
+      DetalleAlertaScreen.abrir(context, alerta, d);
+    } catch (_) {
+      // Sin conexión ni copia guardada: queda en el inicio.
+    }
   }
 
   @override
   void dispose() {
+    _vigilante.detener();
+    _toques?.cancel();
     _inicio.dispose();
     _turnos.dispose();
     _mapa.dispose();

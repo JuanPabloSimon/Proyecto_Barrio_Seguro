@@ -189,21 +189,19 @@ void main() {
     });
   });
 
-  group('Notificaciones', () {
+  group('Avisos de alertas nuevas', () {
     final interruptor = find.widgetWithText(
       SwitchListTile,
-      'Notificaciones push',
+      'Avisarme de alertas nuevas',
     );
 
     testWidgets(
-      'si el dispositivo no las recibe, el interruptor se desactiva',
+      'si el dispositivo no muestra avisos, el interruptor se desactiva',
       (tester) async {
         await irAlPerfil(
           tester,
           appDePrueba(
-            capacidades: const CapacidadesFalsas(
-              recibeNotificacionesPush: false,
-            ),
+            capacidades: const CapacidadesFalsas(muestraNotificaciones: false),
           ),
         );
 
@@ -211,19 +209,59 @@ void main() {
         expect(widget.onChanged, isNull);
         expect(widget.value, isFalse);
         expect(
-          find.textContaining('Este dispositivo no recibe notificaciones'),
+          find.textContaining('Este dispositivo no muestra avisos'),
           findsOneWidget,
         );
       },
     );
 
-    testWidgets('si las recibe, se pueden apagar', (tester) async {
+    testWidgets('arrancan apagados y el permiso se pide al activarlos', (
+      tester,
+    ) async {
       await irAlPerfil(tester, appDePrueba());
+      expect(encendido(tester, interruptor), isFalse);
+
+      await tocar(tester, interruptor);
       expect(encendido(tester, interruptor), isTrue);
+
+      await tocar(tester, interruptor);
+      expect(encendido(tester, interruptor), isFalse);
+    });
+
+    testWidgets('sin permiso quedan apagados y se explica qué se pierde', (
+      tester,
+    ) async {
+      await irAlPerfil(
+        tester,
+        appDePrueba(notificaciones: NotificacionesFalsas(permiso: false)),
+      );
 
       await tocar(tester, interruptor);
 
       expect(encendido(tester, interruptor), isFalse);
+      expect(
+        find.textContaining('Sin permiso no podemos avisarte'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tocar un aviso abre el detalle de esa alerta', (tester) async {
+      final notificaciones = NotificacionesFalsas();
+      await abrir(tester, appDePrueba(notificaciones: notificaciones));
+
+      notificaciones.tocar('a3');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detalle de alerta'), findsOneWidget);
+      expect(find.text('Intento de robo'), findsWidgets);
+    });
+
+    testWidgets('si un aviso abrió la app, entra al detalle', (tester) async {
+      await abrir(
+        tester,
+        appDePrueba(notificaciones: NotificacionesFalsas(abrioLaApp: 'a3')),
+      );
+      expect(find.text('Detalle de alerta'), findsOneWidget);
     });
   });
 }

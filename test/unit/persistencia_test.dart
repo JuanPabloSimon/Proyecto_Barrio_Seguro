@@ -60,7 +60,7 @@ void main() {
     test('sin nada guardado usan los valores por defecto', () async {
       final preferencias = preferenciasEnMemoria();
       expect(await preferencias.compartirUbicacion(), isFalse);
-      expect(await preferencias.notificaciones(), isTrue);
+      expect(await preferencias.notificaciones(), isFalse);
       expect(await preferencias.vecino(), isNull);
     });
 
@@ -76,17 +76,18 @@ void main() {
           politicas: const PoliticasFalsas(),
           preferencias: preferencias,
           ubicacion: UbicacionFalsa(),
+          notificacionesService: NotificacionesFalsas(),
         );
 
         final primeraVez = crear();
         await primeraVez.cargar();
         await primeraVez.cambiarCompartirUbicacion(true);
-        await primeraVez.cambiarNotificaciones(false);
+        await primeraVez.cambiarNotificaciones(true);
 
         final segundaVez = crear();
         await segundaVez.cargar();
         expect(segundaVez.compartirUbicacion, isTrue);
-        expect(segundaVez.notificaciones, isFalse);
+        expect(segundaVez.notificaciones, isTrue);
       },
     );
   });
