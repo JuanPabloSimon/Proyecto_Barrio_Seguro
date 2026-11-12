@@ -1,5 +1,6 @@
 import 'package:BarrioSeguro/data/services/reloj.dart';
 import 'package:BarrioSeguro/data/services/telefono_service.dart';
+import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
 import 'package:BarrioSeguro/dependencias.dart';
 import 'package:BarrioSeguro/main.dart';
 import 'package:BarrioSeguro/plataforma/capacidades.dart';
@@ -27,6 +28,7 @@ BarrioSeguroApp appDePrueba({
   Capacidades capacidades = const CapacidadesFalsas(),
   Politicas politicas = const PoliticasFalsas(),
   TelefonoService? telefono,
+  UbicacionService? ubicacion,
 }) {
   MapaBarrio.cargarCalles = false;
   return BarrioSeguroApp(
@@ -36,6 +38,7 @@ BarrioSeguroApp appDePrueba({
       capacidades: capacidades,
       politicas: politicas,
       telefono: telefono ?? TelefonoFalso(),
+      ubicacion: ubicacion ?? UbicacionFalsa(),
       preferencias: preferenciasEnMemoria(),
       almacenSeguro: almacenSeguroEnMemoria(),
     ),

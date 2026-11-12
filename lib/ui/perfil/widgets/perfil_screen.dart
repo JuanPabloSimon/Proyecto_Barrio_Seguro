@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../dependencias.dart';
 import '../../core/tema/app_colors.dart';
+import '../../core/widgets/aviso.dart';
 import '../../core/widgets/con_view_model.dart';
 import '../../editar_perfil/view_models/editar_perfil_view_model.dart';
 import '../../editar_perfil/widgets/editar_perfil_screen.dart';
@@ -36,12 +37,21 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   /// Al activar la ubicación, primero se explica para qué se usa si la
   /// política de la plataforma lo exige.
+  ///
+  /// Después del aviso, el sistema pide el permiso. Si no lo dan, el
+  /// interruptor queda apagado y se explica por qué.
   Future<void> _cambiarCompartirUbicacion(bool valor) async {
-    if (valor && _vm.debeAvisarAntesDeCompartirUbicacion) {
-      final acepta = await mostrarAvisoDeUbicacion(context);
-      if (!acepta) return;
+    if (!valor) {
+      await _vm.cambiarCompartirUbicacion(false);
+      return;
     }
-    await _vm.cambiarCompartirUbicacion(valor);
+    if (_vm.debeAvisarAntesDeCompartirUbicacion) {
+      final acepta = await mostrarAvisoDeUbicacion(context);
+      if (!acepta || !mounted) return;
+    }
+    final mensajero = ScaffoldMessenger.of(context);
+    final problema = await _vm.activarUbicacion();
+    if (problema != null) mostrarAvisoEn(mensajero, problema);
   }
 
   void _abrirMisAlertas() {
@@ -209,13 +219,29 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 SwitchListTile(
                   title: const Text('Compartir ubicación exacta en alertas'),
                   subtitle: Text(
-                    _vm.compartirUbicacion
+                    !_vm.tieneGps
+                        ? 'Este dispositivo no tiene GPS. Se comparte la '
+                              'zona aproximada.'
+                        : _vm.compartirUbicacion
                         ? 'Tus vecinos ven el punto exacto'
                         : 'Solo se comparte la zona aproximada',
                   ),
-                  value: _vm.compartirUbicacion,
-                  onChanged: _cambiarCompartirUbicacion,
+                  value: _vm.tieneGps && _vm.compartirUbicacion,
+                  // null deja el interruptor desactivado.
+                  onChanged: _vm.tieneGps ? _cambiarCompartirUbicacion : null,
                 ),
+                if (_vm.permisoBloqueado)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _vm.abrirAjustes,
+                        icon: const Icon(Icons.settings_outlined),
+                        label: const Text('Abrir los ajustes del teléfono'),
+                      ),
+                    ),
+                  ),
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Notificaciones push'),

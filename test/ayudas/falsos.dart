@@ -3,6 +3,7 @@ import 'package:BarrioSeguro/data/repositories/sesion_repository.dart';
 import 'package:BarrioSeguro/data/repositories/turnos_repository.dart';
 import 'package:BarrioSeguro/data/services/alertas_service.dart';
 import 'package:BarrioSeguro/data/services/telefono_service.dart';
+import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
 import 'package:BarrioSeguro/domain/models/alerta.dart';
 import 'package:BarrioSeguro/domain/models/turno.dart';
 import 'package:BarrioSeguro/domain/models/vecino.dart';
@@ -90,6 +91,9 @@ class AlertasFalsas implements AlertasRepository {
   bool falla;
   int pedidos = 0;
 
+  /// Dónde se mandó cada alerta creada, en orden.
+  final List<LatLng> ubicacionesEnviadas = [];
+
   @override
   bool sinConexion = false;
 
@@ -114,6 +118,7 @@ class AlertasFalsas implements AlertasRepository {
     required String reportadaPor,
   }) async {
     _quizasFallar();
+    ubicacionesEnviadas.add(ubicacion);
     final alerta = alertaDePrueba(
       id: 'nueva-${alertas.length}',
       reportadaPor: reportadaPor,
@@ -199,6 +204,7 @@ class CapacidadesFalsas implements Capacidades {
     this.puedeHacerLlamadas = true,
     this.recibeNotificacionesPush = true,
     this.tieneBaseDeDatosLocal = false,
+    this.tieneGps = true,
   });
 
   @override
@@ -209,6 +215,9 @@ class CapacidadesFalsas implements Capacidades {
 
   @override
   final bool tieneBaseDeDatosLocal;
+
+  @override
+  final bool tieneGps;
 }
 
 class PoliticasFalsas implements Politicas {
@@ -230,4 +239,37 @@ class TelefonoFalso implements TelefonoService {
     marcados.add(numero);
     return abre;
   }
+}
+
+/// El GPS de prueba: la prueba decide qué responde el permiso y dónde
+/// "está" el teléfono.
+class UbicacionFalsa implements UbicacionService {
+  UbicacionFalsa({
+    this.permiso = PermisoUbicacion.concedido,
+    this.posicion = const LatLng(-32.8771, -68.8699),
+  });
+
+  PermisoUbicacion permiso;
+
+  /// null: el GPS no responde a tiempo.
+  LatLng? posicion;
+
+  int permisosPedidos = 0;
+  int posicionesPedidas = 0;
+  int ajustesAbiertos = 0;
+
+  @override
+  Future<PermisoUbicacion> pedirPermiso() async {
+    permisosPedidos++;
+    return permiso;
+  }
+
+  @override
+  Future<LatLng?> ubicacionActual() async {
+    posicionesPedidas++;
+    return posicion;
+  }
+
+  @override
+  Future<void> abrirAjustes() async => ajustesAbiertos++;
 }

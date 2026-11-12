@@ -2,6 +2,11 @@
     <!-- Para descargar las calles del mapa. Sin esto, la versión de release
          (la que se publica) muestra el mapa vacío. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Ubicación mientras se usa la app (nunca en segundo plano), para
+         mandar el punto exacto en un SOS. Antes de pedirla, la app
+         muestra su propio aviso (Políticas.exigeAvisoAntesDeUbicacion). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="flutter_application_1"
         android:name="${applicationName}"

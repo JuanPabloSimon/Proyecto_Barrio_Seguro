@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../data/repositories/sesion_repository.dart';
 import '../../../data/services/bus_de_eventos.dart';
 import '../../../data/services/local/preferencias.dart';
+import '../../../data/services/ubicacion_service.dart';
 import '../../../data/services/reloj.dart';
 import '../../../domain/evento_de_app.dart';
 import '../../../domain/models/vecino.dart';
@@ -20,6 +21,7 @@ class PerfilViewModel extends ChangeNotifier {
     required this._capacidades,
     required this._politicas,
     required this._preferencias,
+    required this._ubicacion,
   }) {
     // Si se editan los datos, el perfil se vuelve a dibujar.
     _suscripcion = bus.de<PerfilActualizado>().listen((_) => notifyListeners());
@@ -30,6 +32,7 @@ class PerfilViewModel extends ChangeNotifier {
   final Capacidades _capacidades;
   final Politicas _politicas;
   final Preferencias _preferencias;
+  final UbicacionService _ubicacion;
   StreamSubscription<PerfilActualizado>? _suscripcion;
 
   Vecino? get usuario => _sesion.usuario;
@@ -65,6 +68,9 @@ class PerfilViewModel extends ChangeNotifier {
   bool _compartirUbicacion = false;
   bool get compartirUbicacion => _compartirUbicacion;
 
+  /// Sin GPS no hay ubicación exacta: el interruptor se desactiva.
+  bool get tieneGps => _capacidades.tieneGps;
+
   /// Si al activar "Compartir ubicación" hay que mostrar antes el aviso que
   /// explica para qué se usa (ver [Politicas.exigeAvisoAntesDeUbicacion]).
   bool get debeAvisarAntesDeCompartirUbicacion =>
@@ -87,6 +93,38 @@ class PerfilViewModel extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Activa la ubicación exacta: pide el permiso del sistema y, si lo
+  /// dan, la deja prendida. Si no, devuelve el mensaje para el vecino.
+  ///
+  /// La pantalla llama a esto después del aviso propio (si la política lo
+  /// exige): primero se explica, después pregunta el sistema.
+  Future<String?> activarUbicacion() async {
+    final permiso = await _ubicacion.pedirPermiso();
+    switch (permiso) {
+      case PermisoUbicacion.concedido:
+        await cambiarCompartirUbicacion(true);
+        return null;
+      case PermisoUbicacion.denegado:
+        return 'Sin el permiso de ubicación, en las alertas se comparte '
+            'solo la zona aproximada.';
+      case PermisoUbicacion.denegadoParaSiempre:
+        _permisoBloqueado = true;
+        notifyListeners();
+        return 'El permiso de ubicación está bloqueado. Activalo desde los '
+            'ajustes del teléfono.';
+      case PermisoUbicacion.servicioApagado:
+        return 'La ubicación del teléfono está apagada. Prendela y probá de '
+            'nuevo.';
+    }
+  }
+
+  bool _permisoBloqueado = false;
+
+  /// Si el permiso quedó bloqueado y hay que ir a los ajustes.
+  bool get permisoBloqueado => _permisoBloqueado;
+
+  Future<void> abrirAjustes() => _ubicacion.abrirAjustes();
 
   /// Primero la pantalla (respuesta inmediata), después el disco.
   Future<void> cambiarCompartirUbicacion(bool valor) async {

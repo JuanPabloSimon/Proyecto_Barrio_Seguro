@@ -1,6 +1,7 @@
 // Técnica 1 del apunte: la app recibe capacidades y políticas falsas, y se
 // prueban los dos caminos de cada pantalla sin tener el dispositivo a mano.
 
+import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -134,6 +135,57 @@ void main() {
 
       expect(find.text('¿Compartir tu ubicación exacta?'), findsNothing);
       expect(encendido(tester, interruptorUbicacion), isFalse);
+    });
+  });
+
+  group('Permiso de ubicación del sistema', () {
+    testWidgets('si el vecino no da el permiso, queda apagada y se explica', (
+      tester,
+    ) async {
+      await irAlPerfil(
+        tester,
+        appDePrueba(
+          politicas: const PoliticasFalsas(exigeAvisoAntesDeUbicacion: false),
+          ubicacion: UbicacionFalsa(permiso: PermisoUbicacion.denegado),
+        ),
+      );
+
+      await tocar(tester, interruptorUbicacion);
+
+      expect(encendido(tester, interruptorUbicacion), isFalse);
+      expect(
+        find.textContaining('Sin el permiso de ubicación'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('con el permiso bloqueado aparece el botón de ajustes', (
+      tester,
+    ) async {
+      final gps = UbicacionFalsa(permiso: PermisoUbicacion.denegadoParaSiempre);
+      await irAlPerfil(
+        tester,
+        appDePrueba(
+          politicas: const PoliticasFalsas(exigeAvisoAntesDeUbicacion: false),
+          ubicacion: gps,
+        ),
+      );
+
+      await tocar(tester, interruptorUbicacion);
+      await tocar(tester, find.text('Abrir los ajustes del teléfono'));
+
+      expect(gps.ajustesAbiertos, 1);
+    });
+
+    testWidgets('sin GPS, el interruptor se desactiva', (tester) async {
+      await irAlPerfil(
+        tester,
+        appDePrueba(capacidades: const CapacidadesFalsas(tieneGps: false)),
+      );
+
+      final widget = tester.widget<SwitchListTile>(interruptorUbicacion);
+      expect(widget.onChanged, isNull);
+      expect(find.textContaining('no tiene GPS'), findsOneWidget);
     });
   });
 

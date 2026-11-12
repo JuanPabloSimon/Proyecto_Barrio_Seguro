@@ -14,6 +14,7 @@ import 'package:BarrioSeguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:BarrioSeguro/ui/turnos/view_models/turnos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../ayudas/bases_de_prueba.dart';
 import '../ayudas/falsos.dart';
 
 void main() {
@@ -135,6 +136,9 @@ void main() {
         alertas: alertas,
         sesion: SesionFalsa(vecinaDePrueba),
         bus: bus,
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        capacidades: const CapacidadesFalsas(),
       );
       final eventos = <Object>[];
       bus.eventos.listen(eventos.add);
@@ -154,6 +158,9 @@ void main() {
         alertas: AlertasFalsas([], true),
         sesion: SesionFalsa(vecinaDePrueba),
         bus: bus,
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        capacidades: const CapacidadesFalsas(),
       );
       await vm.enviar();
       expect(vm.paso, PasoSos.error);
@@ -165,6 +172,9 @@ void main() {
         alertas: alertas,
         sesion: SesionFalsa(vecinaDePrueba),
         bus: bus,
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        capacidades: const CapacidadesFalsas(),
       );
       await vm.enviar();
       expect(await vm.cerrarAlerta(), isTrue);
