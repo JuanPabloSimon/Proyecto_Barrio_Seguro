@@ -1,21 +1,13 @@
-// Test básico de arranque: reemplaza al test del contador de la plantilla.
+// Test básico de arranque.
 
-import 'package:BarrioSeguro/data/sesion.dart';
-import 'package:BarrioSeguro/data/turnos_repositorio.dart';
-import 'package:BarrioSeguro/main.dart';
-import 'package:BarrioSeguro/widgets/mapa_barrio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-void main() {
-  setUp(() {
-    MapaBarrio.cargarCalles = false;
-    Sesion.reiniciar();
-    turnosRepositorio.reiniciar();
-  });
+import 'ayudas/app_de_prueba.dart';
 
+void main() {
   testWidgets('La app abre en el login y entra al inicio', (tester) async {
-    await tester.pumpWidget(const BarrioSeguroApp());
+    await tester.pumpWidget(appDePrueba());
     await tester.pumpAndSettle();
 
     expect(find.text('Barrio Seguro'), findsOneWidget);
