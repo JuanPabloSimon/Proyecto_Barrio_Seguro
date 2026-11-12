@@ -31,6 +31,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _calle = TextEditingController();
   final _cuadra = TextEditingController();
   final _codigo = TextEditingController();
+  final _clave = TextEditingController();
 
   RegistroViewModel get _vm => widget.viewModel;
 
@@ -42,6 +43,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     _calle.dispose();
     _cuadra.dispose();
     _codigo.dispose();
+    _clave.dispose();
     super.dispose();
   }
 
@@ -51,6 +53,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       calle: _calle.text,
       cuadra: _cuadra.text,
       codigoComision: _codigo.text,
+      clave: _clave.text,
     );
     if (!ok || !mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
@@ -150,6 +153,21 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 'Lo entrega la comisión para validar que vivís en el barrio.',
             helperMaxLines: 4,
             prefixIcon: Icon(Icons.verified_user_outlined),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _clave,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'Contraseña',
+            helperText:
+                'Al menos ${RegistroViewModel.largoMinimoClave} caracteres. '
+                'La vas a usar con tu teléfono para ingresar.',
+            helperMaxLines: 4,
+            errorText: _vm.errorClave,
+            errorMaxLines: 4,
+            prefixIcon: const Icon(Icons.lock_outline),
           ),
         ),
         const SizedBox(height: 32),

@@ -45,6 +45,21 @@ void main() {
       expect(vm.errorFecha, contains('14/05/1950'));
     });
 
+    test('con una contraseña corta no crea la cuenta', () async {
+      final vm = crear()
+        ..cambiarNombre('Ana')
+        ..cambiarFecha('01/01/1990');
+      final creada = await vm.registrar(
+        telefono: '261 555-0999',
+        calle: 'Plantamura',
+        cuadra: '4',
+        codigoComision: 'SOBERANIA',
+        clave: '123',
+      );
+      expect(creada, isFalse);
+      expect(vm.errorClave, contains('6 caracteres'));
+    });
+
     test('avisa a la vista cada vez que cambia', () {
       final vm = crear();
       var avisos = 0;

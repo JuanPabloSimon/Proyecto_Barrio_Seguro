@@ -16,4 +16,7 @@ abstract class VecinosService {
     String id,
     Map<String, dynamic> datos,
   );
+
+  /// Avisa al servidor que el token de la sesión ya no se usa.
+  Future<void> cerrarSesion();
 }

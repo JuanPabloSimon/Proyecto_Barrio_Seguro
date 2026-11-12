@@ -29,4 +29,7 @@ class VecinosServiceSimulado implements VecinosService {
     await _servidor.responder();
     return _servidor.actualizarVecino(id, datos);
   }
+
+  @override
+  Future<void> cerrarSesion() async {}
 }
