@@ -58,7 +58,13 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
     )..cargar();
     _mapa = MapaViewModel(alertas: d.alertas, bus: d.bus, reloj: d.reloj)
       ..cargar();
-    _perfil = PerfilViewModel(sesion: d.sesion, bus: d.bus, reloj: d.reloj);
+    _perfil = PerfilViewModel(
+      sesion: d.sesion,
+      bus: d.bus,
+      reloj: d.reloj,
+      capacidades: d.capacidades,
+      politicas: d.politicas,
+    );
   }
 
   @override
@@ -80,7 +86,11 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
         builder: (_) => ConViewModel(
           crear: () =>
               SosViewModel(alertas: d.alertas, sesion: d.sesion, bus: d.bus),
-          builder: (_, vm) => SosScreen(viewModel: vm),
+          builder: (_, vm) => SosScreen(
+            viewModel: vm,
+            capacidades: d.capacidades,
+            telefono: d.telefono,
+          ),
         ),
       ),
     );

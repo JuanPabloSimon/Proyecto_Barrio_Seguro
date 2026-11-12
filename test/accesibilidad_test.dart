@@ -23,6 +23,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ayudas/app_de_prueba.dart';
+import 'ayudas/falsos.dart';
 
 // ---------------------------------------------------------------------------
 // Preparación
@@ -156,6 +157,28 @@ final pantallas = <Pantalla>[
   Pantalla('Editar datos', (tester) async {
     await irAPestania(tester, 'Perfil');
     await tocar(tester, find.text('Editar datos personales'));
+  }),
+  Pantalla('Aviso antes de compartir la ubicación', (tester) async {
+    await irAPestania(tester, 'Perfil');
+    await tocar(
+      tester,
+      find.widgetWithText(
+        SwitchListTile,
+        'Compartir ubicación exacta en alertas',
+      ),
+    );
+    expect(find.text('¿Compartir tu ubicación exacta?'), findsOneWidget);
+  }),
+  Pantalla('Llamar al 911 sin teléfono (diálogo)', (tester) async {
+    await tester.pumpWidget(
+      appDePrueba(
+        capacidades: const CapacidadesFalsas(puedeHacerLlamadas: false),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tocar(tester, find.text('Ingresar'));
+    await tocar(tester, find.text('Llamar al 911'));
+    expect(find.text('Llamá al 911 desde un teléfono'), findsOneWidget);
   }),
   Pantalla('Mis alertas', (tester) async {
     await irAPestania(tester, 'Perfil');
