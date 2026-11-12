@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/sesion_repository.dart';
+import '../../../data/services/error_del_servidor.dart';
 import '../../core/estado_carga.dart';
 
 class LoginViewModel extends ChangeNotifier {
@@ -26,6 +27,11 @@ class LoginViewModel extends ChangeNotifier {
       await _sesion.ingresar(usuario: usuario.trim(), clave: clave);
       _estado = EstadoCarga.exito;
       return true;
+    } on ErrorDelServidor catch (e) {
+      // Por ejemplo: "El teléfono o la contraseña no son correctos."
+      _estado = EstadoCarga.error;
+      _error = e.mensaje;
+      return false;
     } catch (_) {
       _estado = EstadoCarga.error;
       _error = 'No pudimos ingresar. Revisá tu conexión y probá de nuevo.';

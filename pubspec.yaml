@@ -45,6 +45,8 @@ dependencies:
   flutter_secure_storage: ^11.1.1
   sqflite: ^2.4.2
   path: ^1.9.1
+  # APIs REST: la app le habla al backend de /backend.
+  http: ^1.5.0
 
 dev_dependencies:
   flutter_test:

@@ -65,6 +65,7 @@ class SesionFalsa implements SesionRepository {
     required String calle,
     required String cuadra,
     required String codigoComision,
+    required String clave,
   }) async {
     return usuario = Vecino(
       id: 'nuevo',

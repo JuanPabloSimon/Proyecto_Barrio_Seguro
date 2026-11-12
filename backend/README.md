@@ -23,6 +23,20 @@ Variables de entorno (opcionales):
 | `DATOS` | Archivo donde se guardan los datos | `datos/barrio.json` |
 | `CODIGO_COMISION` | Código que la comisión vecinal da para registrarse | `SOBERANIA` |
 
+### Conectar la app
+
+Con el servidor andando, desde la carpeta de la app (la raíz del repositorio):
+
+```bash
+# Emulador de Android: 10.0.2.2 es la PC vista desde el emulador.
+flutter run --dart-define=API_URL=http://10.0.2.2:8080
+
+# Celular en la misma red wifi: la IP de la PC (en Windows, `ipconfig`).
+flutter run --dart-define=API_URL=http://192.168.0.10:8080
+```
+
+Sin `--dart-define`, la app usa el servidor simulado y no necesita la API. En Windows, la primera vez el firewall puede pedir permiso para que Dart acepte conexiones: hay que permitirlo en redes privadas.
+
 ### Cuentas de prueba
 
 | Vecino | Teléfono | Contraseña | Rol |

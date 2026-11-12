@@ -21,6 +21,7 @@ abstract class SesionRepository {
     required String calle,
     required String cuadra,
     required String codigoComision,
+    required String clave,
   });
 
   Future<Vecino> actualizarDatos(Vecino datos);
@@ -85,6 +86,7 @@ class SesionRepositoryRemoto implements SesionRepository {
     required String calle,
     required String cuadra,
     required String codigoComision,
+    required String clave,
   }) async {
     final respuesta = await _service.registrar({
       'nombre': nombre,
@@ -93,6 +95,7 @@ class SesionRepositoryRemoto implements SesionRepository {
       'calle': calle,
       'cuadra': cuadra,
       'codigo_comision': codigoComision,
+      'clave': clave,
     });
     return _abrirSesion(respuesta);
   }
@@ -108,6 +111,10 @@ class SesionRepositoryRemoto implements SesionRepository {
 
   @override
   Future<void> cerrarSesion() async {
+    // Si no hay conexión, igual se cierra en el teléfono.
+    try {
+      await _service.cerrarSesion();
+    } catch (_) {}
     _usuario = null;
     await _almacen.borrarToken();
     await _preferencias.olvidarVecino();

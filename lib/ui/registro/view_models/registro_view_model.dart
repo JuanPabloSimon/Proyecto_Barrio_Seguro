@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/sesion_repository.dart';
+import '../../../data/services/error_del_servidor.dart';
 import '../../../data/services/reloj.dart';
 import '../../../domain/fechas.dart';
 import '../../../domain/reglas_turnos.dart';
@@ -22,6 +23,12 @@ class RegistroViewModel extends ChangeNotifier {
 
   String? _errorDelServidor;
   String? get errorDelServidor => _errorDelServidor;
+
+  /// Mínimo de caracteres de la contraseña (el mismo que pide la API).
+  static const largoMinimoClave = 6;
+
+  String? _errorClave;
+  String? get errorClave => _errorClave;
 
   /// Edad según la fecha ingresada, o null si todavía no es válida.
   int? get edad {
@@ -67,9 +74,13 @@ class RegistroViewModel extends ChangeNotifier {
     required String calle,
     required String cuadra,
     required String codigoComision,
+    required String clave,
   }) async {
     final fecha = _fechaNacimiento;
-    if (_nombre.trim().isEmpty || fecha == null) {
+    _errorClave = clave.length < largoMinimoClave
+        ? 'La contraseña tiene que tener al menos $largoMinimoClave caracteres'
+        : null;
+    if (_nombre.trim().isEmpty || fecha == null || _errorClave != null) {
       _mostrarErrores = true;
       notifyListeners();
       return false;
@@ -87,9 +98,15 @@ class RegistroViewModel extends ChangeNotifier {
         calle: calle.trim(),
         cuadra: numeroCuadra.isEmpty ? '' : 'Cuadra $numeroCuadra',
         codigoComision: codigoComision.trim(),
+        clave: clave,
       );
       _estado = EstadoCarga.exito;
       return true;
+    } on ErrorDelServidor catch (e) {
+      // La API explica qué pasó: código incorrecto, teléfono repetido...
+      _estado = EstadoCarga.error;
+      _errorDelServidor = e.mensaje;
+      return false;
     } catch (_) {
       _estado = EstadoCarga.error;
       _errorDelServidor =
