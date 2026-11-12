@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
@@ -22,12 +21,6 @@ class _SosScreenState extends State<SosScreen> {
   void _enviar() {
     HapticFeedback.heavyImpact();
     setState(() => _enviada = true);
-    // Avisa al lector de pantalla que cambió el contenido.
-    SemanticsService.sendAnnouncement(
-      View.of(context),
-      'Alerta enviada a tus vecinos',
-      Directionality.of(context),
-    );
   }
 
   void _cerrar([String? mensaje]) {
@@ -121,8 +114,11 @@ class _SosScreenState extends State<SosScreen> {
           child: Icon(Icons.check_circle_outline, color: AppColors.sobreColor, size: 96),
         ),
         const SizedBox(height: 16),
+        // liveRegion: el lector de pantalla lo anuncia al aparecer. Reemplaza
+        // al anuncio directo, que Android marca como obsoleto.
         Semantics(
           header: true,
+          liveRegion: true,
           child: const Text(
             'Alerta enviada',
             textAlign: TextAlign.center,

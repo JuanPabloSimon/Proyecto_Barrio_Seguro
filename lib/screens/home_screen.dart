@@ -7,7 +7,7 @@ import '../models/alerta.dart';
 import '../theme/app_colors.dart';
 import '../utils/fechas.dart';
 import '../widgets/dialogo_911.dart';
-import '../widgets/mapa_simulado.dart';
+import '../widgets/mapa_barrio.dart';
 import '../widgets/objetivo_tactil.dart';
 import '../widgets/tarjeta_alerta.dart';
 import '../widgets/tarjeta_tocable.dart';
@@ -61,7 +61,12 @@ class HomeScreen extends StatelessWidget {
               children: [
                 SizedBox(
                   height: 150,
-                  child: MapaSimulado(alertas: cercanas, tamanioPin: 28),
+                  child: MapaBarrio(
+                    alertas: cercanas,
+                    encuadre: EncuadreMapa.alertas,
+                    mostrarRadio: false,
+                    tamanioPin: 28,
+                  ),
                 ),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 12, 12, 12),

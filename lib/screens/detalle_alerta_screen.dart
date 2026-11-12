@@ -6,7 +6,7 @@ import '../theme/app_colors.dart';
 import '../widgets/aviso.dart';
 import '../widgets/chip_estado.dart';
 import '../widgets/dialogo_911.dart';
-import '../widgets/mapa_simulado.dart';
+import '../widgets/mapa_barrio.dart';
 
 class DetalleAlertaScreen extends StatelessWidget {
   const DetalleAlertaScreen({super.key, required this.alerta});
@@ -43,7 +43,15 @@ class DetalleAlertaScreen extends StatelessWidget {
               image: true,
               label: 'Mapa con la ubicación aproximada de la alerta: ${alerta.direccion}',
               child: ExcludeSemantics(
-                child: SizedBox(height: 200, child: MapaSimulado(alertas: [alerta])),
+                child: SizedBox(
+                  height: 200,
+                  child: MapaBarrio(
+                    alertas: [alerta],
+                    encuadre: EncuadreMapa.alertas,
+                    mostrarRadio: false,
+                    mostrarUsuario: false,
+                  ),
+                ),
               ),
             ),
           ),

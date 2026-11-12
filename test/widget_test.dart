@@ -3,11 +3,13 @@
 import 'package:BarrioSeguro/data/sesion.dart';
 import 'package:BarrioSeguro/data/turnos_repositorio.dart';
 import 'package:BarrioSeguro/main.dart';
+import 'package:BarrioSeguro/widgets/mapa_barrio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUp(() {
+    MapaBarrio.cargarCalles = false;
     Sesion.reiniciar();
     turnosRepositorio.reiniciar();
   });
