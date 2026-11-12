@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../data/services/telefono_service.dart';
+import '../../../plataforma/capacidades.dart';
 import '../../core/tema/app_colors.dart';
 import '../../core/widgets/aviso.dart';
 import '../../core/widgets/dialogo_911.dart';
@@ -10,9 +12,18 @@ import '../view_models/sos_view_model.dart';
 /// grande; recién al confirmar se envía la alerta y se muestran las
 /// opciones siguientes.
 class SosScreen extends StatelessWidget {
-  const SosScreen({super.key, required this.viewModel});
+  const SosScreen({
+    super.key,
+    required this.viewModel,
+    required this.capacidades,
+    required this.telefono,
+  });
 
   final SosViewModel viewModel;
+
+  /// Para el botón "Llamar al 911".
+  final Capacidades capacidades;
+  final TelefonoService telefono;
 
   void _enviar() {
     HapticFeedback.heavyImpact();
@@ -143,7 +154,11 @@ class SosScreen extends StatelessWidget {
         if (fallo) ...[
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: () => mostrarDialogo911(context),
+            onPressed: () => mostrarDialogo911(
+              context,
+              capacidades: capacidades,
+              telefono: telefono,
+            ),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.superficie,
               foregroundColor: AppColors.emergencia,
@@ -205,7 +220,11 @@ class SosScreen extends StatelessWidget {
         const Spacer(),
         const SizedBox(height: 32),
         FilledButton.icon(
-          onPressed: () => mostrarDialogo911(context),
+          onPressed: () => mostrarDialogo911(
+            context,
+            capacidades: capacidades,
+            telefono: telefono,
+          ),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.superficie,
             foregroundColor: AppColors.emergencia,

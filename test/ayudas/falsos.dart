@@ -2,9 +2,12 @@ import 'package:BarrioSeguro/data/repositories/alertas_repository.dart';
 import 'package:BarrioSeguro/data/repositories/sesion_repository.dart';
 import 'package:BarrioSeguro/data/repositories/turnos_repository.dart';
 import 'package:BarrioSeguro/data/services/alertas_service.dart';
+import 'package:BarrioSeguro/data/services/telefono_service.dart';
 import 'package:BarrioSeguro/domain/models/alerta.dart';
 import 'package:BarrioSeguro/domain/models/turno.dart';
 import 'package:BarrioSeguro/domain/models/vecino.dart';
+import 'package:BarrioSeguro/plataforma/capacidades.dart';
+import 'package:BarrioSeguro/plataforma/politicas.dart';
 import 'package:latlong2/latlong.dart';
 
 /// Repositorios y servicios falsos para probar ViewModels sin servidor.
@@ -174,4 +177,40 @@ class AlertasServiceContador implements AlertasService {
   @override
   Future<Map<String, dynamic>> cambiarEstado(String id, String estado) async =>
       throw UnimplementedError();
+}
+
+/// Cumple el contrato de Capacidades, pero cada respuesta la decide la
+/// prueba. Un campo final alcanza para implementar un getter.
+class CapacidadesFalsas implements Capacidades {
+  const CapacidadesFalsas({
+    this.puedeHacerLlamadas = true,
+    this.recibeNotificacionesPush = true,
+  });
+
+  @override
+  final bool puedeHacerLlamadas;
+
+  @override
+  final bool recibeNotificacionesPush;
+}
+
+class PoliticasFalsas implements Politicas {
+  const PoliticasFalsas({this.exigeAvisoAntesDeUbicacion = true});
+
+  @override
+  final bool exigeAvisoAntesDeUbicacion;
+}
+
+/// Anota los números que se marcaron en vez de abrir el teléfono.
+class TelefonoFalso implements TelefonoService {
+  TelefonoFalso({this.abre = true});
+
+  final bool abre;
+  final List<String> marcados = [];
+
+  @override
+  Future<bool> abrirMarcador(String numero) async {
+    marcados.add(numero);
+    return abre;
+  }
 }

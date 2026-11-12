@@ -11,6 +11,7 @@ import '../../mis_alertas/view_models/mis_alertas_view_model.dart';
 import '../../mis_alertas/widgets/mis_alertas_screen.dart';
 import '../../principal/pestanias.dart';
 import '../view_models/perfil_view_model.dart';
+import 'aviso_ubicacion.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({
@@ -32,6 +33,16 @@ class PerfilScreen extends StatefulWidget {
 
 class _PerfilScreenState extends State<PerfilScreen> {
   PerfilViewModel get _vm => widget.viewModel;
+
+  /// Al activar la ubicación, primero se explica para qué se usa si la
+  /// política de la plataforma lo exige.
+  Future<void> _cambiarCompartirUbicacion(bool valor) async {
+    if (valor && _vm.debeAvisarAntesDeCompartirUbicacion) {
+      final acepta = await mostrarAvisoDeUbicacion(context);
+      if (!acepta) return;
+    }
+    _vm.cambiarCompartirUbicacion(valor);
+  }
 
   void _abrirMisAlertas() {
     final d = widget.dependencias;
@@ -203,14 +214,22 @@ class _PerfilScreenState extends State<PerfilScreen> {
                         : 'Solo se comparte la zona aproximada',
                   ),
                   value: _vm.compartirUbicacion,
-                  onChanged: _vm.cambiarCompartirUbicacion,
+                  onChanged: _cambiarCompartirUbicacion,
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Notificaciones push'),
-                  subtitle: const Text('Avisos de alertas cerca tuyo'),
+                  subtitle: Text(
+                    _vm.puedeRecibirNotificaciones
+                        ? 'Avisos de alertas cerca tuyo'
+                        : 'Este dispositivo no recibe notificaciones. '
+                              'Activalas desde tu celular.',
+                  ),
                   value: _vm.notificaciones,
-                  onChanged: _vm.cambiarNotificaciones,
+                  // null deja el interruptor desactivado.
+                  onChanged: _vm.puedeRecibirNotificaciones
+                      ? _vm.cambiarNotificaciones
+                      : null,
                 ),
               ],
             ),

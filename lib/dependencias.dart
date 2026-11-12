@@ -7,6 +7,9 @@ import 'data/services/simulados/alertas_service_simulado.dart';
 import 'data/services/simulados/servidor_simulado.dart';
 import 'data/services/simulados/turnos_service_simulado.dart';
 import 'data/services/simulados/vecinos_service_simulado.dart';
+import 'data/services/telefono_service.dart';
+import 'plataforma/capacidades.dart';
+import 'plataforma/politicas.dart';
 
 /// Las piezas de la app, armadas una sola vez de abajo hacia arriba
 /// (servicios → repositorios). Las pantallas las reciben por constructor
@@ -22,13 +25,21 @@ class Dependencias {
     required this.bus,
     required this.reloj,
     required this.mesDeTurnos,
+    required this.capacidades,
+    required this.politicas,
+    required this.telefono,
   });
 
-  /// Todo funciona contra el [ServidorSimulado], sin internet.
+  /// Los datos vienen del [ServidorSimulado], sin internet. Las
+  /// capacidades, las políticas y el teléfono son los verdaderos, salvo que
+  /// una prueba pase otros.
   factory Dependencias.simuladas({
     Reloj reloj = const RelojDelSistema(),
     Duration demora = const Duration(milliseconds: 400),
     double probabilidadDeFallo = 0,
+    Capacidades capacidades = const Capacidades(),
+    Politicas politicas = const Politicas(),
+    TelefonoService telefono = const TelefonoServiceUrlLauncher(),
   }) {
     final servidor = ServidorSimulado(
       reloj: reloj,
@@ -45,6 +56,9 @@ class Dependencias {
       reloj: reloj,
       // Mes que muestra el calendario de turnos en el prototipo.
       mesDeTurnos: DateTime(2026, 10),
+      capacidades: capacidades,
+      politicas: politicas,
+      telefono: telefono,
     );
   }
 
@@ -54,4 +68,12 @@ class Dependencias {
   final BusDeEventos bus;
   final Reloj reloj;
   final DateTime mesDeTurnos;
+
+  /// Lo que el dispositivo puede hacer.
+  final Capacidades capacidades;
+
+  /// Lo que la app debe hacer en cada plataforma.
+  final Politicas politicas;
+
+  final TelefonoService telefono;
 }

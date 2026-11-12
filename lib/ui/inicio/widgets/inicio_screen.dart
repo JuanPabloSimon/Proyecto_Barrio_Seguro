@@ -120,7 +120,11 @@ class InicioScreen extends StatelessWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
-            onPressed: () => mostrarDialogo911(context),
+            onPressed: () => mostrarDialogo911(
+              context,
+              capacidades: dependencias.capacidades,
+              telefono: dependencias.telefono,
+            ),
             icon: const Icon(Icons.phone),
             label: const Text('Llamar al 911'),
             style: OutlinedButton.styleFrom(

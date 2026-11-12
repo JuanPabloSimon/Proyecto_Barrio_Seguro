@@ -37,6 +37,8 @@ dependencies:
   # Mapa del barrio con calles de OpenStreetMap y coordenadas.
   flutter_map: ^8.3.2
   latlong2: ^0.9.1
+  # Abrir el teléfono con el 911 marcado (link tel:).
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

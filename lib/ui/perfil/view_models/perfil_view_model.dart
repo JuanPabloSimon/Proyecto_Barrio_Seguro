@@ -7,6 +7,8 @@ import '../../../data/services/bus_de_eventos.dart';
 import '../../../data/services/reloj.dart';
 import '../../../domain/evento_de_app.dart';
 import '../../../domain/models/vecino.dart';
+import '../../../plataforma/capacidades.dart';
+import '../../../plataforma/politicas.dart';
 import '../../core/formato.dart';
 
 class PerfilViewModel extends ChangeNotifier {
@@ -14,6 +16,8 @@ class PerfilViewModel extends ChangeNotifier {
     required this._sesion,
     required BusDeEventos bus,
     required this._reloj,
+    required this._capacidades,
+    required this._politicas,
   }) {
     // Si se editan los datos, el perfil se vuelve a dibujar.
     _suscripcion = bus.de<PerfilActualizado>().listen((_) => notifyListeners());
@@ -21,6 +25,8 @@ class PerfilViewModel extends ChangeNotifier {
 
   final SesionRepository _sesion;
   final Reloj _reloj;
+  final Capacidades _capacidades;
+  final Politicas _politicas;
   StreamSubscription<PerfilActualizado>? _suscripcion;
 
   Vecino? get usuario => _sesion.usuario;
@@ -49,11 +55,23 @@ class PerfilViewModel extends ChangeNotifier {
 
   // Preferencias del vecino. Por ahora viven en memoria; en la rama de
   // persistencia se guardan con shared_preferences.
-  bool _compartirUbicacion = true;
+
+  /// Arranca apagado: la ubicación exacta se comparte recién cuando el
+  /// vecino lo acepta.
+  bool _compartirUbicacion = false;
   bool get compartirUbicacion => _compartirUbicacion;
 
+  /// Si al activar "Compartir ubicación" hay que mostrar antes el aviso que
+  /// explica para qué se usa (ver [Politicas.exigeAvisoAntesDeUbicacion]).
+  bool get debeAvisarAntesDeCompartirUbicacion =>
+      !_compartirUbicacion && _politicas.exigeAvisoAntesDeUbicacion;
+
+  /// Si el dispositivo puede recibir notificaciones push. Si no, el
+  /// interruptor se muestra desactivado con la explicación.
+  bool get puedeRecibirNotificaciones => _capacidades.recibeNotificacionesPush;
+
   bool _notificaciones = true;
-  bool get notificaciones => _notificaciones;
+  bool get notificaciones => puedeRecibirNotificaciones && _notificaciones;
 
   void cambiarCompartirUbicacion(bool valor) {
     _compartirUbicacion = valor;

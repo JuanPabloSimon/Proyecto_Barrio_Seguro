@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../data/services/telefono_service.dart';
 import '../../../dependencias.dart';
 import '../../../domain/models/alerta.dart';
+import '../../../plataforma/capacidades.dart';
 import '../../core/estado_carga.dart';
 import '../../core/tema/app_colors.dart';
 import '../../core/widgets/aviso.dart';
@@ -12,9 +14,18 @@ import '../../core/widgets/mapa_barrio.dart';
 import '../view_models/detalle_alerta_view_model.dart';
 
 class DetalleAlertaScreen extends StatelessWidget {
-  const DetalleAlertaScreen({super.key, required this.viewModel});
+  const DetalleAlertaScreen({
+    super.key,
+    required this.viewModel,
+    required this.capacidades,
+    required this.telefono,
+  });
 
   final DetalleAlertaViewModel viewModel;
+
+  /// Para el botón "Llamar al 911".
+  final Capacidades capacidades;
+  final TelefonoService telefono;
 
   /// Abre el detalle de [alerta]. La alerta viaja como parámetro de la
   /// navegación y el ViewModel se crea una sola vez para esta pantalla.
@@ -33,7 +44,11 @@ class DetalleAlertaScreen extends StatelessWidget {
             bus: dependencias.bus,
             reloj: dependencias.reloj,
           ),
-          builder: (_, vm) => DetalleAlertaScreen(viewModel: vm),
+          builder: (_, vm) => DetalleAlertaScreen(
+            viewModel: vm,
+            capacidades: dependencias.capacidades,
+            telefono: dependencias.telefono,
+          ),
         ),
       ),
     );
@@ -129,7 +144,11 @@ class DetalleAlertaScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () => mostrarDialogo911(context),
+            onPressed: () => mostrarDialogo911(
+              context,
+              capacidades: capacidades,
+              telefono: telefono,
+            ),
             icon: const Icon(Icons.phone),
             label: const Text('Llamar al 911'),
             style: OutlinedButton.styleFrom(
