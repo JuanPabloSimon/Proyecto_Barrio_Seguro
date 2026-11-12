@@ -3,13 +3,13 @@
 
 import 'dart:convert';
 
-import 'package:BarrioSeguro/data/repositories/sesion_repository.dart';
-import 'package:BarrioSeguro/data/services/error_del_servidor.dart';
-import 'package:BarrioSeguro/data/services/http/alertas_service_http.dart';
-import 'package:BarrioSeguro/data/services/http/cliente_api.dart';
-import 'package:BarrioSeguro/data/services/http/turnos_service_http.dart';
-import 'package:BarrioSeguro/data/services/http/vecinos_service_http.dart';
-import 'package:BarrioSeguro/data/services/local/almacen_seguro.dart';
+import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/http/alertas_service_http.dart';
+import 'package:barrio_seguro/data/services/http/cliente_api.dart';
+import 'package:barrio_seguro/data/services/http/turnos_service_http.dart';
+import 'package:barrio_seguro/data/services/http/vecinos_service_http.dart';
+import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

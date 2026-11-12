@@ -1,12 +1,12 @@
-import 'package:BarrioSeguro/data/services/notificaciones_service.dart';
-import 'package:BarrioSeguro/data/services/reloj.dart';
-import 'package:BarrioSeguro/data/services/telefono_service.dart';
-import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
-import 'package:BarrioSeguro/dependencias.dart';
-import 'package:BarrioSeguro/main.dart';
-import 'package:BarrioSeguro/plataforma/capacidades.dart';
-import 'package:BarrioSeguro/plataforma/politicas.dart';
-import 'package:BarrioSeguro/ui/core/widgets/mapa_barrio.dart';
+import 'package:barrio_seguro/data/services/notificaciones_service.dart';
+import 'package:barrio_seguro/data/services/reloj.dart';
+import 'package:barrio_seguro/data/services/telefono_service.dart';
+import 'package:barrio_seguro/data/services/ubicacion_service.dart';
+import 'package:barrio_seguro/dependencias.dart';
+import 'package:barrio_seguro/main.dart';
+import 'package:barrio_seguro/plataforma/capacidades.dart';
+import 'package:barrio_seguro/plataforma/politicas.dart';
+import 'package:barrio_seguro/ui/core/widgets/mapa_barrio.dart';
 
 import 'bases_de_prueba.dart';
 import 'falsos.dart';

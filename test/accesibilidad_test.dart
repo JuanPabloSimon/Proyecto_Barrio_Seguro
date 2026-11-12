@@ -11,13 +11,13 @@
 // Los tests usan una fuente de prueba con letras cuadradas, más ancha que
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
-import 'package:BarrioSeguro/data/services/simulados/servidor_simulado.dart';
-import 'package:BarrioSeguro/domain/barrio.dart';
-import 'package:BarrioSeguro/domain/models/alerta.dart';
-import 'package:BarrioSeguro/ui/core/tema/app_colors.dart';
-import 'package:BarrioSeguro/ui/core/tema/transiciones.dart';
-import 'package:BarrioSeguro/ui/core/widgets/boton_sos.dart';
-import 'package:BarrioSeguro/ui/core/widgets/tarjeta_alerta.dart';
+import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
+import 'package:barrio_seguro/domain/barrio.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/ui/core/tema/app_colors.dart';
+import 'package:barrio_seguro/ui/core/tema/transiciones.dart';
+import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
+import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';

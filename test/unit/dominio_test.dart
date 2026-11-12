@@ -1,11 +1,11 @@
 // Pruebas de la capa de dominio: reglas y cálculos puros, sin Flutter.
 
-import 'package:BarrioSeguro/domain/fechas.dart';
-import 'package:BarrioSeguro/domain/models/alerta.dart';
-import 'package:BarrioSeguro/domain/models/turno.dart';
-import 'package:BarrioSeguro/domain/models/vecino.dart';
-import 'package:BarrioSeguro/domain/reglas_turnos.dart';
-import 'package:BarrioSeguro/ui/core/formato.dart';
+import 'package:barrio_seguro/domain/fechas.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/domain/reglas_turnos.dart';
+import 'package:barrio_seguro/ui/core/formato.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../ayudas/falsos.dart';

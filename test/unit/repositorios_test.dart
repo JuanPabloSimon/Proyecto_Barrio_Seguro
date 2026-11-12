@@ -1,14 +1,14 @@
 // Pruebas de la capa de datos: los repositorios convierten el JSON del
 // servicio en modelos y guardan una caché.
 
-import 'package:BarrioSeguro/data/repositories/alertas_repository.dart';
-import 'package:BarrioSeguro/data/repositories/turnos_repository.dart';
-import 'package:BarrioSeguro/data/services/error_del_servidor.dart';
-import 'package:BarrioSeguro/data/services/reloj.dart';
-import 'package:BarrioSeguro/data/services/simulados/servidor_simulado.dart';
-import 'package:BarrioSeguro/data/services/simulados/turnos_service_simulado.dart';
-import 'package:BarrioSeguro/domain/models/turno.dart';
-import 'package:BarrioSeguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/reloj.dart';
+import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
+import 'package:barrio_seguro/data/services/simulados/turnos_service_simulado.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../ayudas/falsos.dart';

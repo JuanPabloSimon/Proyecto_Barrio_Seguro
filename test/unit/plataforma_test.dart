@@ -4,8 +4,8 @@
 // La web no se puede simular así: kIsWeb es una constante que se fija al
 // compilar. Para eso habría que correr `flutter test --platform chrome`.
 
-import 'package:BarrioSeguro/plataforma/capacidades.dart';
-import 'package:BarrioSeguro/plataforma/politicas.dart';
+import 'package:barrio_seguro/plataforma/capacidades.dart';
+import 'package:barrio_seguro/plataforma/politicas.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 

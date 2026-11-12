@@ -1,12 +1,12 @@
 // Pruebas de la ubicación real: el SOS y el permiso del perfil, con un GPS
 // falso que decide la prueba.
 
-import 'package:BarrioSeguro/data/services/bus_de_eventos.dart';
-import 'package:BarrioSeguro/data/services/local/preferencias.dart';
-import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
-import 'package:BarrioSeguro/domain/barrio.dart';
-import 'package:BarrioSeguro/ui/perfil/view_models/perfil_view_model.dart';
-import 'package:BarrioSeguro/ui/sos/view_models/sos_view_model.dart';
+import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
+import 'package:barrio_seguro/data/services/ubicacion_service.dart';
+import 'package:barrio_seguro/domain/barrio.dart';
+import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
+import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 

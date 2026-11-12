@@ -5,21 +5,21 @@
 // sobre el mismo almacenamiento: si ve lo que guardó el primero, la
 // persistencia funciona.
 
-import 'package:BarrioSeguro/data/repositories/alertas_repository.dart';
-import 'package:BarrioSeguro/data/repositories/sesion_repository.dart';
-import 'package:BarrioSeguro/data/repositories/turnos_repository.dart';
-import 'package:BarrioSeguro/data/services/bus_de_eventos.dart';
-import 'package:BarrioSeguro/data/services/local/alertas_dao.dart';
-import 'package:BarrioSeguro/data/services/local/almacen_seguro.dart';
-import 'package:BarrioSeguro/data/services/local/preferencias.dart';
-import 'package:BarrioSeguro/data/services/local/turnos_dao.dart';
-import 'package:BarrioSeguro/data/services/simulados/servidor_simulado.dart';
-import 'package:BarrioSeguro/data/services/simulados/turnos_service_simulado.dart';
-import 'package:BarrioSeguro/data/services/simulados/vecinos_service_simulado.dart';
-import 'package:BarrioSeguro/data/services/turnos_service.dart';
-import 'package:BarrioSeguro/domain/models/alerta.dart';
-import 'package:BarrioSeguro/domain/models/turno.dart';
-import 'package:BarrioSeguro/ui/perfil/view_models/perfil_view_model.dart';
+import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
+import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
+import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
+import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
+import 'package:barrio_seguro/data/services/local/turnos_dao.dart';
+import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
+import 'package:barrio_seguro/data/services/simulados/turnos_service_simulado.dart';
+import 'package:barrio_seguro/data/services/simulados/vecinos_service_simulado.dart';
+import 'package:barrio_seguro/data/services/turnos_service.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
