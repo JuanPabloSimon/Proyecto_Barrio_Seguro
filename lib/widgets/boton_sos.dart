@@ -14,6 +14,16 @@ class BotonSos extends StatelessWidget {
 
   static const anchoMinimo = 184.0;
   static const altoMinimo = 88.0;
+  static const _tamanioTexto = 30.0;
+  static const _relleno = 12.0;
+
+  /// Alto que ocupa el botón con el tamaño de texto actual. Lo usa el mapa
+  /// para que ningún pin quede debajo del botón.
+  static double altoActual(BuildContext context) {
+    final texto = MediaQuery.textScalerOf(context).scale(_tamanioTexto) * 1.2;
+    final alto = texto + _relleno * 2;
+    return alto > altoMinimo ? alto : altoMinimo;
+  }
 
   final VoidCallback onPressed;
 
@@ -45,7 +55,7 @@ class BotonSos extends StatelessWidget {
               minHeight: altoMinimo,
             ),
             child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: 28, vertical: _relleno),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -56,7 +66,7 @@ class BotonSos extends StatelessWidget {
                     'SOS',
                     style: TextStyle(
                       color: AppColors.sobreColor,
-                      fontSize: 30,
+                      fontSize: _tamanioTexto,
                       fontWeight: FontWeight.w900,
                     ),
                   ),

@@ -5,6 +5,7 @@ import '../data/barrio.dart';
 import '../data/datos_demo.dart';
 import '../models/alerta.dart';
 import '../theme/app_colors.dart';
+import '../widgets/boton_sos.dart';
 import '../widgets/chip_estado.dart';
 import '../widgets/mapa_barrio.dart';
 import '../widgets/objetivo_tactil.dart';
@@ -19,9 +20,6 @@ class MapaScreen extends StatefulWidget {
 }
 
 class _MapaScreenState extends State<MapaScreen> {
-  /// Deja libre la parte de abajo del mapa, donde flota el botón SOS.
-  static const _margenMapa = EdgeInsets.fromLTRB(16, 16, 72, 120);
-
   final _controlador = MapController();
 
   /// null = "Todas"
@@ -33,6 +31,21 @@ class _MapaScreenState extends State<MapaScreen> {
     super.dispose();
   }
 
+  /// Espacio libre al encuadrar, para que ningún pin (ni la mitad de su área
+  /// táctil) quede debajo del botón SOS ni de los botones de zoom. El botón
+  /// SOS crece con el texto del sistema, así que se calcula cada vez.
+  EdgeInsets _margenMapa(BuildContext context) {
+    const mitadPin = ObjetivoTactil.tamanioMinimo / 2;
+    const separacionSos = 16.0; // la que deja el Scaffold debajo del botón
+    const anchoControles = 12 + ObjetivoTactil.tamanioMinimo;
+    return EdgeInsets.fromLTRB(
+      mitadPin + 8,
+      mitadPin + 8,
+      anchoControles + mitadPin + ObjetivoTactil.separacion,
+      separacionSos + BotonSos.altoActual(context) + mitadPin + ObjetivoTactil.separacion,
+    );
+  }
+
   // Botones de zoom: pellizcar la pantalla es difícil para mucha gente.
   void _cambiarZoom(double cambio) {
     final camara = _controlador.camera;
@@ -42,7 +55,7 @@ class _MapaScreenState extends State<MapaScreen> {
 
   void _verTodoElRadio() {
     _controlador.fitCamera(
-      CameraFit.bounds(bounds: Barrio.limitesDelRadio, padding: _margenMapa),
+      CameraFit.bounds(bounds: Barrio.limitesDelRadio, padding: _margenMapa(context)),
     );
   }
 
@@ -156,7 +169,7 @@ class _MapaScreenState extends State<MapaScreen> {
                       alertas: visibles,
                       onAlertaTap: _mostrarResumen,
                       controlador: _controlador,
-                      margen: _margenMapa,
+                      margen: _margenMapa(context),
                       // Abre encuadrando las alertas para que los pines queden
                       // separados; "Ver todo el radio" muestra el círculo entero.
                       encuadre: EncuadreMapa.alertas,
