@@ -11,7 +11,10 @@ const nombreArchivoBase = 'barrio_seguro.db';
 /// Versión del esquema (la "forma" de las tablas). Cada vez que cambia la
 /// estructura de una tabla, este número sube y hay que agregar la
 /// migración en `onUpgrade`.
-const versionDelEsquema = 1;
+///
+/// - 1: alertas y turnos.
+/// - 2: alertas_pendientes (las que no se pudieron enviar sin señal).
+const versionDelEsquema = 2;
 
 /// Copia local de las alertas, para verlas sin conexión. Mismas columnas
 /// que el JSON de la API. La fecha va en milisegundos (SQLite no tiene
@@ -43,6 +46,15 @@ CREATE TABLE turnos (
 )
 ''';
 
+/// Alertas que el vecino creó sin señal y todavía no llegaron al servidor.
+/// `datos` es el JSON que se le va a mandar a la API.
+const sqlCrearPendientes = '''
+CREATE TABLE alertas_pendientes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  datos TEXT NOT NULL
+)
+''';
+
 /// Abre (o crea, si no existe) la base en [ruta].
 ///
 /// Recibe la [fabrica] por parámetro: la app usa la del dispositivo y las
@@ -56,6 +68,12 @@ Future<Database> abrirBaseDeDatos(DatabaseFactory fabrica, String ruta) {
       onCreate: (db, version) async {
         await db.execute(sqlCrearAlertas);
         await db.execute(sqlCrearTurnos);
+        await db.execute(sqlCrearPendientes);
+      },
+      // onUpgrade corre cuando el teléfono tiene una base de una versión
+      // anterior de la app: se agrega lo que le falta, sin borrar nada.
+      onUpgrade: (db, anterior, nueva) async {
+        if (anterior < 2) await db.execute(sqlCrearPendientes);
       },
     ),
   );

@@ -27,7 +27,7 @@ void main() {
         () {
           simularPlataforma(plataforma);
           expect(capacidades.puedeHacerLlamadas, isTrue);
-          expect(capacidades.recibeNotificacionesPush, isTrue);
+          expect(capacidades.muestraNotificaciones, isTrue);
         },
       );
     }
@@ -42,7 +42,7 @@ void main() {
         () {
           simularPlataforma(plataforma);
           expect(capacidades.puedeHacerLlamadas, isFalse);
-          expect(capacidades.recibeNotificacionesPush, isFalse);
+          expect(capacidades.muestraNotificaciones, isFalse);
         },
       );
     }

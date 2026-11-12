@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../data/repositories/sesion_repository.dart';
 import '../../../data/services/bus_de_eventos.dart';
 import '../../../data/services/local/preferencias.dart';
+import '../../../data/services/notificaciones_service.dart';
 import '../../../data/services/ubicacion_service.dart';
 import '../../../data/services/reloj.dart';
 import '../../../domain/evento_de_app.dart';
@@ -22,6 +23,7 @@ class PerfilViewModel extends ChangeNotifier {
     required this._politicas,
     required this._preferencias,
     required this._ubicacion,
+    required this._notificacionesService,
   }) {
     // Si se editan los datos, el perfil se vuelve a dibujar.
     _suscripcion = bus.de<PerfilActualizado>().listen((_) => notifyListeners());
@@ -33,6 +35,7 @@ class PerfilViewModel extends ChangeNotifier {
   final Politicas _politicas;
   final Preferencias _preferencias;
   final UbicacionService _ubicacion;
+  final NotificacionesService _notificacionesService;
   StreamSubscription<PerfilActualizado>? _suscripcion;
 
   Vecino? get usuario => _sesion.usuario;
@@ -78,7 +81,7 @@ class PerfilViewModel extends ChangeNotifier {
 
   /// Si el dispositivo puede recibir notificaciones push. Si no, el
   /// interruptor se muestra desactivado con la explicación.
-  bool get puedeRecibirNotificaciones => _capacidades.recibeNotificacionesPush;
+  bool get puedeRecibirNotificaciones => _capacidades.muestraNotificaciones;
 
   bool _notificaciones = true;
   bool get notificaciones => puedeRecibirNotificaciones && _notificaciones;
@@ -131,6 +134,19 @@ class PerfilViewModel extends ChangeNotifier {
     _compartirUbicacion = valor;
     notifyListeners();
     await _guardar(() => _preferencias.guardarCompartirUbicacion(valor));
+  }
+
+  /// Activa los avisos: pide el permiso del sistema y, si lo dan, los
+  /// deja prendidos. Si no, devuelve el mensaje para el vecino. Sin
+  /// permiso la app sigue funcionando igual; solo no avisa.
+  Future<String?> activarAvisos() async {
+    final otorgado = await _notificacionesService.pedirPermiso();
+    if (!otorgado) {
+      return 'Sin permiso no podemos avisarte de alertas nuevas. Podés '
+          'activarlo desde los ajustes del teléfono.';
+    }
+    await cambiarNotificaciones(true);
+    return null;
   }
 
   Future<void> cambiarNotificaciones(bool valor) async {

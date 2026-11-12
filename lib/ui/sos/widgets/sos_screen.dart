@@ -200,10 +200,10 @@ class SosScreen extends StatelessWidget {
         Semantics(
           header: true,
           liveRegion: true,
-          child: const Text(
-            'Alerta enviada',
+          child: Text(
+            viewModel.pendiente ? 'Alerta guardada' : 'Alerta enviada',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.sobreColor,
               fontSize: 30,
               fontWeight: FontWeight.w800,
@@ -212,7 +212,10 @@ class SosScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          viewModel.conUbicacionExacta
+          viewModel.pendiente
+              ? 'No hay señal. La alerta se va a enviar sola apenas vuelva '
+                    'la conexión. Si estás en peligro, llamá al 911.'
+              : viewModel.conUbicacionExacta
               ? 'Avisamos a los vecinos de tu zona con tu ubicación exacta. '
                     'Si estás en peligro, llamá al 911.'
               : 'Avisamos a los vecinos de tu zona. Les mandamos la zona del '

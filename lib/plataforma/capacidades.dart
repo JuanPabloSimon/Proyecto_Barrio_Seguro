@@ -39,13 +39,22 @@ class Capacidades {
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
-  /// Si la app puede recibir notificaciones push de alertas.
+  /// Si la app puede mostrar notificaciones (avisos de alertas nuevas).
   ///
-  /// Firebase Cloud Messaging no funciona en Windows ni en Linux, y por
-  /// ahora solo lo vamos a configurar en Android e iOS.
-  bool get recibeNotificacionesPush {
+  /// flutter_local_notifications funciona en Android e iOS; en el resto
+  /// la app no avisa fuera de la pantalla.
+  bool get muestraNotificaciones {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
+  /// Si se pueden programar tareas que corren con la app cerrada
+  /// (workmanager), por ejemplo para mandar una alerta cuando vuelve la
+  /// señal. Solo Android: en iOS hace falta configurarlo en Xcode, con una
+  /// Mac.
+  bool get correTareasEnSegundoPlano {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android;
   }
 }
