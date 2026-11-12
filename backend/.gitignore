@@ -1,0 +1,4 @@
+# Lo genera dart pub get.
+.dart_tool/
+# Los datos que guarda el servidor mientras corre (no van al repo).
+datos/
