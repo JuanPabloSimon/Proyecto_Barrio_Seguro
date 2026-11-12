@@ -63,6 +63,13 @@ class Alerta {
     );
   }
 
+  /// Fila de la tabla `alertas` -> objeto.
+  ///
+  /// Las columnas de la tabla tienen los mismos nombres y tipos que el JSON
+  /// de la API (la fecha en milisegundos, las coordenadas como REAL), así
+  /// que la conversión es la misma.
+  factory Alerta.fromMap(Map<String, Object?> fila) => Alerta.fromJson(fila);
+
   final String id;
   final CategoriaAlerta categoria;
 
@@ -91,4 +98,7 @@ class Alerta {
     'longitud': ubicacion.longitude,
     'reportada_por': reportadaPor,
   };
+
+  /// Objeto -> fila de la tabla `alertas`.
+  Map<String, Object?> toMap() => toJson();
 }

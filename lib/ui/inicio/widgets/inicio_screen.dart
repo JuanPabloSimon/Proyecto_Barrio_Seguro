@@ -4,6 +4,7 @@ import '../../../dependencias.dart';
 import '../../alerta_detalle/widgets/detalle_alerta_screen.dart';
 import '../../core/estado_carga.dart';
 import '../../core/tema/app_colors.dart';
+import '../../core/widgets/aviso_sin_conexion.dart';
 import '../../core/widgets/dialogo_911.dart';
 import '../../core/widgets/estado_de_carga.dart';
 import '../../core/widgets/mapa_barrio.dart';
@@ -63,6 +64,10 @@ class InicioScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 140),
       children: [
+        if (viewModel.sinConexion) ...[
+          const AvisoSinConexion(),
+          const SizedBox(height: 16),
+        ],
         if (activas > 0) ...[
           _BannerAlertas(cantidad: activas, onTap: () => onIrA(Pestania.mapa)),
           const SizedBox(height: 16),

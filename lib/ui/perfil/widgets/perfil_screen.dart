@@ -41,7 +41,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
       final acepta = await mostrarAvisoDeUbicacion(context);
       if (!acepta) return;
     }
-    _vm.cambiarCompartirUbicacion(valor);
+    await _vm.cambiarCompartirUbicacion(valor);
   }
 
   void _abrirMisAlertas() {

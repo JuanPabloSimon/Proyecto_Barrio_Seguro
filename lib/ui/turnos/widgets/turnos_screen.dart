@@ -7,6 +7,7 @@ import '../../core/estado_carga.dart';
 import '../../core/formato.dart';
 import '../../core/tema/app_colors.dart';
 import '../../core/widgets/aviso.dart';
+import '../../core/widgets/aviso_sin_conexion.dart';
 import '../../core/widgets/estado_de_carga.dart';
 import '../../core/widgets/selector_dia.dart';
 import '../../core/widgets/tarjeta_tocable.dart';
@@ -56,6 +57,8 @@ class TurnosScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
       children: [
+        if (viewModel.sinConexion)
+          const AvisoSinConexion(margen: EdgeInsets.only(bottom: 12)),
         SegmentedButton<bool>(
           segments: const [
             ButtonSegment(value: false, label: Text('Todos')),

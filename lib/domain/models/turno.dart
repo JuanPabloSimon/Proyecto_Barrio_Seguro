@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'vecino.dart';
 
 /// Franjas horarias en las que se patrulla.
@@ -42,6 +44,20 @@ class Turno {
     );
   }
 
+  /// Fila de la tabla `turnos` -> objeto.
+  ///
+  /// Los vecinos del turno se guardan como JSON en una columna de texto:
+  /// para una copia local alcanza, y evita una tabla aparte de vecinos.
+  factory Turno.fromMap(Map<String, Object?> fila) {
+    final guardia = fila['guardia_ventana'] as String?;
+    return Turno.fromJson({
+      'fecha': fila['fecha'],
+      'franja': fila['franja'],
+      'patrulleros': jsonDecode(fila['patrulleros'] as String),
+      'guardia_ventana': guardia == null ? null : jsonDecode(guardia),
+    });
+  }
+
   final DateTime fecha;
   final Franja franja;
   final List<Vecino> patrulleros;
@@ -55,4 +71,16 @@ class Turno {
 
   List<Vecino> companierosDe(Vecino vecino) =>
       patrulleros.where((p) => p.id != vecino.id).toList();
+
+  /// Objeto -> fila de la tabla `turnos`.
+  Map<String, Object?> toMap() {
+    final guardia = guardiaVentana;
+    return {
+      // "2026-10-09": el texto ordena igual que la fecha.
+      'fecha': fecha.toIso8601String().substring(0, 10),
+      'franja': franja.name,
+      'patrulleros': jsonEncode([for (final p in patrulleros) p.toJson()]),
+      'guardia_ventana': guardia == null ? null : jsonEncode(guardia.toJson()),
+    };
+  }
 }

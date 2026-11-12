@@ -20,6 +20,17 @@ class Capacidades {
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
+  /// Si hay base de datos local (sqflite) para guardar alertas y turnos.
+  ///
+  /// El plugin funciona en Android, iOS y macOS. En la web y en Windows o
+  /// Linux la app funciona igual, pero sin la copia para usar sin conexión.
+  bool get tieneBaseDeDatosLocal {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+  }
+
   /// Si la app puede recibir notificaciones push de alertas.
   ///
   /// Firebase Cloud Messaging no funciona en Windows ni en Linux, y por
