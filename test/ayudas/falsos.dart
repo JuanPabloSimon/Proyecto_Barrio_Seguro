@@ -1,18 +1,18 @@
 import 'dart:async';
 
-import 'package:BarrioSeguro/data/repositories/alertas_repository.dart';
-import 'package:BarrioSeguro/data/repositories/sesion_repository.dart';
-import 'package:BarrioSeguro/data/repositories/turnos_repository.dart';
-import 'package:BarrioSeguro/data/services/alertas_service.dart';
-import 'package:BarrioSeguro/data/services/notificaciones_service.dart';
-import 'package:BarrioSeguro/data/services/tareas/tareas_service.dart';
-import 'package:BarrioSeguro/data/services/telefono_service.dart';
-import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
-import 'package:BarrioSeguro/domain/models/alerta.dart';
-import 'package:BarrioSeguro/domain/models/turno.dart';
-import 'package:BarrioSeguro/domain/models/vecino.dart';
-import 'package:BarrioSeguro/plataforma/capacidades.dart';
-import 'package:BarrioSeguro/plataforma/politicas.dart';
+import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
+import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
+import 'package:barrio_seguro/data/services/alertas_service.dart';
+import 'package:barrio_seguro/data/services/notificaciones_service.dart';
+import 'package:barrio_seguro/data/services/tareas/tareas_service.dart';
+import 'package:barrio_seguro/data/services/telefono_service.dart';
+import 'package:barrio_seguro/data/services/ubicacion_service.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/plataforma/capacidades.dart';
+import 'package:barrio_seguro/plataforma/politicas.dart';
 import 'package:latlong2/latlong.dart';
 
 /// Repositorios y servicios falsos para probar ViewModels sin servidor.

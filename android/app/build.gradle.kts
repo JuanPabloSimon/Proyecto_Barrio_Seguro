@@ -1,11 +1,23 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Datos de la firma de release. key.properties y el archivo .jks no se
+// suben al repositorio (están en android/.gitignore): cada uno los tiene
+// en su computadora. Sin ellos, la versión de release se firma con la
+// clave de debug y sirve para probar, no para publicar.
+val propiedadesDeFirma = Properties().apply {
+    val archivo = rootProject.file("key.properties")
+    if (archivo.exists()) archivo.inputStream().use { load(it) }
+}
+val hayFirmaDeRelease = propiedadesDeFirma.containsKey("storeFile")
+
 android {
-    namespace = "com.example.flutter_application_1"
+    namespace = "com.barrioseguro.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -18,8 +30,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.flutter_application_1"
+        // Identifica a la app en Google Play: una vez publicada, no se cambia.
+        applicationId = "com.barrioseguro.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -32,11 +44,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (hayFirmaDeRelease) {
+                keyAlias = propiedadesDeFirma.getProperty("keyAlias")
+                keyPassword = propiedadesDeFirma.getProperty("keyPassword")
+                storeFile = file(propiedadesDeFirma.getProperty("storeFile"))
+                storePassword = propiedadesDeFirma.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hayFirmaDeRelease) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

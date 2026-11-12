@@ -1,17 +1,17 @@
 // Pruebas de los ViewModels con repositorios falsos: sin servidor, sin
 // widgets y con un reloj fijo, así los resultados no dependen del día.
 
-import 'package:BarrioSeguro/data/services/bus_de_eventos.dart';
-import 'package:BarrioSeguro/data/services/reloj.dart';
-import 'package:BarrioSeguro/domain/evento_de_app.dart';
-import 'package:BarrioSeguro/domain/models/alerta.dart';
-import 'package:BarrioSeguro/domain/models/turno.dart';
-import 'package:BarrioSeguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
-import 'package:BarrioSeguro/ui/core/estado_carga.dart';
-import 'package:BarrioSeguro/ui/mapa/view_models/mapa_view_model.dart';
-import 'package:BarrioSeguro/ui/registro/view_models/registro_view_model.dart';
-import 'package:BarrioSeguro/ui/sos/view_models/sos_view_model.dart';
-import 'package:BarrioSeguro/ui/turnos/view_models/turnos_view_model.dart';
+import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/reloj.dart';
+import 'package:barrio_seguro/domain/evento_de_app.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
+import 'package:barrio_seguro/ui/core/estado_carga.dart';
+import 'package:barrio_seguro/ui/mapa/view_models/mapa_view_model.dart';
+import 'package:barrio_seguro/ui/registro/view_models/registro_view_model.dart';
+import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
+import 'package:barrio_seguro/ui/turnos/view_models/turnos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../ayudas/bases_de_prueba.dart';

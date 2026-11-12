@@ -1,6 +1,6 @@
-import 'package:BarrioSeguro/data/services/local/almacen_seguro.dart';
-import 'package:BarrioSeguro/data/services/local/base_de_datos.dart';
-import 'package:BarrioSeguro/data/services/local/preferencias.dart';
+import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
+import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';

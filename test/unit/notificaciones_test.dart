@@ -3,18 +3,18 @@
 
 import 'dart:io';
 
-import 'package:BarrioSeguro/data/repositories/alertas_repository.dart';
-import 'package:BarrioSeguro/data/services/alertas_service.dart';
-import 'package:BarrioSeguro/data/services/bus_de_eventos.dart';
-import 'package:BarrioSeguro/data/services/error_del_servidor.dart';
-import 'package:BarrioSeguro/data/services/local/base_de_datos.dart';
-import 'package:BarrioSeguro/data/services/local/pendientes_dao.dart';
-import 'package:BarrioSeguro/data/services/local/preferencias.dart';
-import 'package:BarrioSeguro/data/services/tareas/envio_de_pendientes.dart';
-import 'package:BarrioSeguro/domain/evento_de_app.dart';
-import 'package:BarrioSeguro/domain/models/alerta.dart';
-import 'package:BarrioSeguro/ui/principal/vigilante_de_alertas.dart';
-import 'package:BarrioSeguro/ui/sos/view_models/sos_view_model.dart';
+import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/services/alertas_service.dart';
+import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
+import 'package:barrio_seguro/data/services/local/pendientes_dao.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
+import 'package:barrio_seguro/data/services/tareas/envio_de_pendientes.dart';
+import 'package:barrio_seguro/domain/evento_de_app.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/ui/principal/vigilante_de_alertas.dart';
+import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';

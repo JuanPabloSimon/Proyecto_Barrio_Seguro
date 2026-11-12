@@ -1,7 +1,7 @@
 // Técnica 1 del apunte: la app recibe capacidades y políticas falsas, y se
 // prueban los dos caminos de cada pantalla sin tener el dispositivo a mano.
 
-import 'package:BarrioSeguro/data/services/ubicacion_service.dart';
+import 'package:barrio_seguro/data/services/ubicacion_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
