@@ -11,19 +11,18 @@
 // Los tests usan una fuente de prueba con letras cuadradas, más ancha que
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
-import 'package:BarrioSeguro/data/barrio.dart';
-import 'package:BarrioSeguro/data/datos_demo.dart';
-import 'package:BarrioSeguro/data/sesion.dart';
-import 'package:BarrioSeguro/data/turnos_repositorio.dart';
-import 'package:BarrioSeguro/main.dart';
-import 'package:BarrioSeguro/theme/app_colors.dart';
-import 'package:BarrioSeguro/theme/transiciones.dart';
-import 'package:BarrioSeguro/widgets/boton_sos.dart';
-import 'package:BarrioSeguro/widgets/mapa_barrio.dart';
-import 'package:BarrioSeguro/widgets/tarjeta_alerta.dart';
+import 'package:BarrioSeguro/data/services/simulados/servidor_simulado.dart';
+import 'package:BarrioSeguro/domain/barrio.dart';
+import 'package:BarrioSeguro/domain/models/alerta.dart';
+import 'package:BarrioSeguro/ui/core/tema/app_colors.dart';
+import 'package:BarrioSeguro/ui/core/tema/transiciones.dart';
+import 'package:BarrioSeguro/ui/core/widgets/boton_sos.dart';
+import 'package:BarrioSeguro/ui/core/widgets/tarjeta_alerta.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'ayudas/app_de_prueba.dart';
 
 // ---------------------------------------------------------------------------
 // Preparación
@@ -43,16 +42,10 @@ void configurarPantalla(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 }
 
-/// Cada test arranca con el usuario y los turnos de ejemplo. El mapa se
-/// dibuja sin descargar calles, para no depender de internet.
-void reiniciarDatos() {
-  MapaBarrio.cargarCalles = false;
-  Sesion.reiniciar();
-  turnosRepositorio.reiniciar();
-}
-
+/// Cada prueba arranca la app con dependencias nuevas (ver
+/// `appDePrueba`), así ninguna ve lo que cambió otra.
 Future<void> abrirApp(WidgetTester tester) async {
-  await tester.pumpWidget(const BarrioSeguroApp());
+  await tester.pumpWidget(appDePrueba());
   await tester.pumpAndSettle();
 }
 
@@ -66,7 +59,9 @@ Future<void> mostrar(WidgetTester tester, Finder finder) async {
   if (finder.evaluate().isEmpty) {
     final listaVisible = find
         .byWidgetPredicate(
-          (widget) => widget is Scrollable && widget.axisDirection == AxisDirection.down,
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
         )
         .hitTestable()
         .first;
@@ -92,7 +87,10 @@ Future<void> irAPestania(WidgetTester tester, String pestania) async {
   await ingresar(tester);
   await tocar(
     tester,
-    find.descendant(of: find.byType(NavigationBar), matching: find.text(pestania)),
+    find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text(pestania),
+    ),
   );
 }
 
@@ -123,7 +121,10 @@ final pantallas = <Pantalla>[
     await mostrar(tester, fecha);
     await tester.enterText(fecha, '14051950');
     await tester.pumpAndSettle();
-    expect(find.text('Vas a participar como guardia de ventana'), findsOneWidget);
+    expect(
+      find.text('Vas a participar como guardia de ventana'),
+      findsOneWidget,
+    );
   }),
   Pantalla('Inicio', ingresar),
   Pantalla('Llamar al 911 (diálogo)', (tester) async {
@@ -178,8 +179,6 @@ final pantallas = <Pantalla>[
 // ---------------------------------------------------------------------------
 
 void main() {
-  setUp(reiniciarDatos);
-
   group('Guías de accesibilidad', () {
     for (final pantalla in pantallas) {
       testWidgets(pantalla.nombre, (tester) async {
@@ -212,7 +211,8 @@ void main() {
         expect(
           par.ratio,
           greaterThanOrEqualTo(par.minimo),
-          reason: '${par.descripcion}: ${par.ratio.toStringAsFixed(2)}:1, '
+          reason:
+              '${par.descripcion}: ${par.ratio.toStringAsFixed(2)}:1, '
               'mínimo ${par.minimo}:1',
         );
       }
@@ -221,11 +221,13 @@ void main() {
 
   group('Barrio', () {
     test('Todas las alertas de ejemplo están dentro del radio de alertas', () {
-      for (final alerta in alertasDemo) {
+      final servidor = ServidorSimulado(reloj: relojDePrueba);
+      for (final alerta in servidor.alertas().map(Alerta.fromJson)) {
         expect(
           Barrio.estaDentroDelRadio(alerta.ubicacion),
           isTrue,
-          reason: '${alerta.tipo} está a '
+          reason:
+              '${alerta.tipo} está a '
               '${Barrio.distanciaAlCentro(alerta.ubicacion).round()} m del centro',
         );
       }
@@ -233,7 +235,9 @@ void main() {
   });
 
   group('Movimiento', () {
-    testWidgets('Con "Quitar animaciones" la transición no anima', (tester) async {
+    testWidgets('Con "Quitar animaciones" la transición no anima', (
+      tester,
+    ) async {
       const pantallaNueva = SizedBox(key: Key('nueva'));
       late Widget resultado;
 
@@ -242,14 +246,15 @@ void main() {
           data: const MediaQueryData(disableAnimations: true),
           child: Builder(
             builder: (context) {
-              resultado = const TransicionAccesible(ZoomPageTransitionsBuilder())
-                  .buildTransitions<void>(
-                MaterialPageRoute<void>(builder: (_) => pantallaNueva),
-                context,
-                kAlwaysCompleteAnimation,
-                kAlwaysDismissedAnimation,
-                pantallaNueva,
-              );
+              resultado =
+                  const TransicionAccesible(ZoomPageTransitionsBuilder())
+                      .buildTransitions<void>(
+                        MaterialPageRoute<void>(builder: (_) => pantallaNueva),
+                        context,
+                        kAlwaysCompleteAnimation,
+                        kAlwaysDismissedAnimation,
+                        pantallaNueva,
+                      );
               return const SizedBox();
             },
           ),
@@ -261,7 +266,9 @@ void main() {
   });
 
   group('Botón SOS', () {
-    testWidgets('Un toque pide confirmación y no envía la alerta', (tester) async {
+    testWidgets('Un toque pide confirmación y no envía la alerta', (
+      tester,
+    ) async {
       configurarPantalla(tester);
       await ingresar(tester);
       await tocar(tester, find.byType(BotonSos));
