@@ -1,0 +1,136 @@
+{
+  "project": "barrio-seguro",
+  "description": "App móvil de la Comisión Vecinal Barrio Seguro (40 familias): alertas SOS, mapa de alertas, llamada al 911 y turnos de patrullaje. Flutter + API REST en Dart (backend/).",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "sdd_required_when": "feature has \"sdd\": true"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "ui_vistas",
+      "title": "Vistas navegables del prototipo",
+      "description": "Login, inicio, turnos, mapa, perfil y SOS, con navegación entre pantallas.",
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "accesibilidad",
+      "title": "Accesibilidad para personas mayores",
+      "description": "Contraste verificado, objetivos táctiles de 48 dp, lectores de pantalla, texto al 200 % y movimiento reducido, con pruebas por pantalla.",
+      "status": "done"
+    },
+    {
+      "id": 3,
+      "name": "mapa_real",
+      "title": "Mapa real del barrio",
+      "description": "Mapa del Barrio Soberanía con OpenStreetMap (flutter_map), sin pines debajo del botón SOS.",
+      "status": "done"
+    },
+    {
+      "id": 4,
+      "name": "arquitectura_mvvm",
+      "title": "Arquitectura MVVM en capas",
+      "description": "Refactor a vistas, ViewModels, repositorios y servicios, con inyección de dependencias en lib/dependencias.dart.",
+      "status": "done"
+    },
+    {
+      "id": 5,
+      "name": "capacidades_politicas",
+      "title": "Capacidades y políticas de la plataforma",
+      "description": "Clases Capacidades y Politicas; llamada al 911 con url_launcher; aviso propio antes del permiso de ubicación en Android.",
+      "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "persistencia_local",
+      "title": "Persistencia local",
+      "description": "Preferencias (SharedPreferencesAsync), token en almacenamiento seguro y copia de alertas y turnos en sqflite para usar sin conexión.",
+      "status": "done"
+    },
+    {
+      "id": 7,
+      "name": "backend_api",
+      "title": "API REST en Dart",
+      "description": "Servidor shelf en backend/: sesiones, registro con código de la comisión, alertas y turnos, con las reglas de turnos aplicadas también en el servidor.",
+      "status": "done"
+    },
+    {
+      "id": 8,
+      "name": "api_http",
+      "title": "Conexión de la app con la API",
+      "description": "Servicios HTTP con package:http que cumplen los mismos contratos que los simulados; se elige con --dart-define=API_URL.",
+      "status": "done"
+    },
+    {
+      "id": 9,
+      "name": "ubicacion_gps",
+      "title": "Ubicación real para el SOS",
+      "description": "geolocator con permiso solo mientras se usa la app; ubicación exacta si el vecino la aceptó, si no la zona del barrio.",
+      "status": "done"
+    },
+    {
+      "id": 10,
+      "name": "avisos_y_segundo_plano",
+      "title": "Avisos de alertas y envío sin señal",
+      "description": "Notificaciones locales de alertas nuevas mientras la app está abierta; alertas sin señal guardadas y enviadas con workmanager cuando vuelve la conexión.",
+      "status": "done"
+    },
+    {
+      "id": 11,
+      "name": "publicacion",
+      "title": "Preparación para publicar",
+      "description": "Nombre visible, identificador com.barrioseguro.app y firma de release.",
+      "status": "done"
+    },
+    {
+      "id": 12,
+      "name": "avisos_push",
+      "title": "Avisos con la app cerrada (Firebase Cloud Messaging)",
+      "description": "Que el aviso de una alerta nueva llegue aunque la app esté cerrada o el celular bloqueado. PRECONDICIÓN: el equipo tiene que crear el proyecto de Firebase y bajar google-services.json; agrega paquetes nuevos (firebase_core, firebase_messaging y la autenticación del backend), así que se discute antes del spec.",
+      "acceptance": [
+        "Con la app cerrada, cuando otro vecino crea una alerta, el teléfono muestra una notificación",
+        "Tocar la notificación abre el detalle de esa alerta",
+        "El vecino que creó la alerta no recibe su propio aviso",
+        "Si la alerta ya está resuelta cuando se va a enviar el aviso, no se avisa",
+        "Sin el permiso de notificaciones la app sigue funcionando igual que hoy",
+        "Pruebas con un servicio de push falso en la app y en el backend"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 13,
+      "name": "rol_comision",
+      "title": "Rol de miembro de la comisión",
+      "description": "Distinguir a los miembros de la comisión del resto de los vecinos, para que después solo ellos vean el informe de alertas.",
+      "acceptance": [
+        "El vecino tiene un rol: vecino o comision",
+        "El rol viaja en el JSON de la API y se guarda con la sesión",
+        "Un vecino común no puede cambiarse el rol a sí mismo (la API responde 403)",
+        "Las rutas solo para la comisión responden 403 a un vecino común",
+        "Pruebas en la app y en el backend para cada rol"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 14,
+      "name": "informe_alertas",
+      "title": "Informe de alertas para la comisión",
+      "description": "Resumen mensual de alertas por calle, por tipo y por franja horaria, para llevar al municipio. Depende de rol_comision.",
+      "acceptance": [
+        "Una pantalla nueva muestra, para un mes elegido, la cantidad de alertas por calle, por tipo y por franja horaria",
+        "Solo la ven los miembros de la comisión; para el resto la opción no aparece",
+        "Sin alertas en el mes, la pantalla lo dice en lugar de mostrar tablas vacías",
+        "La pantalla cumple las reglas de accesibilidad del proyecto",
+        "Pruebas del cálculo del informe, del ViewModel y de la pantalla"
+      ],
+      "sdd": true,
+      "status": "pending"
+    }
+  ]
+}
