@@ -100,7 +100,7 @@
         "Pruebas con un servicio de push falso en la app y en el backend"
       ],
       "sdd": true,
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 13,

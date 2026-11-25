@@ -1,4 +1,5 @@
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
+import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/data/services/telefono_service.dart';
 import 'package:barrio_seguro/data/services/ubicacion_service.dart';
@@ -31,6 +32,7 @@ BarrioSeguroApp appDePrueba({
   TelefonoService? telefono,
   UbicacionService? ubicacion,
   NotificacionesService? notificaciones,
+  PushService? push,
 }) {
   MapaBarrio.cargarCalles = false;
   return BarrioSeguroApp(
@@ -42,6 +44,7 @@ BarrioSeguroApp appDePrueba({
       telefono: telefono ?? TelefonoFalso(),
       ubicacion: ubicacion ?? UbicacionFalsa(),
       notificaciones: notificaciones ?? NotificacionesFalsas(),
+      push: push ?? PushFalso(),
       preferencias: preferenciasEnMemoria(),
       almacenSeguro: almacenSeguroEnMemoria(),
     ),

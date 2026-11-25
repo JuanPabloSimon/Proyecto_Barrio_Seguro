@@ -16,6 +16,7 @@ import 'data/services/local/almacen_seguro.dart';
 import 'data/services/local/pendientes_dao.dart';
 import 'data/services/local/preferencias.dart';
 import 'data/services/notificaciones_service.dart';
+import 'data/services/push_service.dart';
 import 'data/services/local/turnos_dao.dart';
 import 'data/services/reloj.dart';
 import 'data/services/simulados/alertas_service_simulado.dart';
@@ -52,6 +53,7 @@ class Dependencias {
     required this.preferencias,
     required this.ubicacion,
     required this.notificaciones,
+    this.push = const PushServiceNinguno(),
   });
 
   /// Los datos vienen del [ServidorSimulado], sin internet. Las
@@ -69,6 +71,7 @@ class Dependencias {
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
+    PushService push = const PushServiceNinguno(),
     TareasService tareas = const TareasNinguna(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
@@ -91,6 +94,7 @@ class Dependencias {
       telefono: telefono,
       ubicacion: ubicacion,
       notificaciones: notificaciones,
+      push: push,
       tareas: tareas,
       preferencias: preferencias,
       almacenSeguro: almacenSeguro,
@@ -111,6 +115,7 @@ class Dependencias {
     TelefonoService telefono = const TelefonoServiceUrlLauncher(),
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
+    PushService push = const PushServiceNinguno(),
     TareasService tareas = const TareasNinguna(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
@@ -131,6 +136,7 @@ class Dependencias {
       telefono: telefono,
       ubicacion: ubicacion,
       notificaciones: notificaciones,
+      push: push,
       tareas: tareas,
       preferencias: preferencias,
       almacenSeguro: almacen,
@@ -151,6 +157,7 @@ class Dependencias {
     required TelefonoService telefono,
     required UbicacionService ubicacion,
     required NotificacionesService notificaciones,
+    required PushService push,
     required TareasService tareas,
     required Preferencias? preferencias,
     required AlmacenSeguro? almacenSeguro,
@@ -183,6 +190,7 @@ class Dependencias {
       preferencias: prefs,
       ubicacion: ubicacion,
       notificaciones: notificaciones,
+      push: push,
     );
   }
 
@@ -209,4 +217,7 @@ class Dependencias {
 
   /// Avisos de alertas nuevas.
   final NotificacionesService notificaciones;
+
+  /// Avisos push que llegan con la app cerrada (FCM).
+  final PushService push;
 }

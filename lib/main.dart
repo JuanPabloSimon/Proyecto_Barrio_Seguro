@@ -7,6 +7,7 @@ import 'data/services/local/base_de_datos.dart';
 import 'data/services/local/pendientes_dao.dart';
 import 'data/services/local/turnos_dao.dart';
 import 'data/services/notificaciones_service.dart';
+import 'data/services/push_service.dart';
 import 'data/services/tareas/tarea_de_fondo.dart';
 import 'data/services/tareas/tareas_service.dart';
 import 'dependencias.dart';
@@ -36,6 +37,11 @@ Future<void> main() async {
       : const NotificacionesServiceNinguno();
   await _intentar(notificaciones.inicializar);
 
+  final push = capacidades.recibeAvisosPush
+      ? PushServiceFirebase()
+      : const PushServiceNinguno();
+  await _intentar(push.inicializar);
+
   // workmanager necesita saber, antes de todo, dónde arranca la tarea de
   // fondo (callbackDispatcher).
   final tareas = capacidades.correTareasEnSegundoPlano
@@ -52,6 +58,7 @@ Future<void> main() async {
       ? Dependencias.simuladas(
           capacidades: capacidades,
           notificaciones: notificaciones,
+          push: push,
           tareas: tareas,
           alertasDao: alertasDao,
           turnosDao: turnosDao,
@@ -61,6 +68,7 @@ Future<void> main() async {
           urlBase: Uri.parse(urlApi),
           capacidades: capacidades,
           notificaciones: notificaciones,
+          push: push,
           tareas: tareas,
           alertasDao: alertasDao,
           turnosDao: turnosDao,

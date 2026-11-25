@@ -12,6 +12,9 @@ dependencies:
   shelf_router: ^1.1.4
   # Hash de las contraseñas (SHA-256 con sal).
   crypto: ^3.0.6
+  # Avisos push con Firebase Cloud Messaging (HTTP v1).
+  googleapis_auth: ^2.0.0
+  http: ^1.2.0
 
 dev_dependencies:
   lints: ^6.0.0

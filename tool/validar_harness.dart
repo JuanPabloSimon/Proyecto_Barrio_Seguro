@@ -10,7 +10,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-const estadosValidos = {'pending', 'spec_ready', 'in_progress', 'done', 'blocked'};
+const estadosValidos = {
+  'pending',
+  'spec_ready',
+  'in_progress',
+  'done',
+  'blocked',
+};
 
 /// Estados en los que una feature "sdd" ya tiene que tener su spec.
 const estadosConSpec = {'spec_ready', 'in_progress', 'done'};
@@ -74,8 +80,10 @@ void main() {
       if (estado == 'done') {
         final tasks = File('specs/$nombre/tasks.md');
         if (tasks.existsSync() &&
-            RegExp(r'^\s*- \[ \]', multiLine: true)
-                .hasMatch(tasks.readAsStringSync())) {
+            RegExp(
+              r'^\s*- \[ \]',
+              multiLine: true,
+            ).hasMatch(tasks.readAsStringSync())) {
           errores.add('$etiqueta está en done y tiene tasks sin marcar [x]');
         }
       }
@@ -88,8 +96,12 @@ void main() {
 
   if (errores.isNotEmpty) _fallar(errores);
 
-  stdout.writeln('[OK]    feature_list.json válido (${features.length} features)');
-  stdout.writeln('[OK]    Specs presentes para las features sdd que ya no están en pending');
+  stdout.writeln(
+    '[OK]    feature_list.json válido (${features.length} features)',
+  );
+  stdout.writeln(
+    '[OK]    Specs presentes para las features sdd que ya no están en pending',
+  );
 }
 
 Never _fallar(List<String> errores) {

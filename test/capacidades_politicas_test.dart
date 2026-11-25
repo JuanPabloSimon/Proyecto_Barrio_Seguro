@@ -263,5 +263,43 @@ void main() {
       );
       expect(find.text('Detalle de alerta'), findsOneWidget);
     });
+
+    testWidgets('activar y apagar los avisos suscribe y desuscribe del push', (
+      tester,
+    ) async {
+      final push = PushFalso();
+      await irAlPerfil(tester, appDePrueba(push: push));
+      expect(push.suscripto, isFalse);
+
+      await tocar(tester, interruptor);
+      expect(encendido(tester, interruptor), isTrue);
+      expect(push.suscripto, isTrue);
+
+      await tocar(tester, interruptor);
+      expect(encendido(tester, interruptor), isFalse);
+      expect(push.suscripto, isFalse);
+    });
+
+    testWidgets(
+      'tocar la notificación de un aviso push abre el detalle de esa alerta',
+      (tester) async {
+        final push = PushFalso();
+        await abrir(tester, appDePrueba(push: push));
+
+        push.tocar('a3');
+        await tester.pumpAndSettle();
+
+        expect(find.text('Detalle de alerta'), findsOneWidget);
+        expect(find.text('Intento de robo'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'si un aviso push abrió la app con la app cerrada, entra al detalle',
+      (tester) async {
+        await abrir(tester, appDePrueba(push: PushFalso(abrioLaApp: 'a3')));
+        expect(find.text('Detalle de alerta'), findsOneWidget);
+      },
+    );
   });
 }

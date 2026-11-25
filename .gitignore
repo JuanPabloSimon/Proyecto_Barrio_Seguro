@@ -48,3 +48,10 @@ app.*.map.json
 .widget_preview/
 
 .claude
+
+# Credenciales privadas de Firebase (cuenta de servicio del backend)
+firebase-service-account.json
+*firebase-adminsdk*.json
+
+
+backend/barrioseguro-462d3-firebase-adminsdk-fbsvc-71ee04f0e8.json

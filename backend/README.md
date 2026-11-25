@@ -22,6 +22,7 @@ Variables de entorno (opcionales):
 | `PORT` | Puerto | `8080` |
 | `DATOS` | Archivo donde se guardan los datos | `datos/barrio.json` |
 | `CODIGO_COMISION` | Código que la comisión vecinal da para registrarse | `SOBERANIA` |
+| `FIREBASE_CREDENTIALS` | Archivo JSON de la cuenta de servicio de Firebase para avisos push | _(sin push)_ |
 
 ### Conectar la app
 

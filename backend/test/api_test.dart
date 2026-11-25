@@ -5,8 +5,24 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:barrio_seguro_backend/barrio_seguro_backend.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
+
+class PushServiceFalso implements PushService {
+  PushServiceFalso({this.falla = false});
+
+  bool falla;
+  final List<Map<String, dynamic>> enviadas = [];
+
+  @override
+  Future<void> enviarAlerta(Map<String, dynamic> alerta) async {
+    if (falla) throw Exception('fallo de FCM');
+    if (alerta['estado'] == 'resuelta') return;
+    enviadas.add(Map<String, dynamic>.of(alerta));
+  }
+}
 
 const telefonoClara = '261 555-0142';
 const telefonoRosa = '2615550177';
@@ -14,16 +30,21 @@ const clave = 'barrio1234';
 
 void main() {
   late Handler api;
+  late Api instanciaApi;
   late Almacen almacen;
+  late PushServiceFalso push;
   final reloj = RelojFijo(DateTime(2026, 10, 1, 12));
 
   setUp(() {
     almacen = Almacen.abrir(reloj: reloj);
-    api = Api(
+    push = PushServiceFalso();
+    instanciaApi = Api(
       almacen: almacen,
       reloj: reloj,
       codigoComision: 'SOBERANIA',
-    ).handler;
+      push: push,
+    );
+    api = instanciaApi.handler;
   });
 
   /// Hace un pedido y devuelve el código y el JSON de la respuesta.
@@ -366,5 +387,109 @@ void main() {
     expect(codigo, 200, reason: 'la sesión también se guarda');
     final a1 = (alertas as List).firstWhere((a) => a['id'] == 'a1');
     expect(a1['estado'], 'resuelta');
+  });
+
+  group('Avisos push', () {
+    test('crear una alerta activa envía el aviso push con sus datos', () async {
+      final token = await ingresar(telefonoRosa);
+      final (codigo, alerta) = await pedir(
+        'POST',
+        '/alertas',
+        token: token,
+        cuerpo: {
+          'categoria': 'sos',
+          'tipo': 'Pedido de ayuda (SOS)',
+          'direccion': 'Calle Plantamura',
+          'latitud': -32.876568,
+          'longitud': -68.870672,
+        },
+      );
+
+      expect(codigo, 201);
+      expect(push.enviadas, hasLength(1));
+      expect(push.enviadas.single['id'], alerta['id']);
+      expect(push.enviadas.single['reportada_por'], 'rosa');
+      expect(push.enviadas.single['estado'], 'activa');
+    });
+
+    test(
+      'si la alerta ya está resuelta cuando se va a enviar el aviso, no se avisa',
+      () async {
+        await instanciaApi.notificarAlerta({
+          'id': 'a-resuelta',
+          'categoria': 'robo',
+          'tipo': 'Intento de robo',
+          'estado': 'resuelta',
+          'reportada_por': 'clara',
+        });
+
+        expect(push.enviadas, isEmpty);
+      },
+    );
+
+    test('si el servicio de push falla, la alerta se crea igual', () async {
+      push.falla = true;
+      final token = await ingresar(telefonoClara);
+      final (codigo, alerta) = await pedir(
+        'POST',
+        '/alertas',
+        token: token,
+        cuerpo: {
+          'categoria': 'sos',
+          'tipo': 'Pedido de ayuda (SOS)',
+          'latitud': -32.876568,
+          'longitud': -68.870672,
+        },
+      );
+
+      expect(codigo, 201);
+      expect(alerta['estado'], 'activa');
+    });
+
+    test(
+      'PushServiceFcm envía el mensaje de datos al tópico alertas y descarta las resueltas',
+      () async {
+        final pedidos = <http.Request>[];
+        final servicio = PushServiceFcm.conCliente(
+          projectId: 'barrioseguro-462d3',
+          cliente: MockClient((pedido) async {
+            pedidos.add(pedido);
+            return http.Response(
+              '{"name": "projects/barrioseguro-462d3/messages/1"}',
+              200,
+            );
+          }),
+        );
+
+        await servicio.enviarAlerta({'id': 'a-cerrada', 'estado': 'resuelta'});
+        expect(pedidos, isEmpty);
+
+        await servicio.enviarAlerta({
+          'id': 'a-activa',
+          'categoria': 'sos',
+          'tipo': 'Pedido de ayuda (SOS)',
+          'direccion': 'Calle Plantamura',
+          'creada_en': 1759320000000,
+          'estado': 'activa',
+          'latitud': -32.876568,
+          'longitud': -68.870672,
+          'reportada_por': 'rosa',
+        });
+
+        expect(pedidos, hasLength(1));
+        expect(
+          pedidos.single.url.toString(),
+          'https://fcm.googleapis.com/v1/projects/barrioseguro-462d3/messages:send',
+        );
+        final cuerpo = jsonDecode(pedidos.single.body) as Map<String, dynamic>;
+        final mensaje = cuerpo['message'] as Map<String, dynamic>;
+        expect(mensaje['topic'], 'alertas');
+        expect((mensaje['data'] as Map<String, dynamic>)['id'], 'a-activa');
+        expect(
+          (mensaje['data'] as Map<String, dynamic>)['reportada_por'],
+          'rosa',
+        );
+      },
+    );
   });
 }
