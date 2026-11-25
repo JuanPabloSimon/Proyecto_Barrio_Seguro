@@ -1,6 +1,20 @@
 import '../fechas.dart';
 import '../reglas_turnos.dart';
 
+/// El rol del vecino en la red: vecino común o miembro de la comisión.
+enum RolVecino {
+  vecino,
+  comision;
+
+  /// El rol que viene en el JSON. Si falta o no se conoce, `vecino`: ante la
+  /// duda, el vecino tiene menos permisos, no más.
+  static RolVecino desdeJson(Object? valor) =>
+      valor == 'comision' ? RolVecino.comision : RolVecino.vecino;
+
+  /// El valor en el JSON de la API: `vecino` o `comision`.
+  String get json => name;
+}
+
 /// Un vecino registrado en la red del barrio.
 class Vecino {
   const Vecino({
@@ -11,6 +25,7 @@ class Vecino {
     this.calle = '',
     this.cuadra = '',
     this.vecinoDesde,
+    this.rol = RolVecino.vecino,
   });
 
   factory Vecino.fromJson(Map<String, dynamic> json) {
@@ -23,6 +38,7 @@ class Vecino {
       calle: json['calle'] as String? ?? '',
       cuadra: json['cuadra'] as String? ?? '',
       vecinoDesde: desde == null ? null : DateTime.parse(desde),
+      rol: RolVecino.desdeJson(json['rol']),
     );
   }
 
@@ -35,6 +51,11 @@ class Vecino {
 
   /// Desde cuándo está en la red. Null si recién se registra.
   final DateTime? vecinoDesde;
+
+  final RolVecino rol;
+
+  /// Si es miembro de la comisión vecinal (ve las opciones de la comisión).
+  bool get esComision => rol == RolVecino.comision;
 
   int edadEn(DateTime hoy) => calcularEdad(fechaNacimiento, hoy: hoy);
 
@@ -60,8 +81,10 @@ class Vecino {
     'calle': calle,
     'cuadra': cuadra,
     if (vecinoDesde != null) 'vecino_desde': _soloFecha(vecinoDesde!),
+    'rol': rol.json,
   };
 
+  /// No recibe `rol` a propósito: el rol no se cambia desde la app.
   Vecino copyWith({
     String? nombre,
     String? telefono,
@@ -76,6 +99,7 @@ class Vecino {
       calle: calle ?? this.calle,
       cuadra: cuadra ?? this.cuadra,
       vecinoDesde: vecinoDesde,
+      rol: rol,
     );
   }
 }

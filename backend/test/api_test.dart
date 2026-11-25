@@ -201,6 +201,258 @@ void main() {
     });
   });
 
+  group('Rol', () {
+    Future<Map<String, dynamic>> vecinoAlIngresar(String telefono) async {
+      final (codigo, cuerpo) = await pedir(
+        'POST',
+        '/sesiones',
+        cuerpo: {'usuario': telefono, 'clave': clave},
+      );
+      expect(codigo, 200);
+      return cuerpo['vecino'] as Map<String, dynamic>;
+    }
+
+    test('ingresar devuelve el rol de cada cuenta', () async {
+      expect((await vecinoAlIngresar(telefonoClara))['rol'], 'comision');
+      expect((await vecinoAlIngresar(telefonoRosa))['rol'], 'vecino');
+    });
+
+    test('de los vecinos de ejemplo, solo clara es de la comisión', () {
+      // Se recorren todos: si otro quedara como comision, esto falla.
+      expect(almacen.vecinos, hasLength(12));
+      expect(almacen.vecinos, contains('clara'));
+      for (final MapEntry(key: id, value: vecino) in almacen.vecinos.entries) {
+        expect(
+          vecino['rol'],
+          id == 'clara' ? 'comision' : 'vecino',
+          reason: id,
+        );
+      }
+    });
+
+    test('GET /vecinos/yo y PUT /vecinos/<id> devuelven el rol', () async {
+      for (final (telefono, id, rol) in [
+        (telefonoClara, 'clara', 'comision'),
+        (telefonoRosa, 'rosa', 'vecino'),
+      ]) {
+        final token = await ingresar(telefono);
+        final (codigoYo, yo) = await pedir('GET', '/vecinos/yo', token: token);
+        expect(codigoYo, 200);
+        expect(yo['rol'], rol);
+
+        final (codigoPut, actualizado) = await pedir(
+          'PUT',
+          '/vecinos/$id',
+          token: token,
+          cuerpo: {'calle': 'Democracia'},
+        );
+        expect(codigoPut, 200);
+        expect(actualizado['rol'], rol);
+      }
+    });
+
+    test('registrarse da rol vecino aunque el pedido mande comision', () async {
+      final (codigo, cuerpo) = await pedir(
+        'POST',
+        '/vecinos',
+        cuerpo: {
+          'nombre': 'Lucía Pérez',
+          'fecha_nacimiento': '1990-04-02',
+          'telefono': '261 555-0999',
+          'codigo_comision': 'SOBERANIA',
+          'clave': 'segura123',
+          'rol': 'comision',
+        },
+      );
+      expect(codigo, 201);
+      expect(cuerpo['vecino']['rol'], 'vecino');
+
+      final (_, yo) = await pedir(
+        'GET',
+        '/vecinos/yo',
+        token: cuerpo['token'] as String,
+      );
+      expect(yo['rol'], 'vecino');
+    });
+
+    test('un vecino común no puede darse el rol comision: 403', () async {
+      final token = await ingresar(telefonoRosa);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: token,
+        cuerpo: {'rol': 'comision'},
+      );
+      expect(codigo, 403);
+      expect(cuerpo, {'error': 'El rol no se puede cambiar desde la app.'});
+    });
+
+    test('el rol rechazado no cambia ningún dato', () async {
+      final token = await ingresar(telefonoRosa);
+      final (_, antes) = await pedir('GET', '/vecinos/yo', token: token);
+
+      final (codigo, _) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: token,
+        cuerpo: {'rol': 'comision', 'nombre': 'Rosa Cambiada'},
+      );
+      expect(codigo, 403);
+
+      final (_, despues) = await pedir('GET', '/vecinos/yo', token: token);
+      expect(despues, antes);
+      expect(despues['rol'], 'vecino');
+      expect(despues['nombre'], 'Rosa Ibáñez');
+    });
+
+    test('un miembro de la comisión tampoco cambia su rol por PUT', () async {
+      final token = await ingresar(telefonoClara);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/clara',
+        token: token,
+        cuerpo: {'rol': 'vecino', 'calle': 'Otra'},
+      );
+      expect(codigo, 403);
+      expect(cuerpo['error'], 'El rol no se puede cambiar desde la app.');
+
+      final (_, yo) = await pedir('GET', '/vecinos/yo', token: token);
+      expect(yo['rol'], 'comision');
+      expect(yo['calle'], 'Cabildo de Mendoza');
+    });
+
+    test('mandar el mismo rol no falla', () async {
+      final token = await ingresar(telefonoRosa);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: token,
+        cuerpo: {'rol': 'vecino', 'calle': 'Plantamura'},
+      );
+      expect(codigo, 200);
+      expect(cuerpo['rol'], 'vecino');
+      expect(cuerpo['calle'], 'Plantamura');
+    });
+
+    test('un archivo de datos viejo sin rol se lee con rol vecino', () {
+      final carpeta = Directory.systemTemp.createTempSync('barrio_seguro');
+      addTearDown(() => carpeta.deleteSync(recursive: true));
+      final archivo = File('${carpeta.path}/barrio.json')
+        ..writeAsStringSync(
+          jsonEncode({
+            'ultimo_id': 0,
+            'vecinos': {
+              'viejo': {
+                'id': 'viejo',
+                'nombre': 'Vecino Viejo',
+                'fecha_nacimiento': '1970-01-01',
+              },
+              'raro': {
+                'id': 'raro',
+                'nombre': 'Rol Raro',
+                'fecha_nacimiento': '1970-01-01',
+                'rol': 'admin',
+              },
+              'jefa': {
+                'id': 'jefa',
+                'nombre': 'De la Comisión',
+                'fecha_nacimiento': '1970-01-01',
+                'rol': 'comision',
+              },
+            },
+            'credenciales': <String, dynamic>{},
+            'sesiones': <String, dynamic>{},
+            'turnos': <String, dynamic>{},
+            'alertas': <dynamic>[],
+          }),
+        );
+
+      final leido = Almacen.abrir(archivo: archivo, reloj: reloj);
+
+      expect(leido.vecinos['viejo']!['rol'], 'vecino');
+      expect(leido.vecinos['raro']!['rol'], 'vecino');
+      expect(leido.vecinos['jefa']!['rol'], 'comision');
+    });
+  });
+
+  group('Rutas de la comisión', () {
+    test(
+      'un vecino común recibe 403 en cualquier ruta de la comisión',
+      () async {
+        final token = await ingresar(telefonoRosa);
+        for (final metodo in ['GET', 'POST']) {
+          final (codigo, cuerpo) = await pedir(
+            metodo,
+            '/comision/informes/alertas',
+            token: token,
+            cuerpo: metodo == 'POST' ? <String, dynamic>{} : null,
+          );
+          expect(codigo, 403, reason: metodo);
+          expect(cuerpo, {
+            'error': 'Esta opción es solo para la comisión vecinal.',
+          });
+        }
+      },
+    );
+
+    test('sin sesión, las rutas de la comisión responden 401', () async {
+      final (sinToken, _) = await pedir('GET', '/comision/informes/alertas');
+      final (tokenFalso, cuerpo) = await pedir(
+        'GET',
+        '/comision/informes/alertas',
+        token: 'inventado',
+      );
+      expect(sinToken, 401);
+      expect(tokenFalso, 401);
+      expect(cuerpo['error'], contains('Ingresá de nuevo'));
+    });
+
+    test('un miembro de la comisión pasa el filtro', () async {
+      final token = await ingresar(telefonoClara);
+      final (codigo, cuerpo) = await pedir(
+        'GET',
+        '/comision/lo-que-sea',
+        token: token,
+      );
+      expect(codigo, 404);
+      expect(cuerpo, {'error': 'Esa dirección no existe.'});
+    });
+
+    test(
+      'soloComision deja pasar a la comisión y frena al vecino común',
+      () async {
+        final filtrado = instanciaApi.soloComision(
+          (Request _) => Response.ok('pasó'),
+        );
+        Request pedidoCon(String token) => Request(
+          'GET',
+          Uri.parse('http://localhost/comision/algo'),
+          headers: {'authorization': 'Bearer $token'},
+        );
+
+        final respuesta = await filtrado(
+          pedidoCon(await ingresar(telefonoClara)),
+        );
+        expect(respuesta.statusCode, 200);
+        expect(await respuesta.readAsString(), 'pasó');
+
+        final tokenRosa = await ingresar(telefonoRosa);
+        expect(
+          () => filtrado(pedidoCon(tokenRosa)),
+          throwsA(
+            isA<ErrorDeApi>()
+                .having((e) => e.codigo, 'codigo', 403)
+                .having(
+                  (e) => e.mensaje,
+                  'mensaje',
+                  'Esta opción es solo para la comisión vecinal.',
+                ),
+          ),
+        );
+      },
+    );
+  });
+
   group('Alertas', () {
     test('vienen de la más nueva a la más vieja', () async {
       final token = await ingresar(telefonoClara);
@@ -276,6 +528,56 @@ void main() {
   });
 
   group('Turnos', () {
+    test('los vecinos de los turnos no traen el rol', () async {
+      final token = await ingresar(telefonoClara);
+
+      List<Map<String, dynamic>> vecinosDe(dynamic turno) => [
+        ...(turno['patrulleros'] as List).cast<Map<String, dynamic>>(),
+        if (turno['guardia_ventana'] != null)
+          turno['guardia_ventana'] as Map<String, dynamic>,
+      ];
+      void sinRol(dynamic turno) {
+        for (final vecino in vecinosDe(turno)) {
+          expect(vecino, isNot(contains('rol')), reason: '${vecino['id']}');
+        }
+      }
+
+      final (codigo, turnos) = await pedir(
+        'GET',
+        '/turnos?anio=2026&mes=10',
+        token: token,
+      );
+      expect(codigo, 200);
+      final delNueve = (turnos as List).firstWhere(
+        (t) => t['fecha'] == '2026-10-09',
+      );
+      expect(delNueve['patrulleros'][0]['id'], 'clara');
+      expect(delNueve['guardia_ventana']['id'], 'ernesto');
+      turnos.forEach(sinRol);
+
+      final (codigoPut, anotado) = await pedir(
+        'PUT',
+        '/turnos/2026-10-30/noche/vecinos/clara',
+        token: token,
+      );
+      expect(codigoPut, 200);
+      expect(vecinosDe(anotado).map((v) => v['id']), contains('clara'));
+      sinRol(anotado);
+
+      final (codigoDelete, sinClara) = await pedir(
+        'DELETE',
+        '/turnos/2026-10-30/noche/vecinos/clara',
+        token: token,
+      );
+      expect(codigoDelete, 200);
+      expect(vecinosDe(sinClara), isNotEmpty);
+      sinRol(sinClara);
+
+      // Se sacó de la respuesta, no del vecino guardado.
+      final (_, yo) = await pedir('GET', '/vecinos/yo', token: token);
+      expect(yo['rol'], 'comision');
+    });
+
     test('devuelve los turnos del mes con los vecinos adentro', () async {
       final token = await ingresar(telefonoClara);
       final (codigo, turnos) = await pedir(

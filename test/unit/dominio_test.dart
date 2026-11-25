@@ -133,5 +133,60 @@ void main() {
     test('un estado desconocido de la API se toma como activa', () {
       expect(EstadoAlerta.desdeApi('cualquier_cosa'), EstadoAlerta.activa);
     });
+
+    const jsonDeVecino = {
+      'id': 'v1',
+      'nombre': 'Clara Medina',
+      'fecha_nacimiento': '1980-05-02',
+    };
+
+    test('el rol tiene solo dos valores: vecino y comision', () {
+      expect(RolVecino.values, [RolVecino.vecino, RolVecino.comision]);
+      expect(RolVecino.values.map((r) => r.json), ['vecino', 'comision']);
+    });
+
+    test('un vecino con rol comision es de la comisión', () {
+      final vecino = Vecino.fromJson({...jsonDeVecino, 'rol': 'comision'});
+      expect(vecino.rol, RolVecino.comision);
+      expect(vecino.esComision, isTrue);
+    });
+
+    test('sin rol o con un rol desconocido es vecino común', () {
+      final sinRol = Vecino.fromJson({...jsonDeVecino});
+      final desconocido = Vecino.fromJson({...jsonDeVecino, 'rol': 'admin'});
+      final vecino = Vecino.fromJson({...jsonDeVecino, 'rol': 'vecino'});
+      for (final v in [sinRol, desconocido, vecino]) {
+        expect(v.rol, RolVecino.vecino);
+        expect(v.esComision, isFalse);
+      }
+    });
+
+    test('el rol viaja en el JSON, ida y vuelta, para cada rol', () {
+      for (final rol in RolVecino.values) {
+        final original = Vecino(
+          id: 'v1',
+          nombre: 'Clara Medina',
+          fechaNacimiento: DateTime(1980, 5, 2),
+          rol: rol,
+        );
+        final json = original.toJson();
+        expect(json['rol'], rol.json);
+        expect(Vecino.fromJson(json).rol, rol);
+      }
+    });
+
+    test('copyWith conserva el rol', () {
+      for (final rol in RolVecino.values) {
+        final original = Vecino(
+          id: 'v1',
+          nombre: 'Clara Medina',
+          fechaNacimiento: DateTime(1980, 5, 2),
+          rol: rol,
+        );
+        final copia = original.copyWith(nombre: 'Clara M.', telefono: '1');
+        expect(copia.rol, rol);
+        expect(copia.toJson()['rol'], rol.json);
+      }
+    });
   });
 }

@@ -40,10 +40,23 @@ Sin `--dart-define`, la app usa el servidor simulado y no necesita la API. En Wi
 
 ### Cuentas de prueba
 
-| Vecino | Teléfono | Contraseña | Rol |
-|---|---|---|---|
-| Clara Medina, 45 años | 261 555-0142 | barrio1234 | patrullaje |
-| Rosa Ibáñez, 78 años | 261 555-0177 | barrio1234 | guardia de ventana |
+| Vecino | Teléfono | Contraseña | Turnos | Rol en la app |
+|---|---|---|---|---|
+| Clara Medina, 45 años | 261 555-0142 | barrio1234 | patrullaje | `comision` (miembro de la comisión) |
+| Rosa Ibáñez, 78 años | 261 555-0177 | barrio1234 | guardia de ventana | `vecino` (vecina común) |
+
+### Asignar el rol de la comisión
+
+Cada vecino tiene un rol: `vecino` (vecino común) o `comision` (miembro de la comisión vecinal). Quien se registra queda siempre como `vecino`, y ninguna ruta de la API cambia un rol: ni los vecinos ni la comisión pueden asignarlo desde la app.
+
+El rol `comision` lo asigna **el equipo de desarrollo**, editando los datos del servidor:
+
+1. Apagá el servidor (si queda andando, el próximo cambio pisa lo que edites).
+2. Abrí `datos/barrio.json` (o el archivo de `DATOS`) y, en el vecino que corresponda dentro de `vecinos`, poné `"rol": "comision"`. Para quitárselo, `"rol": "vecino"`.
+3. Volvé a arrancar el servidor.
+4. El vecino tiene que cerrar sesión e ingresar de nuevo para que la app vea el rol nuevo.
+
+Un vecino sin `rol` o con un valor desconocido se lee como `vecino`.
 
 ## Pruebas
 
@@ -57,6 +70,8 @@ Las pruebas le pasan pedidos al handler directamente, sin abrir un puerto.
 
 Todo va y viene en JSON, con los mismos nombres de campo que usa la app (`fecha_nacimiento`, `creada_en`, etc.). Salvo `/salud`, `POST /sesiones` y `POST /vecinos`, todas las rutas piden el encabezado `Authorization: Bearer <token>`.
 
+El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae el campo `rol`: `"vecino"` o `"comision"`. Los vecinos que aparecen dentro de un turno (`patrulleros` y `guardia_ventana`) **no** traen `rol`.
+
 | Método y ruta | Qué hace | Respuesta |
 |---|---|---|
 | `GET /salud` | Comprueba que la API está andando | `{"estado": "ok"}` |
@@ -64,13 +79,14 @@ Todo va y viene en JSON, con los mismos nombres de campo que usa la app (`fecha_
 | `DELETE /sesiones` | Cerrar la sesión (el token deja de servir) | 204 |
 | `POST /vecinos` | Registrarse: `{nombre, fecha_nacimiento, telefono, calle, cuadra, codigo_comision, clave}` | 201 `{token, vecino}` |
 | `GET /vecinos/yo` | Los datos del vecino de la sesión | vecino |
-| `PUT /vecinos/<id>` | Cambiar nombre, teléfono, calle o cuadra (solo los propios) | vecino |
+| `PUT /vecinos/<id>` | Cambiar nombre, teléfono, calle o cuadra (solo los propios). Si trae un `rol` distinto del actual, 403 | vecino |
 | `GET /alertas` | Todas, de la más nueva a la más vieja | lista de alertas |
 | `POST /alertas` | Crear: `{categoria, tipo, descripcion, direccion, latitud, longitud}` | 201 alerta |
 | `PATCH /alertas/<id>` | Cambiar el estado: `{estado}` (solo quien la reportó) | alerta |
-| `GET /turnos?anio=2026&mes=10` | Turnos del mes, con los vecinos adentro | lista de turnos |
+| `GET /turnos?anio=2026&mes=10` | Turnos del mes, con los vecinos adentro (sin `rol`) | lista de turnos |
 | `PUT /turnos/<fecha>/<franja>/vecinos/<id>` | Anotarse (solo uno mismo) | turno |
 | `DELETE /turnos/<fecha>/<franja>/vecinos/<id>` | Salir del turno | turno |
+| `/comision/…` (cualquier método) | Rutas solo para los miembros de la comisión. Todavía no hay ninguna: responden 404 a la comisión, 403 a un vecino común y 401 sin sesión | según la ruta |
 
 Si algo sale mal, la respuesta trae `{"error": "..."}` con un mensaje para mostrarle al vecino tal cual:
 
@@ -78,7 +94,7 @@ Si algo sale mal, la respuesta trae `{"error": "..."}` con un mensaje para mostr
 |---|---|
 | 400 | Faltan datos o no son válidos |
 | 401 | No hay sesión o el token venció |
-| 403 | No está permitido (por ejemplo, cerrar la alerta de otro vecino) |
+| 403 | No está permitido (por ejemplo, cerrar la alerta de otro vecino, cambiarse el rol o entrar a una ruta de la comisión sin ser de la comisión) |
 | 404 | No existe |
 | 409 | Choca con una regla (por ejemplo, el máximo de 2 turnos por mes) |
 
