@@ -7,16 +7,19 @@ import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/services/alertas_service.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
 import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
 import 'package:barrio_seguro/data/services/local/pendientes_dao.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/tareas/envio_de_pendientes.dart';
+import 'package:barrio_seguro/data/services/tareas/tarea_de_fondo.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/principal/vigilante_de_alertas.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -153,6 +156,43 @@ void main() {
       await crear().revisar();
       expect(alertas.enviosDePendientes, 1);
     });
+
+    testWidgets(
+      'reacciona a eventos del sistema: pausa el reloj en segundo plano y revisa al volver (onResume)',
+      (tester) async {
+        final vigilante = crear()..empezar();
+        addTearDown(vigilante.detener);
+        await tester.pump();
+        expect(vigilante.enPrimerPlano, isTrue);
+
+        // El sistema operativo pasa la app a segundo plano.
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        expect(vigilante.enPrimerPlano, isFalse);
+
+        // Otro vecino reporta una alerta mientras la app estaba en pausa.
+        alertas.alertas.insert(
+          0,
+          alertaDePrueba(id: 'al-volver', reportadaPor: 'jorge'),
+        );
+
+        // El sistema operativo devuelve la app a primer plano (onResume).
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pump();
+
+        expect(vigilante.enPrimerPlano, isTrue);
+        expect(notificaciones.avisadas.map((a) => a.id), ['al-volver']);
+        expect(alertas.enviosDePendientes, greaterThanOrEqualTo(2));
+
+        vigilante.detener();
+      },
+    );
   });
 
   group('Alertas sin señal', () {
@@ -281,6 +321,73 @@ void main() {
       expect(ok, isTrue);
       expect(pedidos, 2);
       expect(await pendientes.listar(), isEmpty);
+    });
+
+    test('ejecutarTareaDeFondo procesa pendientes aun sin API_URL y actualiza AlertasDao', () async {
+      final pendientes = PendientesDao(db);
+      final alertasDao = AlertasDao(db);
+      await pendientes.agregar({
+        'categoria': 'sos',
+        'tipo': 'Pedido de ayuda (SOS)',
+        'descripcion': 'Desde segundo plano',
+        'direccion': 'Calle Plantamura',
+        'latitud': -32.876568,
+        'longitud': -68.870672,
+        'reportada_por': 'clara',
+        'creada_en': DateTime(2026, 10, 1, 12).millisecondsSinceEpoch,
+      });
+
+      final ok = await ejecutarTareaDeFondo(
+        tareaEnviarPendientes,
+        db: db,
+        urlBaseApi: '',
+      );
+
+      expect(ok, isTrue);
+      expect(await pendientes.listar(), isEmpty);
+      final guardadas = await alertasDao.listar();
+      expect(guardadas, hasLength(1));
+      expect(guardadas.single.descripcion, 'Desde segundo plano');
+    });
+
+    test('si la tarea de fondo ya envió las pendientes, el repositorio limpia la caché', () async {
+      final pendientes = PendientesDao(db);
+      final alertasDao = AlertasDao(db);
+      final api = AlertasServiceDePrueba()..sinSenal = true;
+      final repositorio = AlertasRepositoryRemoto(
+        service: api,
+        dao: alertasDao,
+        pendientes: pendientes,
+        reloj: relojDePrueba,
+      );
+
+      final pendiente = await repositorio.crearAlerta(
+        categoria: CategoriaAlerta.sos,
+        tipo: 'Pedido de ayuda (SOS)',
+        descripcion: '',
+        direccion: 'Barrio Soberanía',
+        ubicacion: const LatLng(-32.876568, -68.870672),
+        reportadaPor: 'clara',
+      );
+      expect(repositorio.estaPendiente(pendiente.id), isTrue);
+
+      // Ahora el worker de segundo plano la envía mientras la app está en
+      // segundo plano.
+      api.sinSenal = false;
+      final ok = await ejecutarTareaDeFondo(
+        tareaEnviarPendientes,
+        db: db,
+        servicio: api,
+      );
+      expect(ok, isTrue);
+      expect(await pendientes.listar(), isEmpty);
+
+      // Cuando la app vuelve a primer plano, enviarPendientes detecta que
+      // la cola ya se vació en segundo plano e invalida la caché.
+      await repositorio.enviarPendientes();
+      final actuales = await repositorio.obtenerAlertas();
+      expect(actuales.where((a) => repositorio.estaPendiente(a.id)), isEmpty);
+      expect(actuales.map((a) => a.id), ['srv-0']);
     });
   });
 

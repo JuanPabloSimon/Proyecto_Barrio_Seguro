@@ -138,14 +138,43 @@ class _PerfilScreenState extends State<PerfilScreen> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _vm,
-      builder: (context, _) => _pantalla(context),
+      builder: (context, _) => _CuerpoPerfil(
+        viewModel: _vm,
+        onCambiarCompartirUbicacion: _cambiarCompartirUbicacion,
+        onCambiarAvisos: _cambiarAvisos,
+        onAbrirMisAlertas: _abrirMisAlertas,
+        onAbrirMisTurnos: () => widget.onIrA(Pestania.turnos),
+        onAbrirEditarDatos: _abrirEditarDatos,
+        onCerrarSesion: _cerrarSesion,
+      ),
     );
   }
+}
 
-  Widget _pantalla(BuildContext context) {
-    final usuario = _vm.usuario;
+class _CuerpoPerfil extends StatelessWidget {
+  const _CuerpoPerfil({
+    required this.viewModel,
+    required this.onCambiarCompartirUbicacion,
+    required this.onCambiarAvisos,
+    required this.onAbrirMisAlertas,
+    required this.onAbrirMisTurnos,
+    required this.onAbrirEditarDatos,
+    required this.onCerrarSesion,
+  });
+
+  final PerfilViewModel viewModel;
+  final ValueChanged<bool> onCambiarCompartirUbicacion;
+  final ValueChanged<bool> onCambiarAvisos;
+  final VoidCallback onAbrirMisAlertas;
+  final VoidCallback onAbrirMisTurnos;
+  final VoidCallback onAbrirEditarDatos;
+  final VoidCallback onCerrarSesion;
+
+  @override
+  Widget build(BuildContext context) {
+    final usuario = viewModel.usuario;
     if (usuario == null) return const Scaffold();
-    final esGuardia = _vm.esGuardiaVentana;
+    final esGuardia = viewModel.esGuardiaVentana;
     final colorRol = esGuardia ? AppColors.ventana : AppColors.primary;
 
     return Scaffold(
@@ -184,10 +213,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          Text(_vm.direccion, textAlign: TextAlign.center),
+          Text(viewModel.direccion, textAlign: TextAlign.center),
           const SizedBox(height: 2),
           Text(
-            _vm.edadYAntiguedad,
+            viewModel.edadYAntiguedad,
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textoSecundario),
           ),
@@ -212,7 +241,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      'Turnos: ${_vm.rol}',
+                      'Turnos: ${viewModel.rol}',
                       style: TextStyle(
                         color: colorRol,
                         fontWeight: FontWeight.bold,
@@ -231,24 +260,26 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 SwitchListTile(
                   title: const Text('Compartir ubicación exacta en alertas'),
                   subtitle: Text(
-                    !_vm.tieneGps
+                    !viewModel.tieneGps
                         ? 'Este dispositivo no tiene GPS. Se comparte la '
                               'zona aproximada.'
-                        : _vm.compartirUbicacion
+                        : viewModel.compartirUbicacion
                         ? 'Tus vecinos ven el punto exacto'
                         : 'Solo se comparte la zona aproximada',
                   ),
-                  value: _vm.tieneGps && _vm.compartirUbicacion,
+                  value: viewModel.tieneGps && viewModel.compartirUbicacion,
                   // null deja el interruptor desactivado.
-                  onChanged: _vm.tieneGps ? _cambiarCompartirUbicacion : null,
+                  onChanged: viewModel.tieneGps
+                      ? onCambiarCompartirUbicacion
+                      : null,
                 ),
-                if (_vm.permisoBloqueado)
+                if (viewModel.permisoBloqueado)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
-                        onPressed: _vm.abrirAjustes,
+                        onPressed: viewModel.abrirAjustes,
                         icon: const Icon(Icons.settings_outlined),
                         label: const Text('Abrir los ajustes del teléfono'),
                       ),
@@ -258,16 +289,16 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 SwitchListTile(
                   title: const Text('Avisarme de alertas nuevas'),
                   subtitle: Text(
-                    _vm.puedeRecibirNotificaciones
+                    viewModel.puedeRecibirNotificaciones
                         ? 'Un aviso en el teléfono cuando un vecino reporta '
                               'algo o pide ayuda'
                         : 'Este dispositivo no muestra avisos. '
                               'Activalos desde tu celular.',
                   ),
-                  value: _vm.notificaciones,
+                  value: viewModel.notificaciones,
                   // null deja el interruptor desactivado.
-                  onChanged: _vm.puedeRecibirNotificaciones
-                      ? _cambiarAvisos
+                  onChanged: viewModel.puedeRecibirNotificaciones
+                      ? onCambiarAvisos
                       : null,
                 ),
               ],
@@ -282,21 +313,21 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   leading: const Icon(Icons.campaign_outlined),
                   title: const Text('Mis alertas reportadas'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: _abrirMisAlertas,
+                  onTap: onAbrirMisAlertas,
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.event_available_outlined),
                   title: const Text('Mis turnos'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => widget.onIrA(Pestania.turnos),
+                  onTap: onAbrirMisTurnos,
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.edit_outlined),
                   title: const Text('Editar datos personales'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: _abrirEditarDatos,
+                  onTap: onAbrirEditarDatos,
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -308,7 +339,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     'Cerrar sesión',
                     style: TextStyle(color: AppColors.emergencia),
                   ),
-                  onTap: _cerrarSesion,
+                  onTap: onCerrarSesion,
                 ),
               ],
             ),

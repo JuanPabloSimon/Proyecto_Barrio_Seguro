@@ -8,6 +8,7 @@ import '../services/local/pendientes_dao.dart';
 import '../services/reloj.dart';
 import '../services/tareas/envio_de_pendientes.dart';
 import '../services/tareas/tareas_service.dart';
+import 'futuro_con_estado.dart';
 
 /// Fuente de verdad de las alertas del barrio.
 abstract class AlertasRepository {
@@ -43,10 +44,10 @@ abstract class AlertasRepository {
   Future<void> enviarPendientes();
 }
 
-/// Pide las alertas al servidor y guarda una copia en memoria (para no
-/// pedirlas de nuevo en cada pantalla) y otra en el teléfono, con [dao],
-/// para verlas sin conexión. Sin [dao] (en la web o en pruebas) solo usa la
-/// memoria.
+/// Pide las alertas al servidor manteniendo un [FuturoConEstado] (para no
+/// disparar pedidos duplicados mientras carga ni pedirlas de nuevo en cada
+/// pantalla) y guarda una copia en el teléfono, con [dao], para verlas sin
+/// conexión. Sin [dao] (en la web o en pruebas) solo usa la memoria.
 ///
 /// Con [pendientes], las alertas creadas sin señal quedan guardadas y
 /// [tareas] programa su envío para cuando vuelva la conexión.
@@ -64,7 +65,14 @@ class AlertasRepositoryRemoto implements AlertasRepository {
   final PendientesDao? _pendientes;
   final TareasService _tareas;
   final Reloj _reloj;
-  List<Alerta>? _cache;
+  final FuturoConEstado<List<Alerta>> _pedido = FuturoConEstado<List<Alerta>>();
+
+  /// Estado actual del [Future] de carga de alertas (`inicial`, `cargando`,
+  /// `exito` o `error`).
+  EstadoFuturo get estado => _pedido.estado;
+
+  /// El contenedor del [Future] con estado de las alertas.
+  FuturoConEstado<List<Alerta>> get pedido => _pedido;
 
   /// Las alertas pendientes usan este prefijo más el id local de la base.
   static const _prefijoPendiente = 'pendiente-';
@@ -77,10 +85,14 @@ class AlertasRepositoryRemoto implements AlertasRepository {
   bool estaPendiente(String id) => id.startsWith(_prefijoPendiente);
 
   @override
-  Future<List<Alerta>> obtenerAlertas({bool refrescar = false}) async {
-    final enCache = _cache;
-    if (enCache != null && !refrescar && !_sinConexion) return enCache;
+  Future<List<Alerta>> obtenerAlertas({bool refrescar = false}) {
+    return _pedido.ejecutar(
+      _cargarAlertas,
+      refrescar: refrescar || _sinConexion,
+    );
+  }
 
+  Future<List<Alerta>> _cargarAlertas() async {
     final List<Map<String, dynamic>> crudas;
     try {
       crudas = await _service.obtenerAlertas();
@@ -88,7 +100,7 @@ class AlertasRepositoryRemoto implements AlertasRepository {
       final guardadas = [...await _leerPendientes(), ...await _leerCopia()];
       if (guardadas.isEmpty) rethrow;
       _sinConexion = true;
-      return _cache = List.unmodifiable(guardadas);
+      return List.unmodifiable(guardadas);
     }
 
     final alertas = crudas.map(Alerta.fromJson).toList()
@@ -96,8 +108,7 @@ class AlertasRepositoryRemoto implements AlertasRepository {
     _sinConexion = false;
     await _guardarCopia((dao) => dao.reemplazarTodas(alertas));
     // Las pendientes todavía no están en el servidor: se muestran igual.
-    _cache = List.unmodifiable([...await _leerPendientes(), ...alertas]);
-    return _cache!;
+    return List.unmodifiable([...await _leerPendientes(), ...alertas]);
   }
 
   Future<List<Alerta>> _leerCopia() async {
@@ -194,8 +205,10 @@ class AlertasRepositoryRemoto implements AlertasRepository {
   }
 
   void _agregarALaCache(Alerta alerta) {
-    final enCache = _cache;
-    if (enCache != null) _cache = List.unmodifiable([alerta, ...enCache]);
+    final enCache = _pedido.valor;
+    if (enCache != null) {
+      _pedido.fijarValor(List.unmodifiable([alerta, ...enCache]));
+    }
   }
 
   @override
@@ -203,7 +216,7 @@ class AlertasRepositoryRemoto implements AlertasRepository {
     final Alerta alerta;
     if (estaPendiente(id)) {
       // Todavía no llegó al servidor: cerrarla es no mandarla.
-      final actual = (_cache ?? await _leerPendientes()).firstWhere(
+      final actual = (_pedido.valor ?? await _leerPendientes()).firstWhere(
         (a) => a.id == id,
       );
       await _pendientes?.borrar(
@@ -216,11 +229,11 @@ class AlertasRepositoryRemoto implements AlertasRepository {
       );
       await _guardarCopia((dao) => dao.guardar(alerta));
     }
-    final enCache = _cache;
+    final enCache = _pedido.valor;
     if (enCache != null) {
-      _cache = List.unmodifiable([
-        for (final a in enCache) a.id == id ? alerta : a,
-      ]);
+      _pedido.fijarValor(
+        List.unmodifiable([for (final a in enCache) a.id == id ? alerta : a]),
+      );
     }
     return alerta;
   }
@@ -230,10 +243,22 @@ class AlertasRepositoryRemoto implements AlertasRepository {
     final pendientes = _pendientes;
     if (pendientes == null) return;
     try {
-      if ((await pendientes.listar()).isEmpty) return;
-      await enviarAlertasPendientes(pendientes: pendientes, servicio: _service);
+      final enCola = await pendientes.listar();
+      if (enCola.isEmpty) {
+        // Si la tarea de fondo ya las mandó mientras la app estaba cerrada o
+        // minimizada, se limpia la caché para no seguir mostrando "pendiente-".
+        if (_pedido.valor?.any((a) => estaPendiente(a.id)) ?? false) {
+          _pedido.limpiar();
+        }
+        return;
+      }
+      await enviarAlertasPendientes(
+        pendientes: pendientes,
+        servicio: _service,
+        copiaLocal: _dao,
+      );
       // Las que se mandaron ahora tienen id del servidor: se vuelve a pedir.
-      _cache = null;
+      _pedido.limpiar();
     } catch (_) {
       // Sin señal: quedan para la próxima.
     }

@@ -14,12 +14,12 @@ import '../../domain/models/alerta.dart';
 /// de otros vecinos y avisa con una notificación. También manda las
 /// alertas que quedaron pendientes por falta de señal.
 ///
-/// Revisa al empezar, cada [cada] y cada vez que la app vuelve a primer
-/// plano (AppLifecycleListener, apunte de eventos del sistema): lo de fondo
-/// no garantiza cuándo corre, así que se refresca también al volver.
-///
-/// Con la app cerrada no puede avisar: para eso hacen falta notificaciones
-/// push (Firebase Cloud Messaging), que necesitan un proyecto de Firebase.
+/// Reaccionando a los eventos del ciclo de vida del sistema operativo
+/// ([AppLifecycleListener]):
+/// - Al pasar a segundo plano (`onPause`), detiene el reloj periódico para
+///   no hacer pedidos innecesarios.
+/// - Al volver a primer plano (`onResume`), revisa inmediatamente y vuelve
+///   a encender el reloj periódico.
 class VigilanteDeAlertas {
   VigilanteDeAlertas({
     required this._alertas,
@@ -40,19 +40,39 @@ class VigilanteDeAlertas {
   Timer? _reloj;
   AppLifecycleListener? _ciclo;
 
+  /// True mientras el reloj periódico está activo (en primer plano).
+  bool get enPrimerPlano => _reloj?.isActive ?? false;
+
   /// Los ids que ya vio el vecino. null hasta la primera revisión: lo que
   /// ya estaba al abrir la app no se avisa.
   Set<String>? _conocidas;
 
   void empezar() {
     revisar();
+    _iniciarReloj();
+    _ciclo = AppLifecycleListener(
+      onPause: _detenerReloj,
+      onResume: () {
+        _iniciarReloj();
+        revisar();
+      },
+    );
+  }
+
+  void _iniciarReloj() {
+    _reloj?.cancel();
     _reloj = Timer.periodic(cada, (_) => revisar());
-    _ciclo = AppLifecycleListener(onResume: revisar);
+  }
+
+  void _detenerReloj() {
+    _reloj?.cancel();
+    _reloj = null;
   }
 
   void detener() {
-    _reloj?.cancel();
+    _detenerReloj();
     _ciclo?.dispose();
+    _ciclo = null;
   }
 
   /// Devuelve las alertas nuevas que avisó (sirve para las pruebas).

@@ -50,13 +50,30 @@ class InicioScreen extends StatelessWidget {
           EstadoCarga.inicial ||
           EstadoCarga.cargando => const IndicadorDeCarga(),
           EstadoCarga.error => MensajeDeError(onReintentar: viewModel.cargar),
-          EstadoCarga.exito => _contenido(context),
+          EstadoCarga.exito => _ContenidoInicio(
+            viewModel: viewModel,
+            dependencias: dependencias,
+            onIrA: onIrA,
+          ),
         },
       ),
     );
   }
+}
 
-  Widget _contenido(BuildContext context) {
+class _ContenidoInicio extends StatelessWidget {
+  const _ContenidoInicio({
+    required this.viewModel,
+    required this.dependencias,
+    required this.onIrA,
+  });
+
+  final InicioViewModel viewModel;
+  final Dependencias dependencias;
+  final ValueChanged<Pestania> onIrA;
+
+  @override
+  Widget build(BuildContext context) {
     final cercanas = viewModel.cercanas;
     final activas = viewModel.cantidadActivas;
     final proximoTurno = viewModel.proximoTurno;

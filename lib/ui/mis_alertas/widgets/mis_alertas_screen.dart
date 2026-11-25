@@ -27,13 +27,24 @@ class MisAlertasScreen extends StatelessWidget {
           EstadoCarga.inicial ||
           EstadoCarga.cargando => const IndicadorDeCarga(),
           EstadoCarga.error => MensajeDeError(onReintentar: viewModel.cargar),
-          EstadoCarga.exito => _lista(context),
+          EstadoCarga.exito => _ListaMisAlertas(
+            viewModel: viewModel,
+            dependencias: dependencias,
+          ),
         },
       ),
     );
   }
+}
 
-  Widget _lista(BuildContext context) {
+class _ListaMisAlertas extends StatelessWidget {
+  const _ListaMisAlertas({required this.viewModel, required this.dependencias});
+
+  final MisAlertasViewModel viewModel;
+  final Dependencias dependencias;
+
+  @override
+  Widget build(BuildContext context) {
     final mias = viewModel.mias;
     if (mias.isEmpty) {
       return const Center(

@@ -126,8 +126,44 @@ class _MapaScreenState extends State<MapaScreen> {
     );
   }
 
-  Widget _pastilla(String texto, EstadoAlerta? valor) {
-    final seleccionada = _vm.filtro == valor;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mapa de alertas')),
+      body: ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) => switch (_vm.estado) {
+          EstadoCarga.inicial ||
+          EstadoCarga.cargando => const IndicadorDeCarga(),
+          EstadoCarga.error => MensajeDeError(onReintentar: _vm.cargar),
+          EstadoCarga.exito => _ContenidoMapa(
+            viewModel: _vm,
+            controlador: _controlador,
+            margen: _margenMapa(context),
+            onAlertaTap: _mostrarResumen,
+            onAcercar: () => _cambiarZoom(1),
+            onAlejar: () => _cambiarZoom(-1),
+            onVerTodo: _verTodoElRadio,
+          ),
+        },
+      ),
+    );
+  }
+}
+
+class _PastillaFiltro extends StatelessWidget {
+  const _PastillaFiltro({
+    required this.texto,
+    required this.seleccionada,
+    required this.onSeleccionar,
+  });
+
+  final String texto;
+  final bool seleccionada;
+  final VoidCallback onSeleccionar;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
@@ -136,7 +172,7 @@ class _MapaScreenState extends State<MapaScreen> {
         // El check marca la opción elegida además del color.
         showCheckmark: true,
         checkmarkColor: AppColors.sobreColor,
-        onSelected: (_) => _vm.elegirFiltro(valor),
+        onSelected: (_) => onSeleccionar(),
         selectedColor: AppColors.primary,
         backgroundColor: AppColors.superficie,
         labelStyle: TextStyle(
@@ -149,38 +185,51 @@ class _MapaScreenState extends State<MapaScreen> {
       ),
     );
   }
+}
+
+class _ContenidoMapa extends StatelessWidget {
+  const _ContenidoMapa({
+    required this.viewModel,
+    required this.controlador,
+    required this.margen,
+    required this.onAlertaTap,
+    required this.onAcercar,
+    required this.onAlejar,
+    required this.onVerTodo,
+  });
+
+  final MapaViewModel viewModel;
+  final MapController controlador;
+  final EdgeInsets margen;
+  final ValueChanged<Alerta> onAlertaTap;
+  final VoidCallback onAcercar;
+  final VoidCallback onAlejar;
+  final VoidCallback onVerTodo;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mapa de alertas')),
-      body: ListenableBuilder(
-        listenable: _vm,
-        builder: (context, _) => switch (_vm.estado) {
-          EstadoCarga.inicial ||
-          EstadoCarga.cargando => const IndicadorDeCarga(),
-          EstadoCarga.error => MensajeDeError(onReintentar: _vm.cargar),
-          EstadoCarga.exito => _contenido(context),
-        },
-      ),
-    );
-  }
-
-  Widget _contenido(BuildContext context) {
-    final visibles = _vm.visibles;
+    final visibles = viewModel.visibles;
 
     return Column(
       children: [
-        if (_vm.sinConexion)
+        if (viewModel.sinConexion)
           const AvisoSinConexion(margen: EdgeInsets.fromLTRB(16, 0, 16, 12)),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 0, 8, 12),
           child: Row(
             children: [
-              _pastilla('Todas', null),
+              _PastillaFiltro(
+                texto: 'Todas',
+                seleccionada: viewModel.filtro == null,
+                onSeleccionar: () => viewModel.elegirFiltro(null),
+              ),
               for (final estado in EstadoAlerta.values)
-                _pastilla(estado.etiquetaFiltro, estado),
+                _PastillaFiltro(
+                  texto: estado.etiquetaFiltro,
+                  seleccionada: viewModel.filtro == estado,
+                  onSeleccionar: () => viewModel.elegirFiltro(estado),
+                ),
             ],
           ),
         ),
@@ -203,9 +252,9 @@ class _MapaScreenState extends State<MapaScreen> {
                             'Tocá un pin para ver el resumen',
                   child: MapaBarrio(
                     alertas: visibles,
-                    onAlertaTap: _mostrarResumen,
-                    controlador: _controlador,
-                    margen: _margenMapa(context),
+                    onAlertaTap: onAlertaTap,
+                    controlador: controlador,
+                    margen: margen,
                     // Abre encuadrando las alertas para que los pines queden
                     // separados; "Ver todo el radio" muestra el círculo entero.
                     encuadre: EncuadreMapa.alertas,
@@ -216,9 +265,9 @@ class _MapaScreenState extends State<MapaScreen> {
                 top: 12,
                 right: 12,
                 child: _ControlesMapa(
-                  onAcercar: () => _cambiarZoom(1),
-                  onAlejar: () => _cambiarZoom(-1),
-                  onVerTodo: _verTodoElRadio,
+                  onAcercar: onAcercar,
+                  onAlejar: onAlejar,
+                  onVerTodo: onVerTodo,
                 ),
               ),
             ],
