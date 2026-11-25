@@ -7,6 +7,15 @@ import 'package:crypto/crypto.dart';
 import 'datos_de_ejemplo.dart';
 import 'reloj.dart';
 
+/// Los roles que puede tener un vecino. El rol `comision` lo asigna el
+/// equipo de desarrollo editando los datos del servidor; ninguna ruta de la
+/// API lo cambia.
+abstract final class Roles {
+  static const vecino = 'vecino';
+  static const comision = 'comision';
+  static const todos = {vecino, comision};
+}
+
 /// Los datos del barrio, en memoria y guardados en un archivo JSON.
 ///
 /// Para un prototipo alcanza: el archivo se reescribe después de cada
@@ -149,6 +158,11 @@ class Almacen {
         key: Map<String, dynamic>.of(value as Map<String, dynamic>),
     };
     vecinos.addAll(mapas('vecinos'));
+    // Un archivo de antes del rol (o con un rol que no se conoce): ante la
+    // duda, vecino común, que tiene menos permisos.
+    for (final vecino in vecinos.values) {
+      if (!Roles.todos.contains(vecino['rol'])) vecino['rol'] = Roles.vecino;
+    }
     _credenciales.addAll(mapas('credenciales'));
     turnos.addAll(mapas('turnos'));
     _sesiones.addAll((json['sesiones'] as Map<String, dynamic>).cast());

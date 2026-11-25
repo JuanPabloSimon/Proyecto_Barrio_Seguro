@@ -2,8 +2,10 @@
 /// turnos y alertas que muestra la app con el servidor simulado.
 ///
 /// Cuentas para probar (teléfono / contraseña):
-/// - Clara Medina, 45 años, patrulla: 261 555-0142 / barrio1234
-/// - Rosa Ibáñez, 78 años, guardia de ventana: 261 555-0177 / barrio1234
+/// - Clara Medina, 45 años, patrulla, miembro de la comisión:
+///   261 555-0142 / barrio1234
+/// - Rosa Ibáñez, 78 años, guardia de ventana, vecina común:
+///   261 555-0177 / barrio1234
 const claveDeEjemplo = 'barrio1234';
 
 const vecinosDeEjemplo = <Map<String, dynamic>>[
@@ -15,15 +17,56 @@ const vecinosDeEjemplo = <Map<String, dynamic>>[
     'calle': 'Cabildo de Mendoza',
     'cuadra': 'Cuadra 12',
     'vecino_desde': '2021-03-01',
+    'rol': 'comision',
   },
-  {'id': 'jorge', 'nombre': 'Jorge Ruiz', 'fecha_nacimiento': '1975-08-02'},
-  {'id': 'ana', 'nombre': 'Ana López', 'fecha_nacimiento': '1990-01-21'},
-  {'id': 'martin', 'nombre': 'Martín Sosa', 'fecha_nacimiento': '1986-11-09'},
-  {'id': 'pedro', 'nombre': 'Pedro Gil', 'fecha_nacimiento': '1979-04-30'},
-  {'id': 'laura', 'nombre': 'Laura Vega', 'fecha_nacimiento': '1993-06-17'},
-  {'id': 'sofia', 'nombre': 'Sofía Díaz', 'fecha_nacimiento': '1988-02-25'},
-  {'id': 'raul', 'nombre': 'Raúl Paz', 'fecha_nacimiento': '1969-09-12'},
-  {'id': 'ines', 'nombre': 'Inés Molina', 'fecha_nacimiento': '1984-12-03'},
+  {
+    'id': 'jorge',
+    'nombre': 'Jorge Ruiz',
+    'fecha_nacimiento': '1975-08-02',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'ana',
+    'nombre': 'Ana López',
+    'fecha_nacimiento': '1990-01-21',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'martin',
+    'nombre': 'Martín Sosa',
+    'fecha_nacimiento': '1986-11-09',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'pedro',
+    'nombre': 'Pedro Gil',
+    'fecha_nacimiento': '1979-04-30',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'laura',
+    'nombre': 'Laura Vega',
+    'fecha_nacimiento': '1993-06-17',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'sofia',
+    'nombre': 'Sofía Díaz',
+    'fecha_nacimiento': '1988-02-25',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'raul',
+    'nombre': 'Raúl Paz',
+    'fecha_nacimiento': '1969-09-12',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'ines',
+    'nombre': 'Inés Molina',
+    'fecha_nacimiento': '1984-12-03',
+    'rol': 'vecino',
+  },
   {
     'id': 'rosa',
     'nombre': 'Rosa Ibáñez',
@@ -32,13 +75,20 @@ const vecinosDeEjemplo = <Map<String, dynamic>>[
     'calle': 'Democracia',
     'cuadra': 'Cuadra 3',
     'vecino_desde': '2019-08-01',
+    'rol': 'vecino',
   },
   {
     'id': 'ernesto',
     'nombre': 'Ernesto Funes',
     'fecha_nacimiento': '1952-03-19',
+    'rol': 'vecino',
   },
-  {'id': 'elena', 'nombre': 'Elena Quiroga', 'fecha_nacimiento': '1954-10-27'},
+  {
+    'id': 'elena',
+    'nombre': 'Elena Quiroga',
+    'fecha_nacimiento': '1954-10-27',
+    'rol': 'vecino',
+  },
 ];
 
 /// Los vecinos que pueden ingresar con [claveDeEjemplo].
