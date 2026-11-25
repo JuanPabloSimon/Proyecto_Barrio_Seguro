@@ -73,11 +73,42 @@ class DetalleAlertaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: viewModel,
-      builder: (context, _) => _pantalla(context),
+      builder: (context, _) => _CuerpoDetalleAlerta(
+        viewModel: viewModel,
+        capacidades: capacidades,
+        telefono: telefono,
+        onMarcarResuelta: () => _cerrarCon(
+          context,
+          viewModel.marcarResuelta,
+          'Marcaste la alerta como resuelta',
+        ),
+        onMarcarFalsaAlarma: () => _cerrarCon(
+          context,
+          viewModel.marcarFalsaAlarma,
+          'Cancelaste la alerta: falsa alarma',
+        ),
+      ),
     );
   }
+}
 
-  Widget _pantalla(BuildContext context) {
+class _CuerpoDetalleAlerta extends StatelessWidget {
+  const _CuerpoDetalleAlerta({
+    required this.viewModel,
+    required this.capacidades,
+    required this.telefono,
+    required this.onMarcarResuelta,
+    required this.onMarcarFalsaAlarma,
+  });
+
+  final DetalleAlertaViewModel viewModel;
+  final Capacidades capacidades;
+  final TelefonoService telefono;
+  final VoidCallback onMarcarResuelta;
+  final VoidCallback onMarcarFalsaAlarma;
+
+  @override
+  Widget build(BuildContext context) {
     final alerta = viewModel.alerta;
     final esMia = viewModel.esMia;
     final puedeCerrarla = viewModel.puedeCerrarla;
@@ -170,13 +201,7 @@ class DetalleAlertaScreen extends StatelessWidget {
               const SizedBox(height: 12),
             ],
             FilledButton(
-              onPressed: cargando
-                  ? null
-                  : () => _cerrarCon(
-                      context,
-                      viewModel.marcarResuelta,
-                      'Marcaste la alerta como resuelta',
-                    ),
+              onPressed: cargando ? null : onMarcarResuelta,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.resuelta,
               ),
@@ -184,13 +209,7 @@ class DetalleAlertaScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: cargando
-                  ? null
-                  : () => _cerrarCon(
-                      context,
-                      viewModel.marcarFalsaAlarma,
-                      'Cancelaste la alerta: falsa alarma',
-                    ),
+              onPressed: cargando ? null : onMarcarFalsaAlarma,
               child: const Text('Fue una falsa alarma'),
             ),
           ],

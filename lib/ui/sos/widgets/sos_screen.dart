@@ -8,6 +8,15 @@ import '../../core/widgets/aviso.dart';
 import '../../core/widgets/dialogo_911.dart';
 import '../view_models/sos_view_model.dart';
 
+const _estiloBotonContornoSos = OutlinedButton.styleFrom;
+
+ButtonStyle _crearEstiloContornoSos() => _estiloBotonContornoSos(
+  foregroundColor: AppColors.sobreColor,
+  side: const BorderSide(color: AppColors.sobreColor, width: 2),
+  minimumSize: const Size(64, 64),
+  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+);
+
 /// Se abre al tocar el botón SOS. Primero pide confirmación con un botón
 /// grande; recién al confirmar se envía la alerta y se muestran las
 /// opciones siguientes.
@@ -67,8 +76,21 @@ class SosScreen extends StatelessWidget {
                   child: ListenableBuilder(
                     listenable: viewModel,
                     builder: (context, _) => viewModel.paso == PasoSos.enviada
-                        ? _vistaEnviada(context)
-                        : _vistaConfirmar(context),
+                        ? _VistaSosEnviada(
+                            pendiente: viewModel.pendiente,
+                            conUbicacionExacta: viewModel.conUbicacionExacta,
+                            capacidades: capacidades,
+                            telefono: telefono,
+                            onCerrarAlerta: (mensaje) =>
+                                _cerrarAlerta(context, mensaje),
+                          )
+                        : _VistaConfirmarSos(
+                            paso: viewModel.paso,
+                            capacidades: capacidades,
+                            telefono: telefono,
+                            onEnviar: _enviar,
+                            onCancelar: () => _cerrar(context),
+                          ),
                   ),
                 ),
               ),
@@ -78,10 +100,27 @@ class SosScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _vistaConfirmar(BuildContext context) {
-    final enviando = viewModel.paso == PasoSos.enviando;
-    final fallo = viewModel.paso == PasoSos.error;
+class _VistaConfirmarSos extends StatelessWidget {
+  const _VistaConfirmarSos({
+    required this.paso,
+    required this.capacidades,
+    required this.telefono,
+    required this.onEnviar,
+    required this.onCancelar,
+  });
+
+  final PasoSos paso;
+  final Capacidades capacidades;
+  final TelefonoService telefono;
+  final VoidCallback onEnviar;
+  final VoidCallback onCancelar;
+
+  @override
+  Widget build(BuildContext context) {
+    final enviando = paso == PasoSos.enviando;
+    final fallo = paso == PasoSos.error;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -128,7 +167,7 @@ class SosScreen extends StatelessWidget {
         const Spacer(),
         const SizedBox(height: 32),
         FilledButton(
-          onPressed: enviando ? null : _enviar,
+          onPressed: enviando ? null : onEnviar,
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.superficie,
             foregroundColor: AppColors.emergencia,
@@ -174,15 +213,34 @@ class SosScreen extends StatelessWidget {
         ],
         const SizedBox(height: 24),
         OutlinedButton(
-          onPressed: enviando ? null : () => _cerrar(context),
-          style: _estiloContorno,
+          onPressed: enviando ? null : onCancelar,
+          style: _crearEstiloContornoSos(),
           child: const Text('No, cancelar', textAlign: TextAlign.center),
         ),
       ],
     );
   }
+}
 
-  Widget _vistaEnviada(BuildContext context) {
+class _VistaSosEnviada extends StatelessWidget {
+  const _VistaSosEnviada({
+    required this.pendiente,
+    required this.conUbicacionExacta,
+    required this.capacidades,
+    required this.telefono,
+    required this.onCerrarAlerta,
+  });
+
+  final bool pendiente;
+  final bool conUbicacionExacta;
+  final Capacidades capacidades;
+  final TelefonoService telefono;
+  final ValueChanged<String> onCerrarAlerta;
+
+  @override
+  Widget build(BuildContext context) {
+    final estiloContorno = _crearEstiloContornoSos();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -201,7 +259,7 @@ class SosScreen extends StatelessWidget {
           header: true,
           liveRegion: true,
           child: Text(
-            viewModel.pendiente ? 'Alerta guardada' : 'Alerta enviada',
+            pendiente ? 'Alerta guardada' : 'Alerta enviada',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppColors.sobreColor,
@@ -212,17 +270,17 @@ class SosScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          viewModel.pendiente
+          pendiente
               ? 'No hay señal. La alerta se va a enviar sola apenas vuelva '
                     'la conexión. Si estás en peligro, llamá al 911.'
-              : viewModel.conUbicacionExacta
+              : conUbicacionExacta
               ? 'Avisamos a los vecinos de tu zona con tu ubicación exacta. '
                     'Si estás en peligro, llamá al 911.'
               : 'Avisamos a los vecinos de tu zona. Les mandamos la zona del '
                     'barrio, no tu ubicación exacta. '
                     'Si estás en peligro, llamá al 911.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.sobreColor, fontSize: 18),
+          style: const TextStyle(color: AppColors.sobreColor, fontSize: 18),
         ),
         const Spacer(),
         const SizedBox(height: 32),
@@ -246,18 +304,15 @@ class SosScreen extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         OutlinedButton(
-          onPressed: () =>
-              _cerrarAlerta(context, 'Marcaste la alerta como resuelta'),
-          style: _estiloContorno,
+          onPressed: () => onCerrarAlerta('Marcaste la alerta como resuelta'),
+          style: estiloContorno,
           child: const Text('Ya estoy a salvo', textAlign: TextAlign.center),
         ),
         const SizedBox(height: 16),
         OutlinedButton(
-          onPressed: () => _cerrarAlerta(
-            context,
-            'Cancelaste la alerta: fue una falsa alarma',
-          ),
-          style: _estiloContorno,
+          onPressed: () =>
+              onCerrarAlerta('Cancelaste la alerta: fue una falsa alarma'),
+          style: estiloContorno,
           child: const Text(
             'Fue una falsa alarma',
             textAlign: TextAlign.center,
@@ -266,11 +321,4 @@ class SosScreen extends StatelessWidget {
       ],
     );
   }
-
-  ButtonStyle get _estiloContorno => OutlinedButton.styleFrom(
-    foregroundColor: AppColors.sobreColor,
-    side: const BorderSide(color: AppColors.sobreColor, width: 2),
-    minimumSize: const Size(64, 64),
-    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-  );
 }

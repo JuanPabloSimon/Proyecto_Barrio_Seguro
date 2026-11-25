@@ -44,3 +44,24 @@
 - **Resultado:** Spec en `specs/rol_comision/` (T1–T25). En la app: `RolVecino` (`vecino`/`comision`) y `esComision` en `Vecino`, el rol se guarda y restaura con la sesión (una sesión vieja sin rol queda como `vecino`), no se manda en el `PUT` de datos y no se guarda en la copia local de los turnos; el servidor simulado fuerza `vecino` al registrarse y rechaza cambios de rol. En el backend: `Roles` y normalización del rol al leer, Clara como `comision` en los datos de ejemplo, 403 al intentar cambiarse el rol, middleware `soloComision` y rutas montadas en `/comision/` (401 sin sesión, 403 a vecinos comunes), turnos sin `rol` y README actualizado.
 - **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 172 pruebas en la app y 42 en el backend). Review aprobado en segunda vuelta en `progress/review_rol_comision.md` (la primera pidió cubrir completo R12 y R20).
 - **Próximo:** feature 14 (`informe_alertas`).
+
+## 2026-11-25 — Etapa 1 de devolución: Segundo plano funcional (`workmanager`)
+
+- **Quién:** equipo (Juan Pablo Simón) + implementer.
+- **Resultado:** En `lib/data/services/tareas/tarea_de_fondo.dart` se inicializa `WidgetsFlutterBinding.ensureInitialized()` en el isolate de fondo y se extrae `ejecutarTareaDeFondo` para procesar alertas pendientes tanto contra `API_URL` como contra servidor simulado, actualizando `AlertasDao`. En `lib/data/repositories/alertas_repository.dart` se invalida la caché de `pendiente-` cuando el worker de segundo plano ya vació la cola en SQLite.
+- **Verificación:** `flutter analyze` sin avisos y 21 pruebas en `test/unit/notificaciones_test.dart` en verde.
+- **Próximo:** Etapa 2 (`Future` con estado en repositorios).
+
+## 2026-11-25 — Etapa 2 de devolución: `Future` con estado en repositorios (`B2` y `C1`)
+
+- **Quién:** equipo (Juan Pablo Simón) + implementer.
+- **Resultado:** Creado `FuturoConEstado<T>` y `EstadoFuturo` (`inicial`, `cargando`, `exito`, `error`) en `lib/data/repositories/futuro_con_estado.dart`. Integrado en `AlertasRepositoryRemoto` y `TurnosRepositoryRemoto` para exponer el estado del `Future`, reutilizar el mismo `Future` en vuelo ante pedidos concurrentes y gestionar la caché.
+- **Verificación:** `flutter analyze` sin avisos y pruebas nuevas en `test/unit/repositorios_test.dart` pasando en verde.
+- **Próximo:** Etapa 3 (composición de widgets y eventos del sistema) o Features SDD #13 y #14.
+
+## 2026-11-25 — Etapa 3 de devolución: Composición de widgets (`B1`) y Eventos del sistema (`E3`)
+
+- **Quién:** equipo (Juan Pablo Simón) + implementer.
+- **Resultado:** Refactorizados los métodos de construcción de vista a clases `StatelessWidget` privadas en `SosScreen` (`_VistaConfirmarSos`, `_VistaSosEnviada`), `DetalleAlertaScreen` (`_CuerpoDetalleAlerta`), `InicioScreen` (`_ContenidoInicio`), `MapaScreen` (`_ContenidoMapa`, `_PastillaFiltro`), `TurnosScreen` (`_ContenidoTurnos`, `_VistaCalendarioTurnos`, `_VistaListaMisTurnos`), `MisAlertasScreen` (`_ListaMisAlertas`) y `PerfilScreen` (`_CuerpoPerfil`). Mejorado `VigilanteDeAlertas` con `AppLifecycleListener` (`onPause` y `onResume`) y agregada prueba del ciclo de vida del sistema en `test/unit/notificaciones_test.dart`.
+- **Verificación:** `flutter analyze` y `dart analyze` sin avisos; todas las pruebas de la app (162) y del backend (28) pasando en verde.
+- **Próximo:** Features SDD #13 (`rol_comision`) y #14 (`informe_alertas`).

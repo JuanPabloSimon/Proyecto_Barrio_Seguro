@@ -2,6 +2,7 @@ import '../../domain/models/turno.dart';
 import '../../domain/models/vecino.dart';
 import '../services/local/turnos_dao.dart';
 import '../services/turnos_service.dart';
+import 'futuro_con_estado.dart';
 
 /// Fuente de verdad de los turnos de patrullaje.
 abstract class TurnosRepository {
@@ -19,8 +20,9 @@ abstract class TurnosRepository {
   Future<Turno> salir(Vecino vecino, DateTime fecha, Franja franja);
 }
 
-/// Como `AlertasRepositoryRemoto`: caché en memoria por mes y copia en el
-/// teléfono con [dao] para ver los turnos sin conexión.
+/// Como `AlertasRepositoryRemoto`: mantiene un [FuturoConEstado] por mes
+/// (para deduplicar pedidos concurrentes y guardar caché en memoria) y una
+/// copia en el teléfono con [dao] para ver los turnos sin conexión.
 class TurnosRepositoryRemoto implements TurnosRepository {
   TurnosRepositoryRemoto({required this._service, this._dao});
 
@@ -31,23 +33,32 @@ class TurnosRepositoryRemoto implements TurnosRepository {
   @override
   bool get sinConexion => _sinConexion;
 
-  /// Un mes por clave ("2026-10"): cada mes se pide una sola vez.
-  final Map<String, List<Turno>> _cache = {};
+  /// Un [FuturoConEstado] por mes ("2026-10"): cada mes se pide una sola vez
+  /// y las llamadas simultáneas comparten el mismo [Future] en vuelo.
+  final Map<String, FuturoConEstado<List<Turno>>> _pedidos = {};
 
   String _claveMes(DateTime fecha) => '${fecha.year}-${fecha.month}';
+
+  /// Estado actual del [Future] correspondiente a [mes].
+  EstadoFuturo estadoDelMes(DateTime mes) =>
+      _pedidos[_claveMes(mes)]?.estado ?? EstadoFuturo.inicial;
 
   /// "2026-10-09": el formato de fechas que usa la API.
   String _fechaApi(DateTime fecha) => fecha.toIso8601String().substring(0, 10);
 
   @override
-  Future<List<Turno>> obtenerTurnos(
-    DateTime mes, {
-    bool refrescar = false,
-  }) async {
-    final clave = _claveMes(mes);
-    final enCache = _cache[clave];
-    if (enCache != null && !refrescar && !_sinConexion) return enCache;
+  Future<List<Turno>> obtenerTurnos(DateTime mes, {bool refrescar = false}) {
+    final pedido = _pedidos.putIfAbsent(
+      _claveMes(mes),
+      FuturoConEstado<List<Turno>>.new,
+    );
+    return pedido.ejecutar(
+      () => _cargarTurnos(mes),
+      refrescar: refrescar || _sinConexion,
+    );
+  }
 
+  Future<List<Turno>> _cargarTurnos(DateTime mes) async {
     final List<Map<String, dynamic>> crudos;
     try {
       crudos = await _service.obtenerTurnos(anio: mes.year, mes: mes.month);
@@ -55,12 +66,11 @@ class TurnosRepositoryRemoto implements TurnosRepository {
       final guardados = await _leerCopia(mes);
       if (guardados.isEmpty) rethrow;
       _sinConexion = true;
-      return _cache[clave] = List.unmodifiable(guardados);
+      return List.unmodifiable(guardados);
     }
 
     final turnos = List<Turno>.unmodifiable(crudos.map(Turno.fromJson));
     _sinConexion = false;
-    _cache[clave] = turnos;
     await _guardarCopia((dao) => dao.reemplazarMes(mes, turnos));
     return turnos;
   }
@@ -108,16 +118,19 @@ class TurnosRepositoryRemoto implements TurnosRepository {
   /// del teléfono.
   Future<Turno> _actualizarCache(Turno turno) async {
     final clave = _claveMes(turno.fecha);
-    final enCache = _cache[clave];
-    if (enCache != null) {
+    final pedido = _pedidos[clave];
+    final enCache = pedido?.valor;
+    if (pedido != null && enCache != null) {
       bool esElMismo(Turno t) =>
           _fechaApi(t.fecha) == _fechaApi(turno.fecha) &&
           t.franja == turno.franja;
-      _cache[clave] = List.unmodifiable([
-        for (final t in enCache)
-          if (!esElMismo(t)) t,
-        turno,
-      ]);
+      pedido.fijarValor(
+        List.unmodifiable([
+          for (final t in enCache)
+            if (!esElMismo(t)) t,
+          turno,
+        ]),
+      );
     }
     await _guardarCopia((dao) => dao.guardar(turno));
     return turno;

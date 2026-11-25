@@ -45,14 +45,37 @@ class TurnosScreen extends StatelessWidget {
             EstadoCarga.cargando => const IndicadorDeCarga(),
             EstadoCarga.error => MensajeDeError(onReintentar: viewModel.cargar),
             EstadoCarga.exito when usuario == null => const SizedBox.shrink(),
-            EstadoCarga.exito => _contenido(context, usuario!),
+            EstadoCarga.exito => _ContenidoTurnos(
+              viewModel: viewModel,
+              usuario: usuario!,
+              iconoPropio: _iconoPropio,
+              onAnotar: (turno) => _anotar(context, turno),
+              onSalir: (turno) => _salir(context, turno),
+            ),
           };
         },
       ),
     );
   }
+}
 
-  Widget _contenido(BuildContext context, Vecino usuario) {
+class _ContenidoTurnos extends StatelessWidget {
+  const _ContenidoTurnos({
+    required this.viewModel,
+    required this.usuario,
+    required this.iconoPropio,
+    required this.onAnotar,
+    required this.onSalir,
+  });
+
+  final TurnosViewModel viewModel;
+  final Vecino usuario;
+  final IconData iconoPropio;
+  final ValueChanged<Turno> onAnotar;
+  final ValueChanged<Turno> onSalir;
+
+  @override
+  Widget build(BuildContext context) {
     final mios = viewModel.misTurnos;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
@@ -78,103 +101,138 @@ class TurnosScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         if (viewModel.soloMios)
-          ..._listaMisTurnos(mios)
+          _VistaListaMisTurnos(viewModel: viewModel, mios: mios)
         else
-          ..._vistaCalendario(context, usuario),
+          _VistaCalendarioTurnos(
+            viewModel: viewModel,
+            usuario: usuario,
+            iconoPropio: iconoPropio,
+            onAnotar: onAnotar,
+            onSalir: onSalir,
+          ),
       ],
     );
   }
+}
 
-  List<Widget> _vistaCalendario(BuildContext context, Vecino usuario) {
+class _VistaCalendarioTurnos extends StatelessWidget {
+  const _VistaCalendarioTurnos({
+    required this.viewModel,
+    required this.usuario,
+    required this.iconoPropio,
+    required this.onAnotar,
+    required this.onSalir,
+  });
+
+  final TurnosViewModel viewModel;
+  final Vecino usuario;
+  final IconData iconoPropio;
+  final ValueChanged<Turno> onAnotar;
+  final ValueChanged<Turno> onSalir;
+
+  @override
+  Widget build(BuildContext context) {
     final dia = viewModel.dia;
-    return [
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SelectorDia(
-                mes: viewModel.mes,
-                seleccionado: dia,
-                onSeleccionar: viewModel.elegirDia,
-                marcaDe: viewModel.marcaDe,
-                iconoPropio: _iconoPropio,
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _LeyendaCalendario(iconoPropio: _iconoPropio),
-              ),
-            ],
-          ),
-        ),
-      ),
-      const SizedBox(height: 20),
-      Semantics(
-        header: true,
-        child: Text(
-          fechaLarga(dia),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-      ),
-      const SizedBox(height: 10),
-      for (final franja in Franja.values)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _TarjetaFranja(
-            turno: viewModel.turno(dia, franja),
-            usuario: usuario,
-            esGuardia: viewModel.esGuardiaVentana,
-            motivoNoDisponible: viewModel.motivoNoDisponible(
-              viewModel.turno(dia, franja),
-            ),
-            ocupado: viewModel.ocupado,
-            onAnotar: (turno) => _anotar(context, turno),
-            onSalir: (turno) => _salir(context, turno),
-          ),
-        ),
-    ];
-  }
-
-  List<Widget> _listaMisTurnos(List<Turno> mios) {
-    if (mios.isEmpty) {
-      return [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Todavía no tenés turnos en ${nombreMes(viewModel.mes.month)}.',
-                  textAlign: TextAlign.center,
+                SelectorDia(
+                  mes: viewModel.mes,
+                  seleccionado: dia,
+                  onSeleccionar: viewModel.elegirDia,
+                  marcaDe: viewModel.marcaDe,
+                  iconoPropio: iconoPropio,
                 ),
                 const SizedBox(height: 12),
-                Center(
-                  child: FilledButton(
-                    onPressed: () => viewModel.mostrarSoloMios(false),
-                    child: const Text('Elegir en el calendario'),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _LeyendaCalendario(iconoPropio: iconoPropio),
                 ),
               ],
             ),
           ),
         ),
-      ];
-    }
-
-    return [
-      for (final turno in mios)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _MiTurno(
-            turno: turno,
-            lineas: viewModel.detalleDe(turno),
-            onTap: () => viewModel.verEnCalendario(turno.fecha),
+        const SizedBox(height: 20),
+        Semantics(
+          header: true,
+          child: Text(
+            fechaLarga(dia),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-    ];
+        const SizedBox(height: 10),
+        for (final franja in Franja.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _TarjetaFranja(
+              turno: viewModel.turno(dia, franja),
+              usuario: usuario,
+              esGuardia: viewModel.esGuardiaVentana,
+              motivoNoDisponible: viewModel.motivoNoDisponible(
+                viewModel.turno(dia, franja),
+              ),
+              ocupado: viewModel.ocupado,
+              onAnotar: onAnotar,
+              onSalir: onSalir,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _VistaListaMisTurnos extends StatelessWidget {
+  const _VistaListaMisTurnos({required this.viewModel, required this.mios});
+
+  final TurnosViewModel viewModel;
+  final List<Turno> mios;
+
+  @override
+  Widget build(BuildContext context) {
+    if (mios.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Todavía no tenés turnos en ${nombreMes(viewModel.mes.month)}.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: FilledButton(
+                  onPressed: () => viewModel.mostrarSoloMios(false),
+                  child: const Text('Elegir en el calendario'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final turno in mios)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _MiTurno(
+              turno: turno,
+              lineas: viewModel.detalleDe(turno),
+              onTap: () => viewModel.verEnCalendario(turno.fecha),
+            ),
+          ),
+      ],
+    );
   }
 }
 
