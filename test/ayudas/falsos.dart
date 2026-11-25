@@ -5,6 +5,7 @@ import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
 import 'package:barrio_seguro/data/services/alertas_service.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
+import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/tareas/tareas_service.dart';
 import 'package:barrio_seguro/data/services/telefono_service.dart';
 import 'package:barrio_seguro/data/services/ubicacion_service.dart';
@@ -218,6 +219,7 @@ class CapacidadesFalsas implements Capacidades {
     this.tieneBaseDeDatosLocal = false,
     this.tieneGps = true,
     this.correTareasEnSegundoPlano = false,
+    this.recibeAvisosPush = true,
   });
 
   @override
@@ -234,6 +236,9 @@ class CapacidadesFalsas implements Capacidades {
 
   @override
   final bool correTareasEnSegundoPlano;
+
+  @override
+  final bool recibeAvisosPush;
 }
 
 class PoliticasFalsas implements Politicas {
@@ -324,4 +329,50 @@ class TareasFalsas implements TareasService {
 
   @override
   Future<void> programarEnvioDePendientes() async => programadas++;
+}
+
+/// Simula el servicio de avisos push (FCM) sin red ni Firebase.
+class PushFalso implements PushService {
+  PushFalso({this.abrioLaApp, this.falla = false});
+
+  final String? abrioLaApp;
+  bool falla;
+  bool inicializado = false;
+  bool suscripto = false;
+  int suscripciones = 0;
+  int desuscripciones = 0;
+  final _tocadas = StreamController<String>.broadcast();
+
+  /// Simula que el vecino tocó el aviso push de la alerta [id].
+  void tocar(String id) => _tocadas.add(id);
+
+  void _revisar() {
+    if (falla) throw Exception('fallo de push');
+  }
+
+  @override
+  Future<void> inicializar() async {
+    _revisar();
+    inicializado = true;
+  }
+
+  @override
+  Future<void> suscribirAlertas() async {
+    _revisar();
+    suscripto = true;
+    suscripciones++;
+  }
+
+  @override
+  Future<void> desuscribirAlertas() async {
+    _revisar();
+    suscripto = false;
+    desuscripciones++;
+  }
+
+  @override
+  Stream<String> get alertasTocadas => _tocadas.stream;
+
+  @override
+  Future<String?> alertaQueAbrioLaApp() async => abrioLaApp;
 }

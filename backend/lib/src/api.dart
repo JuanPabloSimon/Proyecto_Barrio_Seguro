@@ -5,6 +5,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'almacen.dart';
 import 'error_de_api.dart';
+import 'push_service.dart';
 import 'reglas.dart';
 import 'reloj.dart';
 
@@ -18,6 +19,7 @@ class Api {
     required this._almacen,
     required this._reloj,
     required this._codigoComision,
+    this._push = const PushServiceNinguno(),
   });
 
   final Almacen _almacen;
@@ -25,6 +27,7 @@ class Api {
 
   /// Código que la comisión vecinal les da a los vecinos para registrarse.
   final String _codigoComision;
+  final PushService _push;
 
   static const _categorias = {
     'sos',
@@ -217,7 +220,17 @@ class Api {
     };
     _almacen.alertas.insert(0, alerta);
     _almacen.guardar();
+    await notificarAlerta(alerta);
     return _json(201, alerta);
+  }
+
+  /// Envía el aviso push de [alerta] si todavía no está resuelta. Si el
+  /// servicio de push falla, la alerta igual queda guardada.
+  Future<void> notificarAlerta(Map<String, dynamic> alerta) async {
+    if (alerta['estado'] == 'resuelta') return;
+    try {
+      await _push.enviarAlerta(alerta);
+    } catch (_) {}
   }
 
   Future<Response> _cambiarEstado(Request pedido, String id) async {

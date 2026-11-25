@@ -43,6 +43,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
 
   late final VigilanteDeAlertas _vigilante;
   StreamSubscription<String>? _toques;
+  StreamSubscription<String>? _toquesPush;
 
   @override
   void initState() {
@@ -74,6 +75,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       preferencias: d.preferencias,
       ubicacion: d.ubicacion,
       notificacionesService: d.notificaciones,
+      pushService: d.push,
     )..cargar();
 
     _vigilante = VigilanteDeAlertas(
@@ -84,13 +86,29 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       bus: d.bus,
     )..empezar();
 
+    _sincronizarSuscripcionPush();
+
     // Tocar un aviso abre el detalle de esa alerta: con la app abierta o
     // en segundo plano llega por el Stream; si el aviso abrió la app, se
     // pregunta una vez al arrancar.
     _toques = d.notificaciones.alertasTocadas.listen(_abrirAlerta);
+    _toquesPush = d.push.alertasTocadas.listen(_abrirAlerta);
     d.notificaciones.alertaQueAbrioLaApp().then((id) {
       if (id != null) _abrirAlerta(id);
     });
+    d.push.alertaQueAbrioLaApp().then((id) {
+      if (id != null) _abrirAlerta(id);
+    });
+  }
+
+  Future<void> _sincronizarSuscripcionPush() async {
+    final d = widget.dependencias;
+    if (!d.capacidades.recibeAvisosPush) return;
+    try {
+      if (await d.preferencias.notificaciones()) {
+        await d.push.suscribirAlertas();
+      }
+    } catch (_) {}
   }
 
   Future<void> _abrirAlerta(String id) async {
@@ -109,6 +127,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
   void dispose() {
     _vigilante.detener();
     _toques?.cancel();
+    _toquesPush?.cancel();
     _inicio.dispose();
     _turnos.dispose();
     _mapa.dispose();

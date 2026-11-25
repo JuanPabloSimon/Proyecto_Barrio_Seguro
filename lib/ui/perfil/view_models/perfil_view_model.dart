@@ -6,6 +6,7 @@ import '../../../data/repositories/sesion_repository.dart';
 import '../../../data/services/bus_de_eventos.dart';
 import '../../../data/services/local/preferencias.dart';
 import '../../../data/services/notificaciones_service.dart';
+import '../../../data/services/push_service.dart';
 import '../../../data/services/ubicacion_service.dart';
 import '../../../data/services/reloj.dart';
 import '../../../domain/evento_de_app.dart';
@@ -24,6 +25,7 @@ class PerfilViewModel extends ChangeNotifier {
     required this._preferencias,
     required this._ubicacion,
     required this._notificacionesService,
+    this._pushService = const PushServiceNinguno(),
   }) {
     // Si se editan los datos, el perfil se vuelve a dibujar.
     _suscripcion = bus.de<PerfilActualizado>().listen((_) => notifyListeners());
@@ -36,6 +38,7 @@ class PerfilViewModel extends ChangeNotifier {
   final Preferencias _preferencias;
   final UbicacionService _ubicacion;
   final NotificacionesService _notificacionesService;
+  final PushService _pushService;
   StreamSubscription<PerfilActualizado>? _suscripcion;
 
   Vecino? get usuario => _sesion.usuario;
@@ -153,6 +156,11 @@ class PerfilViewModel extends ChangeNotifier {
     _notificaciones = valor;
     notifyListeners();
     await _guardar(() => _preferencias.guardarNotificaciones(valor));
+    if (valor) {
+      await _guardar(_pushService.suscribirAlertas);
+    } else {
+      await _guardar(_pushService.desuscribirAlertas);
+    }
   }
 
   /// Si el disco falla, el cambio queda igual mientras la app está abierta.
@@ -162,7 +170,10 @@ class PerfilViewModel extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> cerrarSesion() => _sesion.cerrarSesion();
+  Future<void> cerrarSesion() async {
+    await _guardar(_pushService.desuscribirAlertas);
+    await _sesion.cerrarSesion();
+  }
 
   @override
   void dispose() {

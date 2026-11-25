@@ -10,10 +10,19 @@ import 'package:shelf/shelf_io.dart';
 /// - PORT: puerto, 8080 por defecto.
 /// - DATOS: archivo donde se guardan los datos, `datos/barrio.json`.
 /// - CODIGO_COMISION: código para registrarse, `SOBERANIA` por defecto.
+/// - FIREBASE_CREDENTIALS: ruta al archivo JSON de la cuenta de servicio de
+///   Firebase para enviar avisos push.
 Future<void> main() async {
   final entorno = Platform.environment;
   final puerto = int.tryParse(entorno['PORT'] ?? '') ?? 8080;
   const reloj = RelojDelSistema();
+  final rutaFirebase = entorno['FIREBASE_CREDENTIALS'];
+  final push =
+      rutaFirebase != null &&
+          rutaFirebase.isNotEmpty &&
+          File(rutaFirebase).existsSync()
+      ? PushServiceFcm.desdeArchivo(File(rutaFirebase))
+      : const PushServiceNinguno();
 
   final api = Api(
     almacen: Almacen.abrir(
@@ -22,6 +31,7 @@ Future<void> main() async {
     ),
     reloj: reloj,
     codigoComision: entorno['CODIGO_COMISION'] ?? 'SOBERANIA',
+    push: push,
   );
 
   final handler = const Pipeline()

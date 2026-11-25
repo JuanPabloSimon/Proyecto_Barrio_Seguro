@@ -10,9 +10,11 @@ import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
 import 'package:barrio_seguro/data/services/local/pendientes_dao.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
+import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/tareas/envio_de_pendientes.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/principal/vigilante_de_alertas.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -312,6 +314,169 @@ void main() {
       expect(await PendientesDao(nueva).listar(), isEmpty);
     },
   );
+
+  group('Avisos push con la app cerrada', () {
+    late NotificacionesFalsas notificaciones;
+    late Preferencias preferencias;
+
+    Map<String, dynamic> datosPush({
+      String id = 'a-push-1',
+      String estado = 'activa',
+      String reportadaPor = 'jorge',
+    }) => {
+      'id': id,
+      'categoria': 'sos',
+      'tipo': 'Pedido de ayuda (SOS)',
+      'descripcion': 'Urgencia en la vereda',
+      'direccion': 'Calle Plantamura',
+      'creada_en': '${DateTime(2026, 10, 1, 12).millisecondsSinceEpoch}',
+      'estado': estado,
+      'latitud': '-32.877264',
+      'longitud': '-68.868785',
+      'reportada_por': reportadaPor,
+    };
+
+    setUp(() async {
+      notificaciones = NotificacionesFalsas();
+      preferencias = preferenciasEnMemoria();
+      await preferencias.guardarNotificaciones(true);
+      await preferencias.guardarVecino(vecinaDePrueba);
+    });
+
+    test('con la app cerrada, cuando otro vecino crea una alerta, muestra una notificación', () async {
+      final mostrada = await procesarAvisoPush(
+        datosPush(id: 'ajena', reportadaPor: 'jorge'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+      );
+
+      expect(mostrada, isTrue);
+      expect(notificaciones.avisadas.map((a) => a.id), ['ajena']);
+      expect(notificaciones.avisadas.single.direccion, 'Calle Plantamura');
+    });
+
+    test('el vecino que creó la alerta no recibe su propio aviso', () async {
+      final mostrada = await procesarAvisoPush(
+        datosPush(id: 'propia', reportadaPor: 'clara'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+      );
+
+      expect(mostrada, isFalse);
+      expect(notificaciones.avisadas, isEmpty);
+    });
+
+    test('si la alerta ya está resuelta cuando se va a mostrar el aviso, no se avisa', () async {
+      final mostrada = await procesarAvisoPush(
+        datosPush(id: 'resuelta', estado: 'resuelta', reportadaPor: 'jorge'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+      );
+
+      expect(mostrada, isFalse);
+      expect(notificaciones.avisadas, isEmpty);
+    });
+
+    test(
+      'sin avisos activos o con datos inválidos no muestra notificación',
+      () async {
+        await preferencias.guardarNotificaciones(false);
+        expect(
+          await procesarAvisoPush(
+            datosPush(),
+            preferencias: preferencias,
+            notificaciones: notificaciones,
+          ),
+          isFalse,
+        );
+
+        await preferencias.guardarNotificaciones(true);
+        expect(
+          await procesarAvisoPush(
+            {'id': 'incompleta'},
+            preferencias: preferencias,
+            notificaciones: notificaciones,
+          ),
+          isFalse,
+        );
+        expect(notificaciones.avisadas, isEmpty);
+      },
+    );
+
+    test(
+      'activar avisos suscribe al push y apagarlos o cerrar sesión desuscribe',
+      () async {
+        final push = PushFalso();
+        final vm = PerfilViewModel(
+          sesion: SesionFalsa(vecinaDePrueba),
+          bus: BusDeEventos(),
+          reloj: relojDePrueba,
+          capacidades: const CapacidadesFalsas(),
+          politicas: const PoliticasFalsas(),
+          preferencias: preferenciasEnMemoria(),
+          ubicacion: UbicacionFalsa(),
+          notificacionesService: NotificacionesFalsas(),
+          pushService: push,
+        );
+        await vm.cargar();
+
+        expect(await vm.activarAvisos(), isNull);
+        expect(push.suscripto, isTrue);
+        expect(push.suscripciones, 1);
+
+        await vm.cambiarNotificaciones(false);
+        expect(push.suscripto, isFalse);
+        expect(push.desuscripciones, 1);
+
+        await vm.activarAvisos();
+        expect(push.suscripto, isTrue);
+
+        await vm.cerrarSesion();
+        expect(push.suscripto, isFalse);
+        expect(push.desuscripciones, 2);
+      },
+    );
+
+    test('sin el permiso de notificaciones o si el push falla la app sigue funcionando igual', () async {
+      final push = PushFalso(falla: true);
+      final vmSinPermiso = PerfilViewModel(
+        sesion: SesionFalsa(vecinaDePrueba),
+        bus: BusDeEventos(),
+        reloj: relojDePrueba,
+        capacidades: const CapacidadesFalsas(),
+        politicas: const PoliticasFalsas(),
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        notificacionesService: NotificacionesFalsas(permiso: false),
+        pushService: push,
+      );
+      await vmSinPermiso.cargar();
+
+      final aviso = await vmSinPermiso.activarAvisos();
+      expect(aviso, contains('Sin permiso'));
+      expect(vmSinPermiso.notificaciones, isFalse);
+      expect(push.suscripciones, 0);
+
+      // Con permiso pero con fallo de red en el servicio de push, no
+      // bloquea el cambio de preferencia ni el cierre de sesión.
+      final vmConFalloPush = PerfilViewModel(
+        sesion: SesionFalsa(vecinaDePrueba),
+        bus: BusDeEventos(),
+        reloj: relojDePrueba,
+        capacidades: const CapacidadesFalsas(),
+        politicas: const PoliticasFalsas(),
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        notificacionesService: NotificacionesFalsas(permiso: true),
+        pushService: push,
+      );
+      await vmConFalloPush.cargar();
+
+      expect(await vmConFalloPush.activarAvisos(), isNull);
+      expect(vmConFalloPush.notificaciones, isTrue);
+      await vmConFalloPush.cerrarSesion();
+    });
+  });
 }
 
 class _ServicioQueRechazaLaPrimera extends AlertasServiceDePrueba {

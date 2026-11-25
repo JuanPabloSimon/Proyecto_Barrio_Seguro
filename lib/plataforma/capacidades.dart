@@ -57,4 +57,11 @@ class Capacidades {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android;
   }
+
+  /// Si el dispositivo recibe avisos push con la app cerrada (FCM).
+  /// Configurado en Android con google-services.json.
+  bool get recibeAvisosPush {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android;
+  }
 }

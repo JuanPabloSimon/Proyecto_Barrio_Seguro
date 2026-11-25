@@ -46,6 +46,21 @@ void main() {
         },
       );
     }
+
+    test('solo Android recibe avisos push con la app cerrada', () {
+      simularPlataforma(TargetPlatform.android);
+      expect(capacidades.recibeAvisosPush, isTrue);
+
+      for (final plataforma in [
+        TargetPlatform.iOS,
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+      ]) {
+        simularPlataforma(plataforma);
+        expect(capacidades.recibeAvisosPush, isFalse);
+      }
+    });
   });
 
   group('Base de datos local', () {
