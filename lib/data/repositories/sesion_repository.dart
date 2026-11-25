@@ -102,7 +102,11 @@ class SesionRepositoryRemoto implements SesionRepository {
 
   @override
   Future<Vecino> actualizarDatos(Vecino datos) async {
-    final json = Map<String, dynamic>.of(datos.toJson())..remove('id');
+    // El rol no se manda: no se cambia desde la app y el servidor rechaza
+    // cualquier intento de cambiarlo.
+    final json = Map<String, dynamic>.of(datos.toJson())
+      ..remove('id')
+      ..remove('rol');
     final vecino = Vecino.fromJson(await _service.actualizar(datos.id, json));
     await _preferencias.guardarVecino(vecino);
     _usuario = vecino;

@@ -68,6 +68,8 @@ class ServidorSimulado {
       ...datos,
       'id': _nuevoId('vecino'),
       'vecino_desde': hoy.toIso8601String().substring(0, 10),
+      // Quien se registra es siempre vecino común, mande lo que mande.
+      'rol': RolVecino.vecino.json,
     };
     _vecinos[vecino['id'] as String] = vecino;
     return _sesion(vecino['id'] as String);
@@ -78,6 +80,9 @@ class ServidorSimulado {
     if (actual == null) {
       throw const ErrorDelServidor('No encontramos tu cuenta.');
     }
+    if (datos.containsKey('rol') && datos['rol'] != actual['rol']) {
+      throw const ErrorDelServidor(mensajeRolFijo);
+    }
     // El id, la fecha de nacimiento y la antigüedad no se cambian desde la app.
     final actualizado = {
       ...actual,
@@ -85,6 +90,7 @@ class ServidorSimulado {
       'id': id,
       'fecha_nacimiento': actual['fecha_nacimiento'],
       'vecino_desde': actual['vecino_desde'],
+      'rol': actual['rol'],
     };
     _vecinos[id] = actualizado;
     return Map.of(actualizado);
@@ -113,11 +119,16 @@ class ServidorSimulado {
       'franja': turno['franja'],
       'patrulleros': [
         for (final id in turno['patrulleros'] as List<String>)
-          Map.of(_vecinos[id]!),
+          _vecinoDelTurno(id),
       ],
-      'guardia_ventana': guardia == null ? null : Map.of(_vecinos[guardia]!),
+      'guardia_ventana': guardia == null ? null : _vecinoDelTurno(guardia),
     };
   }
+
+  /// Los datos de un vecino como aparecen dentro de un turno: una copia, sin
+  /// `rol`. Copia para no borrarle el rol al vecino guardado.
+  Map<String, dynamic> _vecinoDelTurno(String id) =>
+      Map<String, dynamic>.of(_vecinos[id]!)..remove('rol');
 
   Map<String, dynamic> anotarse(String fecha, String franja, String vecinoId) {
     final json = _vecinos[vecinoId];
@@ -216,6 +227,9 @@ class ServidorSimulado {
 
   static const idVecinaDeEjemplo = 'clara';
 
+  /// El mismo mensaje que la API cuando alguien intenta cambiarse el rol.
+  static const mensajeRolFijo = 'El rol no se puede cambiar desde la app.';
+
   void _cargarDatosIniciales() {
     for (final vecino in _vecinosDeEjemplo) {
       _vecinos[vecino['id'] as String] = Map.of(vecino);
@@ -259,23 +273,75 @@ const _vecinosDeEjemplo = <Map<String, dynamic>>[
     'calle': 'Cabildo de Mendoza',
     'cuadra': 'Cuadra 12',
     'vecino_desde': '2021-03-01',
+    'rol': 'comision',
   },
-  {'id': 'jorge', 'nombre': 'Jorge Ruiz', 'fecha_nacimiento': '1975-08-02'},
-  {'id': 'ana', 'nombre': 'Ana López', 'fecha_nacimiento': '1990-01-21'},
-  {'id': 'martin', 'nombre': 'Martín Sosa', 'fecha_nacimiento': '1986-11-09'},
-  {'id': 'pedro', 'nombre': 'Pedro Gil', 'fecha_nacimiento': '1979-04-30'},
-  {'id': 'laura', 'nombre': 'Laura Vega', 'fecha_nacimiento': '1993-06-17'},
-  {'id': 'sofia', 'nombre': 'Sofía Díaz', 'fecha_nacimiento': '1988-02-25'},
-  {'id': 'raul', 'nombre': 'Raúl Paz', 'fecha_nacimiento': '1969-09-12'},
-  {'id': 'ines', 'nombre': 'Inés Molina', 'fecha_nacimiento': '1984-12-03'},
+  {
+    'id': 'jorge',
+    'nombre': 'Jorge Ruiz',
+    'fecha_nacimiento': '1975-08-02',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'ana',
+    'nombre': 'Ana López',
+    'fecha_nacimiento': '1990-01-21',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'martin',
+    'nombre': 'Martín Sosa',
+    'fecha_nacimiento': '1986-11-09',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'pedro',
+    'nombre': 'Pedro Gil',
+    'fecha_nacimiento': '1979-04-30',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'laura',
+    'nombre': 'Laura Vega',
+    'fecha_nacimiento': '1993-06-17',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'sofia',
+    'nombre': 'Sofía Díaz',
+    'fecha_nacimiento': '1988-02-25',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'raul',
+    'nombre': 'Raúl Paz',
+    'fecha_nacimiento': '1969-09-12',
+    'rol': 'vecino',
+  },
+  {
+    'id': 'ines',
+    'nombre': 'Inés Molina',
+    'fecha_nacimiento': '1984-12-03',
+    'rol': 'vecino',
+  },
   // Guardias de ventana (70 años o más)
-  {'id': 'rosa', 'nombre': 'Rosa Ibáñez', 'fecha_nacimiento': '1948-07-08'},
+  {
+    'id': 'rosa',
+    'nombre': 'Rosa Ibáñez',
+    'fecha_nacimiento': '1948-07-08',
+    'rol': 'vecino',
+  },
   {
     'id': 'ernesto',
     'nombre': 'Ernesto Funes',
     'fecha_nacimiento': '1952-03-19',
+    'rol': 'vecino',
   },
-  {'id': 'elena', 'nombre': 'Elena Quiroga', 'fecha_nacimiento': '1954-10-27'},
+  {
+    'id': 'elena',
+    'nombre': 'Elena Quiroga',
+    'fecha_nacimiento': '1954-10-27',
+    'rol': 'vecino',
+  },
 ];
 
 /// Octubre 2026. Nadie supera los 2 turnos del mes.

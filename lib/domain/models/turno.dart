@@ -72,15 +72,18 @@ class Turno {
   List<Vecino> companierosDe(Vecino vecino) =>
       patrulleros.where((p) => p.id != vecino.id).toList();
 
-  /// Objeto -> fila de la tabla `turnos`.
+  /// Objeto -> fila de la tabla `turnos`. Los vecinos van sin `rol`: en un
+  /// turno no hace falta saber quién es de la comisión.
   Map<String, Object?> toMap() {
     final guardia = guardiaVentana;
     return {
       // "2026-10-09": el texto ordena igual que la fecha.
       'fecha': fecha.toIso8601String().substring(0, 10),
       'franja': franja.name,
-      'patrulleros': jsonEncode([for (final p in patrulleros) p.toJson()]),
-      'guardia_ventana': guardia == null ? null : jsonEncode(guardia.toJson()),
+      'patrulleros': jsonEncode([for (final p in patrulleros) _sinRol(p)]),
+      'guardia_ventana': guardia == null ? null : jsonEncode(_sinRol(guardia)),
     };
   }
+
+  static Map<String, dynamic> _sinRol(Vecino v) => v.toJson()..remove('rol');
 }

@@ -5,6 +5,8 @@
 // sobre el mismo almacenamiento: si ve lo que guardó el primero, la
 // persistencia funciona.
 
+import 'dart:convert';
+
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
@@ -19,6 +21,7 @@ import 'package:barrio_seguro/data/services/simulados/vecinos_service_simulado.d
 import 'package:barrio_seguro/data/services/turnos_service.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -136,6 +139,29 @@ void main() {
       await alAbrir.restaurar();
       expect(alAbrir.usuario, isNull);
     });
+
+    test('una sesión guardada sin rol se restaura como vecino', () async {
+      // Así quedaba guardada la sesión antes de que existiera el rol.
+      final sinRol = jsonEncode({
+        'id': 'clara',
+        'nombre': 'Clara Medina',
+        'fecha_nacimiento': '1981-05-14',
+        'telefono': '261 555-0142',
+        'calle': 'Las Heras',
+        'cuadra': '1200',
+      });
+      final alAbrir = SesionRepositoryRemoto(
+        service: VecinosServiceSimulado(servidor),
+        preferencias: preferenciasEnMemoria({Preferencias.claveVecino: sinRol}),
+        almacen: almacenSeguroEnMemoria({AlmacenSeguro.claveToken: 't'}),
+      );
+
+      await alAbrir.restaurar();
+
+      expect(alAbrir.usuario?.nombre, 'Clara Medina');
+      expect(alAbrir.usuario?.rol, RolVecino.vecino);
+      expect(alAbrir.usuario?.esComision, isFalse);
+    });
   });
 
   group('AlertasDao', () {
@@ -202,6 +228,40 @@ void main() {
       expect(octubre.single.franja, Franja.noche);
       expect(octubre.single.incluye(vecinaDePrueba), isTrue);
       expect(octubre.single.guardiaVentana?.nombre, 'Rosa Ibáñez');
+    });
+
+    test('la copia local de los turnos no guarda el rol', () async {
+      final dao = TurnosDao(db);
+      final patrullero = Vecino(
+        id: 'clara',
+        nombre: 'Clara Medina',
+        fechaNacimiento: DateTime(1981, 5, 14),
+        rol: RolVecino.comision,
+      );
+      await dao.reemplazarMes(DateTime(2026, 10), [
+        Turno(
+          fecha: DateTime(2026, 10, 9),
+          franja: Franja.noche,
+          patrulleros: [patrullero],
+          guardiaVentana: vecinoMayor,
+        ),
+      ]);
+
+      final fila = (await db.query('turnos')).single;
+      final patrulleros = jsonDecode(fila['patrulleros'] as String) as List;
+      final guardia =
+          jsonDecode(fila['guardia_ventana'] as String) as Map<String, dynamic>;
+      expect(patrulleros, hasLength(1));
+      for (final vecino in [
+        ...patrulleros.cast<Map<String, dynamic>>(),
+        guardia,
+      ]) {
+        expect(vecino.containsKey('rol'), isFalse, reason: '${vecino['id']}');
+      }
+
+      final leido = (await dao.delMes(DateTime(2026, 10))).single;
+      expect(leido.incluye(patrullero), isTrue);
+      expect(leido.guardiaVentana?.id, 'rosa');
     });
   });
 

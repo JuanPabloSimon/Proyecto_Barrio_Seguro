@@ -10,6 +10,7 @@ import 'package:barrio_seguro/data/services/http/cliente_api.dart';
 import 'package:barrio_seguro/data/services/http/turnos_service_http.dart';
 import 'package:barrio_seguro/data/services/http/vecinos_service_http.dart';
 import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -202,6 +203,78 @@ void main() {
         'usuario': '261 555-0142',
         'clave': 'barrio1234',
       });
+    });
+
+    test('actualizar los datos no manda el rol', () async {
+      final comision = Vecino(
+        id: 'clara',
+        nombre: 'Clara Medina',
+        fechaNacimiento: DateTime(1981, 5, 14),
+        rol: RolVecino.comision,
+      );
+      final api = clienteQue((_) async => json(200, comision.toJson()));
+
+      final vecino = await sesionCon(api)
+          .actualizarDatos(comision.copyWith(telefono: '261 555-0000'));
+
+      final cuerpo = jsonDecode(pedidos.single.body) as Map<String, dynamic>;
+      expect(pedidos.single.method, 'PUT');
+      expect(pedidos.single.url.path, '/vecinos/clara');
+      expect(cuerpo.containsKey('rol'), isFalse);
+      expect(cuerpo.containsKey('id'), isFalse);
+      expect(cuerpo['telefono'], '261 555-0000');
+      expect(vecino.rol, RolVecino.comision);
+    });
+
+    /// Ingresa con una API que responde [vecino] y después "reabre la app":
+    /// otro repositorio sobre las mismas preferencias y el mismo almacén.
+    Future<(Vecino, Vecino?)> ingresarYReabrir(Vecino vecino) async {
+      final preferencias = preferenciasEnMemoria();
+      final api = clienteQue(
+        (_) async => json(200, {'token': 't', 'vecino': vecino.toJson()}),
+      );
+      final ingresado = await SesionRepositoryRemoto(
+        service: VecinosServiceHttp(api),
+        preferencias: preferencias,
+        almacen: almacen,
+      ).ingresar(usuario: '261 555-0142', clave: 'barrio1234');
+
+      final reabierta = SesionRepositoryRemoto(
+        service: VecinosServiceHttp(api),
+        preferencias: preferencias,
+        almacen: almacen,
+      );
+      await reabierta.restaurar();
+      return (ingresado, reabierta.usuario);
+    }
+
+    test(
+      'ingresar como comisión guarda el rol y lo recupera al reabrir',
+      () async {
+        final (ingresado, restaurado) = await ingresarYReabrir(
+          Vecino(
+            id: 'clara',
+            nombre: 'Clara Medina',
+            fechaNacimiento: DateTime(1981, 5, 14),
+            rol: RolVecino.comision,
+          ),
+        );
+
+        expect(ingresado.rol, RolVecino.comision);
+        expect(restaurado?.id, 'clara');
+        expect(restaurado?.rol, RolVecino.comision);
+        expect(restaurado?.esComision, isTrue);
+      },
+    );
+
+    test('ingresar como vecino común guarda el rol vecino', () async {
+      final (ingresado, restaurado) = await ingresarYReabrir(vecinoMayor);
+
+      expect(vecinoMayor.toJson()['rol'], 'vecino');
+      expect(ingresado.rol, RolVecino.vecino);
+      expect(restaurado?.id, 'rosa');
+      expect(restaurado?.rol, RolVecino.vecino);
+      expect(restaurado?.esComision, isFalse);
     });
 
     test('cerrar sesión avisa a la API y borra el token', () async {

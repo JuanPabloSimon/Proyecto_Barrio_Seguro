@@ -13,7 +13,8 @@ import 'reloj.dart';
 /// nombres de campo que usa la app (snake_case).
 ///
 /// Todas las rutas, salvo `/salud`, `/sesiones` (ingresar) y `/vecinos`
-/// (registrarse), piden el encabezado `Authorization: Bearer <token>`.
+/// (registrarse), piden el encabezado `Authorization: Bearer <token>`. Las
+/// rutas bajo `/comision/` son solo para los miembros de la comisión.
 class Api {
   Api({
     required this._almacen,
@@ -39,6 +40,10 @@ class Api {
   };
   static const _estados = {'activa', 'en_atencion', 'resuelta'};
 
+  static const mensajeRolFijo = 'El rol no se puede cambiar desde la app.';
+  static const mensajeSoloComision =
+      'Esta opción es solo para la comisión vecinal.';
+
   /// El handler completo: rutas más el manejo de errores.
   Handler get handler =>
       const Pipeline().addMiddleware(_manejarErrores).addHandler(_rutas.call);
@@ -56,6 +61,14 @@ class Api {
     ..get('/turnos', _turnos)
     ..put('/turnos/<fecha>/<franja>/vecinos/<vecinoId>', _anotarse)
     ..delete('/turnos/<fecha>/<franja>/vecinos/<vecinoId>', _salir)
+    // Antes del comodín: todo lo que empieza con /comision/ pasa por el
+    // filtro, exista o no la ruta.
+    ..mount(
+      '/comision/',
+      const Pipeline()
+          .addMiddleware(soloComision)
+          .addHandler(_rutasDeLaComision.call),
+    )
     ..all('/<_|.*>', (Request _) {
       throw const ErrorDeApi.noExiste('Esa dirección no existe.');
     });
@@ -130,6 +143,8 @@ class Api {
       'calle': _texto(datos, 'calle', opcional: true).trim(),
       'cuadra': _texto(datos, 'cuadra', opcional: true).trim(),
       'vecino_desde': _soloFecha(hoy),
+      // Quien se registra es siempre vecino común, mande lo que mande.
+      'rol': Roles.vecino,
     };
     _almacen.guardarCredenciales(id, telefono, clave);
     return _json(201, _sesion(id));
@@ -145,7 +160,12 @@ class Api {
       );
     }
     final datos = await _cuerpo(pedido);
-    // El id, la fecha de nacimiento y la antigüedad no se cambian.
+    // El rol no se cambia desde la app: se rechaza antes de tocar nada.
+    if (datos.containsKey('rol') &&
+        datos['rol'] != _almacen.vecinos[id]!['rol']) {
+      throw const ErrorDeApi.noPermitido(mensajeRolFijo);
+    }
+    // El id, la fecha de nacimiento, la antigüedad y el rol no se cambian.
     final vecino = {
       ..._almacen.vecinos[id]!,
       for (final campo in ['nombre', 'telefono', 'calle', 'cuadra'])
@@ -175,6 +195,30 @@ class Api {
     'token': _almacen.abrirSesion(vecinoId),
     'vecino': _almacen.vecinos[vecinoId],
   };
+
+  // -------------------------------------------------------------------------
+  // Comisión
+  // -------------------------------------------------------------------------
+
+  /// Deja pasar el pedido solo si el vecino de la sesión es de la comisión.
+  /// Sin sesión válida lanza 401; con rol `vecino`, 403. Los errores los
+  /// convierte en JSON `_manejarErrores`, que envuelve todo el handler.
+  Middleware get soloComision =>
+      (interno) => (pedido) {
+        // El rol se lee del almacén, nunca del pedido.
+        final id = _vecinoDe(pedido);
+        if (_almacen.vecinos[id]!['rol'] != Roles.comision) {
+          throw const ErrorDeApi.noPermitido(mensajeSoloComision);
+        }
+        return interno(pedido);
+      };
+
+  /// Rutas solo para la comisión, relativas a `/comision/`. La feature
+  /// informe_alertas agrega acá su ruta.
+  Router get _rutasDeLaComision => Router()
+    ..all('/<_|.*>', (Request _) {
+      throw const ErrorDeApi.noExiste('Esa dirección no existe.');
+    });
 
   // -------------------------------------------------------------------------
   // Alertas
@@ -367,11 +411,16 @@ class Api {
       'franja': turno['franja'],
       'patrulleros': [
         for (final id in (turno['patrulleros'] as List).cast<String>())
-          _almacen.vecinos[id],
+          _vecinoDelTurno(id),
       ],
-      'guardia_ventana': guardia == null ? null : _almacen.vecinos[guardia],
+      'guardia_ventana': guardia == null ? null : _vecinoDelTurno(guardia),
     };
   }
+
+  /// Los datos de un vecino como aparecen dentro de un turno: una copia, sin
+  /// `rol`. Copia para no borrar el rol del vecino guardado en `Almacen`.
+  Map<String, dynamic> _vecinoDelTurno(String id) =>
+      Map<String, dynamic>.of(_almacen.vecinos[id]!)..remove('rol');
 
   // -------------------------------------------------------------------------
   // Ayudas
