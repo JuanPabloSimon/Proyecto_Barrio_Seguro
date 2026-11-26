@@ -190,8 +190,8 @@ const alertasDeEjemplo = <Map<String, dynamic>>[
   },
   {
     'id': 'a4',
-    'categoria': 'arrebato',
-    'tipo': 'Arrebato',
+    'categoria': 'robo',
+    'tipo': 'Robo de celular',
     'descripcion':
         'Le sacaron el celular a una vecina en la parada del colectivo.',
     'direccion': 'Parada de colectivo de Carlos W. Lencinas',

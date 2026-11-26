@@ -34,7 +34,8 @@ bool esTardia(PuntualidadAviso puntualidad) =>
 /// R16. Nombre corto de cada categoría para el título del aviso tardío.
 extension NombreCortoCategoria on CategoriaAlerta {
   /// "SOS", "Actividad sospechosa", "Vehículo sospechoso", "Robo",
-  /// "Ruidos"; null para arrebato (se quita en la feature 17).
+  /// "Ruidos"; null para arrebato, que ya no se puede reportar y queda solo
+  /// para leer alertas viejas (su aviso usa el título de la alerta).
   String? get nombreCorto => switch (this) {
     CategoriaAlerta.sos => 'SOS',
     CategoriaAlerta.actividadSospechosa => 'Actividad sospechosa',

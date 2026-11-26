@@ -507,6 +507,162 @@ void main() {
       expect(sinUbicacion, 400);
     });
 
+    test(
+      'rechaza una alerta nueva de arrebato con "Elegí qué tipo de alerta es."',
+      () async {
+        final token = await ingresar(telefonoClara);
+        final antes = almacen.alertas.length;
+        final (codigo, cuerpo) = await pedir(
+          'POST',
+          '/alertas',
+          token: token,
+          cuerpo: {
+            'categoria': 'arrebato',
+            'tipo': 'Arrebato',
+            'descripcion': '',
+            'direccion': '',
+            'latitud': -32.876568,
+            'longitud': -68.870672,
+          },
+        );
+        expect(codigo, 400);
+        expect(cuerpo, {'error': 'Elegí qué tipo de alerta es.'});
+        expect(almacen.alertas, hasLength(antes));
+        expect(push.enviadas, isEmpty);
+      },
+    );
+
+    test(
+      'rechaza un título vacío, un título de 61 letras, una descripción de 501 '
+      'y una dirección de 121 con los mensajes de la app',
+      () async {
+        final token = await ingresar(telefonoClara);
+        final antes = almacen.alertas.length;
+        Future<(int, dynamic)> crear(Map<String, Object> cambios) => pedir(
+          'POST',
+          '/alertas',
+          token: token,
+          cuerpo: {
+            'categoria': 'robo',
+            'tipo': 'Robo',
+            'descripcion': '',
+            'direccion': '',
+            'latitud': -32.876568,
+            'longitud': -68.870672,
+            ...cambios,
+          },
+        );
+
+        for (final (cambios, mensaje) in [
+          ({'tipo': '   '}, 'Escribí un título para la alerta.'),
+          (
+            {'tipo': 'a' * 61},
+            'Acortá el título: puede tener hasta 60 letras.',
+          ),
+          (
+            {'descripcion': 'a' * 501},
+            'Acortá la descripción: puede tener hasta 500 letras.',
+          ),
+          (
+            {'direccion': 'a' * 121},
+            'Acortá la dirección: puede tener hasta 120 letras.',
+          ),
+        ]) {
+          final (codigo, cuerpo) = await crear(cambios);
+          expect(codigo, 400, reason: '$cambios');
+          expect(cuerpo, {'error': mensaje});
+        }
+        expect(almacen.alertas, hasLength(antes));
+
+        // En el límite sí pasa.
+        final (codigo, _) = await crear({
+          'tipo': 'a' * 60,
+          'descripcion': 'a' * 500,
+          'direccion': 'a' * 120,
+        });
+        expect(codigo, 201);
+      },
+    );
+
+    test('una alerta nueva de actividad sospechosa queda activa', () async {
+      final token = await ingresar(telefonoClara);
+      final (codigo, alerta) = await pedir(
+        'POST',
+        '/alertas',
+        token: token,
+        cuerpo: {
+          'categoria': 'actividad_sospechosa',
+          'tipo': '  Actividad sospechosa  ',
+          'descripcion': '',
+          'direccion': 'Cabildo de Mendoza y Ascasubi',
+          'latitud': -32.876568,
+          'longitud': -68.870672,
+        },
+      );
+      expect(codigo, 201);
+      expect(alerta['estado'], 'activa');
+      expect(alerta['categoria'], 'actividad_sospechosa');
+      expect(alerta['tipo'], 'Actividad sospechosa');
+      expect(almacen.alertas.first['id'], alerta['id']);
+      expect(almacen.alertas.first['estado'], 'activa');
+    });
+
+    test(
+      'una alerta de arrebato guardada se sigue leyendo en GET /alertas',
+      () async {
+        almacen.alertas.insert(0, {
+          'id': 'vieja',
+          'categoria': 'arrebato',
+          'tipo': 'Arrebato',
+          'descripcion': 'Le sacaron el celular.',
+          'direccion': 'Parada de colectivo',
+          'creada_en': DateTime(2026, 9, 30, 10).millisecondsSinceEpoch,
+          'estado': 'activa',
+          'latitud': -32.879792,
+          'longitud': -68.868027,
+          'reportada_por': 'clara',
+        });
+        final token = await ingresar(telefonoClara);
+
+        final (codigo, alertas) = await pedir('GET', '/alertas', token: token);
+
+        expect(codigo, 200);
+        final vieja = (alertas as List).firstWhere((a) => a['id'] == 'vieja');
+        expect(vieja['categoria'], 'arrebato');
+        expect(vieja['tipo'], 'Arrebato');
+
+        // También cambia de estado como cualquier otra.
+        final (cambio, resuelta) = await pedir(
+          'PATCH',
+          '/alertas/vieja',
+          token: token,
+          cuerpo: {'estado': 'resuelta'},
+        );
+        expect(cambio, 200);
+        expect(resuelta['categoria'], 'arrebato');
+      },
+    );
+
+    test('los datos de ejemplo no tienen alertas de arrebato y a4 es "Robo de '
+        'celular"', () {
+      expect(
+        almacen.alertas.where((a) => a['categoria'] == 'arrebato'),
+        isEmpty,
+      );
+      final a4 = almacen.alertas.firstWhere((a) => a['id'] == 'a4');
+      expect(a4['categoria'], 'robo');
+      expect(a4['tipo'], 'Robo de celular');
+      expect(
+        a4['descripcion'],
+        'Le sacaron el celular a una vecina en la parada del colectivo.',
+      );
+      expect(a4['direccion'], 'Parada de colectivo de Carlos W. Lencinas');
+      expect(a4['latitud'], -32.879792);
+      expect(a4['longitud'], -68.868027);
+      expect(a4['estado'], 'resuelta');
+      expect(a4['reportada_por'], 'clara');
+    });
+
     test('solo quien la reportó puede cerrarla (RF-05)', () async {
       final clara = await ingresar(telefonoClara);
       final rosa = await ingresar(telefonoRosa);

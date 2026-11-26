@@ -1,11 +1,14 @@
 // Pruebas de los ViewModels con repositorios falsos: sin servidor, sin
 // widgets y con un reloj fijo, así los resultados no dependen del día.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
@@ -14,14 +17,17 @@ import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/core/estado_carga.dart';
+import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
 import 'package:barrio_seguro/ui/informe_alertas/view_models/informe_alertas_view_model.dart';
 import 'package:barrio_seguro/ui/inicio/view_models/inicio_view_model.dart';
 import 'package:barrio_seguro/ui/mapa/view_models/mapa_view_model.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/registro/view_models/registro_view_model.dart';
+import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:barrio_seguro/ui/turnos/view_models/turnos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../ayudas/bases_de_prueba.dart';
 import '../ayudas/falsos.dart';
@@ -670,4 +676,385 @@ void main() {
       expect(detalle(propia, AvisosRecibidosFalsos()).reportadaPor, 'Vos');
     });
   });
+
+  group('ReportarAlertaViewModel', () {
+    ReportarAlertaViewModel crear({
+      AlertasRepository? alertas,
+      bool tieneGps = true,
+      bool compartir = true,
+      UbicacionFalsa? ubicacion,
+    }) => ReportarAlertaViewModel(
+      alertas: alertas ?? AlertasFalsas(),
+      sesion: SesionFalsa(vecinaDePrueba),
+      bus: bus,
+      ubicacion: UbicacionDeAlerta(
+        capacidades: CapacidadesFalsas(tieneGps: tieneGps),
+        preferencias: preferenciasEnMemoria({
+          Preferencias.claveCompartirUbicacion: compartir,
+        }),
+        ubicacion: ubicacion ?? UbicacionFalsa(),
+      ),
+    );
+
+    Future<bool> enviar(
+      ReportarAlertaViewModel vm, {
+      String titulo = 'Robo',
+      String descripcion = '',
+      String direccion = '',
+    }) => vm.enviar(
+      titulo: titulo,
+      descripcion: descripcion,
+      direccion: direccion,
+    );
+
+    // --- Tipos y título (R6 a R9) ---
+
+    test('ofrece los cuatro tipos para reportar en orden', () {
+      expect(crear().tipos, [
+        CategoriaAlerta.actividadSospechosa,
+        CategoriaAlerta.vehiculo,
+        CategoriaAlerta.robo,
+        CategoriaAlerta.ruidos,
+      ]);
+    });
+
+    test('arranca sin tipo elegido', () {
+      final vm = crear();
+      expect(vm.tipo, isNull);
+      expect(vm.primerError, isNull);
+      expect(vm.errorDeEnvio, isNull);
+      expect(vm.enviando, isFalse);
+    });
+
+    test('elegir un tipo con el título vacío sugiere su nombre', () {
+      final vm = crear();
+      final titulo = vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+      expect(titulo, 'Robo');
+      expect(vm.tipo, CategoriaAlerta.robo);
+    });
+
+    test('elegir otro tipo cambia la sugerencia si el título no se tocó', () {
+      final vm = crear();
+      final primero = vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+      final segundo = vm.tituloAlElegir(
+        CategoriaAlerta.vehiculo,
+        tituloActual: primero,
+      );
+      expect(segundo, 'Vehículo sospechoso');
+      expect(vm.tipo, CategoriaAlerta.vehiculo);
+    });
+
+    test('elegir otro tipo conserva el título que escribió el vecino', () {
+      final vm = crear();
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+      final titulo = vm.tituloAlElegir(
+        CategoriaAlerta.ruidos,
+        tituloActual: 'Robo de bicicleta',
+      );
+      expect(titulo, 'Robo de bicicleta');
+      expect(vm.tipo, CategoriaAlerta.ruidos);
+    });
+
+    // --- Ubicación (R11 a R16) ---
+
+    test(
+      'con GPS y ubicación exacta activada conUbicacionExacta es true',
+      () async {
+        final vm = crear();
+        expect(vm.conUbicacionExacta, isFalse);
+        await vm.cargar();
+        expect(vm.conUbicacionExacta, isTrue);
+      },
+    );
+
+    test('sin GPS o sin la preferencia conUbicacionExacta es false', () async {
+      final sinGps = crear(tieneGps: false);
+      await sinGps.cargar();
+      expect(sinGps.conUbicacionExacta, isFalse);
+
+      final sinPreferencia = crear(compartir: false);
+      await sinPreferencia.cargar();
+      expect(sinPreferencia.conUbicacionExacta, isFalse);
+    });
+
+    test('envía la posición del GPS y "Ubicación exacta del vecino" si la '
+        'dirección está vacía', () async {
+      final alertas = AlertasFalsas();
+      final gps = UbicacionFalsa(posicion: const LatLng(-32.8771, -68.8699));
+      final vm = crear(alertas: alertas, ubicacion: gps);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      expect(await enviar(vm), isTrue);
+
+      final creada = alertas.creadas.single;
+      expect(creada.ubicacion, const LatLng(-32.8771, -68.8699));
+      expect(creada.direccion, 'Ubicación exacta del vecino');
+    });
+
+    test('si el GPS no responde envía Barrio.centro y "Barrio Soberanía (zona '
+        'aproximada)"', () async {
+      final alertas = AlertasFalsas();
+      final vm = crear(
+        alertas: alertas,
+        ubicacion: UbicacionFalsa(posicion: null),
+      );
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      expect(await enviar(vm), isTrue);
+
+      final creada = alertas.creadas.single;
+      expect(creada.ubicacion, Barrio.centro);
+      expect(creada.direccion, 'Barrio Soberanía (zona aproximada)');
+    });
+
+    test('sin la preferencia envía Barrio.centro', () async {
+      final alertas = AlertasFalsas();
+      final gps = UbicacionFalsa();
+      final vm = crear(alertas: alertas, compartir: false, ubicacion: gps);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      expect(await enviar(vm), isTrue);
+
+      expect(alertas.creadas.single.ubicacion, Barrio.centro);
+      expect(
+        alertas.creadas.single.direccion,
+        'Barrio Soberanía (zona aproximada)',
+      );
+      expect(gps.posicionesPedidas, 0);
+
+      final sinGps = AlertasFalsas();
+      final vmSinGps = crear(alertas: sinGps, tieneGps: false);
+      vmSinGps.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+      await enviar(vmSinGps);
+      expect(sinGps.creadas.single.ubicacion, Barrio.centro);
+    });
+
+    test('la dirección escrita viaja sin espacios en los extremos', () async {
+      final alertas = AlertasFalsas();
+      final vm = crear(alertas: alertas);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      await enviar(vm, direccion: '  Cabildo de Mendoza y Ascasubi  ');
+
+      expect(alertas.creadas.single.direccion, 'Cabildo de Mendoza y Ascasubi');
+    });
+
+    // --- Envío (R17, R18, R21, R22) ---
+
+    test('enviar crea la alerta con la categoría elegida, el título y la '
+        'descripción recortados y el id del vecino', () async {
+      final alertas = AlertasFalsas();
+      final vm = crear(alertas: alertas);
+      vm.tituloAlElegir(CategoriaAlerta.vehiculo, tituloActual: '');
+
+      await enviar(
+        vm,
+        titulo: '  Auto dando vueltas  ',
+        descripcion: '  Un auto gris pasó tres veces.  ',
+      );
+
+      final creada = alertas.creadas.single;
+      expect(creada.categoria, CategoriaAlerta.vehiculo);
+      expect(creada.tipo, 'Auto dando vueltas');
+      expect(creada.descripcion, 'Un auto gris pasó tres veces.');
+      expect(creada.reportadaPor, 'clara');
+    });
+
+    test('enviar con la descripción vacía crea la alerta', () async {
+      final alertas = AlertasFalsas();
+      final vm = crear(alertas: alertas);
+      vm.tituloAlElegir(CategoriaAlerta.ruidos, tituloActual: '');
+
+      expect(await enviar(vm, titulo: 'Ruidos', descripcion: '   '), isTrue);
+
+      expect(alertas.creadas.single.descripcion, '');
+      expect(alertas.alertas, hasLength(1));
+    });
+
+    test('enviar publica AlertasActualizadas y devuelve true', () async {
+      final vm = crear();
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      expect(await enviar(vm), isTrue);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(eventos.single, isA<AlertasActualizadas>());
+      expect(vm.errorDeEnvio, isNull);
+    });
+
+    test('mientras envía enviando es true', () async {
+      final alertas = _AlertasConDemora();
+      final vm = crear(alertas: alertas);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      final envio = enviar(vm);
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.enviando, isTrue);
+
+      alertas.soltar.complete();
+      expect(await envio, isTrue);
+      expect(vm.enviando, isFalse);
+    });
+
+    // --- Validaciones y errores (R24 a R29, R32 a R34, R36, R37) ---
+
+    test('sin tipo marca el error de tipo y no llama a crearAlerta', () async {
+      final alertas = AlertasFalsas();
+      final vm = crear(alertas: alertas);
+
+      expect(await enviar(vm), isFalse);
+
+      expect(vm.errorDe(CampoReporte.tipo), 'Elegí qué tipo de alerta es.');
+      expect(alertas.creadas, isEmpty);
+    });
+
+    test(
+      'título vacío y descripción larga marcan los dos errores y primerError '
+      'es titulo',
+      () async {
+        final alertas = AlertasFalsas();
+        final vm = crear(alertas: alertas);
+        vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: 'x');
+
+        expect(await enviar(vm, titulo: '  ', descripcion: 'a' * 501), isFalse);
+
+        expect(
+          vm.errorDe(CampoReporte.titulo),
+          'Escribí un título para la alerta.',
+        );
+        expect(
+          vm.errorDe(CampoReporte.descripcion),
+          'Acortá la descripción: puede tener hasta 500 letras.',
+        );
+        expect(vm.errorDe(CampoReporte.tipo), isNull);
+        expect(vm.primerError, CampoReporte.titulo);
+        expect(alertas.creadas, isEmpty);
+      },
+    );
+
+    test('sin tipo y con título vacío primerError es tipo', () async {
+      final vm = crear();
+      await enviar(vm, titulo: '');
+      expect(vm.primerError, CampoReporte.tipo);
+      expect(
+        vm.errorDe(CampoReporte.titulo),
+        'Escribí un título para la alerta.',
+      );
+    });
+
+    test('un título de 61 letras marca su error', () async {
+      final vm = crear();
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+      await enviar(vm, titulo: 'a' * 61);
+      expect(
+        vm.errorDe(CampoReporte.titulo),
+        'Acortá el título: puede tener hasta 60 letras.',
+      );
+      expect(vm.primerError, CampoReporte.titulo);
+    });
+
+    test('dirección larga marca su error', () async {
+      final alertas = AlertasFalsas();
+      final vm = crear(alertas: alertas);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      expect(await enviar(vm, direccion: 'a' * 121), isFalse);
+
+      expect(
+        vm.errorDe(CampoReporte.direccion),
+        'Acortá la dirección: puede tener hasta 120 letras.',
+      );
+      expect(vm.primerError, CampoReporte.direccion);
+      expect(alertas.creadas, isEmpty);
+    });
+
+    test('si la API rechaza muestra su mensaje tal cual', () async {
+      final alertas = AlertasFalsas()
+        ..errorAlCrear = const ErrorDelServidor('La ubicación no es válida.');
+      final vm = crear(alertas: alertas);
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+      expect(await enviar(vm), isFalse);
+
+      expect(vm.errorDeEnvio, 'La ubicación no es válida.');
+      expect(vm.enviando, isFalse);
+    });
+
+    test(
+      'sin conexión muestra "No pudimos enviar la alerta. Revisá tu conexión '
+      'y probá de nuevo."',
+      () async {
+        final vm = crear(alertas: AlertasFalsas([], true));
+        vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+
+        expect(await enviar(vm), isFalse);
+
+        expect(
+          vm.errorDeEnvio,
+          'No pudimos enviar la alerta. Revisá tu conexión y probá de nuevo.',
+        );
+      },
+    );
+
+    test('si falla, el tipo elegido sigue elegido', () async {
+      final vm = crear(alertas: AlertasFalsas([], true));
+      vm.tituloAlElegir(CategoriaAlerta.vehiculo, tituloActual: '');
+
+      await enviar(vm, titulo: 'Vehículo sospechoso');
+
+      expect(vm.tipo, CategoriaAlerta.vehiculo);
+      expect(vm.errorDeEnvio, isNotNull);
+    });
+
+    test('hayDatos es false sin tipo ni texto (solo espacios) y true con '
+        'cualquiera de los dos', () {
+      final vm = crear();
+      expect(
+        vm.hayDatos(titulo: ' ', descripcion: '  ', direccion: '\n'),
+        isFalse,
+      );
+      expect(
+        vm.hayDatos(titulo: '', descripcion: 'algo', direccion: ''),
+        isTrue,
+      );
+      expect(
+        vm.hayDatos(titulo: '', descripcion: '', direccion: 'Cabildo'),
+        isTrue,
+      );
+      expect(
+        vm.hayDatos(titulo: 'Robo', descripcion: '', direccion: ''),
+        isTrue,
+      );
+      vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
+      expect(vm.hayDatos(titulo: '', descripcion: '', direccion: ''), isTrue);
+    });
+  });
+}
+
+/// [AlertasFalsas] que no responde a `crearAlerta` hasta que la prueba
+/// completa [soltar].
+class _AlertasConDemora extends AlertasFalsas {
+  final soltar = Completer<void>();
+
+  @override
+  Future<Alerta> crearAlerta({
+    required CategoriaAlerta categoria,
+    required String tipo,
+    required String descripcion,
+    required String direccion,
+    required LatLng ubicacion,
+    required String reportadaPor,
+  }) async {
+    await soltar.future;
+    return super.crearAlerta(
+      categoria: categoria,
+      tipo: tipo,
+      descripcion: descripcion,
+      direccion: direccion,
+      ubicacion: ubicacion,
+      reportadaPor: reportadaPor,
+    );
+  }
 }

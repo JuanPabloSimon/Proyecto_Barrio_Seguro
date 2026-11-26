@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../../../data/repositories/alertas_repository.dart';
 import '../../../data/repositories/sesion_repository.dart';
@@ -10,6 +9,7 @@ import '../../../domain/barrio.dart';
 import '../../../domain/evento_de_app.dart';
 import '../../../domain/models/alerta.dart';
 import '../../../plataforma/capacidades.dart';
+import '../../core/ubicacion_de_alerta.dart';
 
 /// Título de la alerta que crea el botón SOS.
 const tipoAlertaSos = 'Intento de robo';
@@ -25,14 +25,17 @@ class SosViewModel extends ChangeNotifier {
     required AlertasRepository alertas,
     required this._sesion,
     required this._bus,
-    required this._preferencias,
-    required this._ubicacion,
-    required this._capacidades,
-  }) : _repositorio = alertas;
+    required Preferencias preferencias,
+    required UbicacionService ubicacion,
+    required Capacidades capacidades,
+  }) : _repositorio = alertas,
+       _ubicacion = UbicacionDeAlerta(
+         capacidades: capacidades,
+         preferencias: preferencias,
+         ubicacion: ubicacion,
+       );
 
-  final Preferencias _preferencias;
-  final UbicacionService _ubicacion;
-  final Capacidades _capacidades;
+  final UbicacionDeAlerta _ubicacion;
 
   bool _conUbicacionExacta = false;
 
@@ -56,15 +59,13 @@ class SosViewModel extends ChangeNotifier {
     _paso = PasoSos.enviando;
     notifyListeners();
     try {
-      final exacta = await _ubicacionExacta();
+      final exacta = await _ubicacion.posicionExacta();
       _conUbicacionExacta = exacta != null;
       _enviada = await _repositorio.crearAlerta(
         categoria: CategoriaAlerta.sos,
         tipo: tipoAlertaSos,
         descripcion: descripcionAlertaSos,
-        direccion: exacta == null
-            ? '${Barrio.nombre} (zona aproximada)'
-            : 'Ubicación exacta del vecino',
+        direccion: exacta == null ? direccionZona : direccionExacta,
         ubicacion: exacta ?? Barrio.centro,
         reportadaPor: _sesion.usuario?.id ?? '',
       );
@@ -74,16 +75,6 @@ class SosViewModel extends ChangeNotifier {
       _paso = PasoSos.error;
     } finally {
       notifyListeners();
-    }
-  }
-
-  Future<LatLng?> _ubicacionExacta() async {
-    if (!_capacidades.tieneGps) return null;
-    try {
-      if (!await _preferencias.compartirUbicacion()) return null;
-      return await _ubicacion.ubicacionActual();
-    } catch (_) {
-      return null;
     }
   }
 

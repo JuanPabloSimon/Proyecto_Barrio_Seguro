@@ -30,14 +30,6 @@ class Api {
   final String _codigoComision;
   final PushService _push;
 
-  static const _categorias = {
-    'sos',
-    'actividad_sospechosa',
-    'vehiculo',
-    'robo',
-    'arrebato',
-    'ruidos',
-  };
   static const _estados = {'activa', 'en_atencion', 'resuelta'};
 
   static const mensajeRolFijo = 'El rol no se puede cambiar desde la app.';
@@ -244,12 +236,20 @@ class Api {
     final vecinoId = _vecinoDe(pedido);
     final datos = await _cuerpo(pedido);
     final categoria = _texto(datos, 'categoria');
+    final tipo = _texto(datos, 'tipo');
+    final descripcion = _texto(datos, 'descripcion', opcional: true);
+    final direccion = _texto(datos, 'direccion', opcional: true);
     final latitud = datos['latitud'];
     final longitud = datos['longitud'];
 
-    if (!_categorias.contains(categoria)) {
-      throw const ErrorDeApi.datosInvalidos('Elegí qué tipo de alerta es.');
-    }
+    // Las mismas reglas y mensajes que la app (ReglasAlertas).
+    final motivo = ReglasAlertas.motivoRechazo(
+      categoria: categoria,
+      tipo: tipo,
+      descripcion: descripcion,
+      direccion: direccion,
+    );
+    if (motivo != null) throw ErrorDeApi.datosInvalidos(motivo);
     if (latitud is! num ||
         longitud is! num ||
         latitud.abs() > 90 ||
@@ -260,9 +260,9 @@ class Api {
     final alerta = {
       'id': _almacen.nuevoId('alerta'),
       'categoria': categoria,
-      'tipo': _texto(datos, 'tipo').trim(),
-      'descripcion': _texto(datos, 'descripcion', opcional: true).trim(),
-      'direccion': _texto(datos, 'direccion', opcional: true).trim(),
+      'tipo': tipo.trim(),
+      'descripcion': descripcion.trim(),
+      'direccion': direccion.trim(),
       'creada_en': _reloj.ahora().millisecondsSinceEpoch,
       'estado': 'activa',
       'latitud': latitud.toDouble(),

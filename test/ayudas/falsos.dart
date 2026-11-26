@@ -14,6 +14,7 @@ import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/telefono_service.dart';
 import 'package:barrio_seguro/data/services/ubicacion_service.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
@@ -114,6 +115,12 @@ class AlertasFalsas implements AlertasRepository {
   /// Cuántas veces se pidió cambiar el estado de una alerta (aunque falle).
   int cambiosDeEstado = 0;
 
+  /// Si no es null, [crearAlerta] lo lanza (un rechazo de la API).
+  ErrorDelServidor? errorAlCrear;
+
+  /// Los datos de cada [crearAlerta] que llegó al "servidor", en orden.
+  final List<DatosAlertaCreada> creadas = [];
+
   @override
   bool sinConexion = false;
 
@@ -138,7 +145,19 @@ class AlertasFalsas implements AlertasRepository {
     required String reportadaPor,
   }) async {
     _quizasFallar();
+    final error = errorAlCrear;
+    if (error != null) throw error;
     ubicacionesEnviadas.add(ubicacion);
+    creadas.add(
+      DatosAlertaCreada(
+        categoria: categoria,
+        tipo: tipo,
+        descripcion: descripcion,
+        direccion: direccion,
+        ubicacion: ubicacion,
+        reportadaPor: reportadaPor,
+      ),
+    );
     final alerta = alertaDePrueba(
       id: 'nueva-${alertas.length}',
       reportadaPor: reportadaPor,
@@ -171,6 +190,25 @@ class AlertasFalsas implements AlertasRepository {
     alertas[i] = actualizada;
     return actualizada;
   }
+}
+
+/// Lo que recibió [AlertasFalsas.crearAlerta].
+class DatosAlertaCreada {
+  const DatosAlertaCreada({
+    required this.categoria,
+    required this.tipo,
+    required this.descripcion,
+    required this.direccion,
+    required this.ubicacion,
+    required this.reportadaPor,
+  });
+
+  final CategoriaAlerta categoria;
+  final String tipo;
+  final String descripcion;
+  final String direccion;
+  final LatLng ubicacion;
+  final String reportadaPor;
 }
 
 /// Turnos en memoria, sin reglas: las reglas las prueba el ViewModel.

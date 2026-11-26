@@ -12,12 +12,14 @@ import 'package:barrio_seguro/data/services/alertas_service.dart';
 import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
+import 'package:barrio_seguro/data/services/simulados/alertas_service_simulado.dart';
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
 import 'package:barrio_seguro/data/services/simulados/turnos_service_simulado.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../ayudas/bases_de_prueba.dart';
 import '../ayudas/falsos.dart';
@@ -185,6 +187,115 @@ void main() {
       final del30 = turnos.firstWhere((t) => t.fecha.day == 30);
       expect(del30.incluye(clara), isTrue);
     });
+  });
+
+  group('Alertas contra el servidor simulado', () {
+    late ServidorSimulado servidor;
+    late AlertasRepositoryRemoto repositorio;
+
+    setUp(() {
+      servidor = ServidorSimulado(
+        reloj: RelojFijo(DateTime(2026, 10, 1, 12)),
+        demora: Duration.zero,
+      );
+      repositorio = AlertasRepositoryRemoto(
+        service: AlertasServiceSimulado(servidor),
+      );
+    });
+
+    Future<Alerta> crear({
+      CategoriaAlerta categoria = CategoriaAlerta.actividadSospechosa,
+      String tipo = 'Actividad sospechosa',
+    }) => repositorio.crearAlerta(
+      categoria: categoria,
+      tipo: tipo,
+      descripcion: '',
+      direccion: '',
+      ubicacion: const LatLng(-32.877, -68.87),
+      reportadaPor: 'clara',
+    );
+
+    Matcher errorCon(String mensaje) => throwsA(
+      isA<ErrorDelServidor>().having((e) => e.mensaje, 'mensaje', mensaje),
+    );
+
+    test('el servidor simulado rechaza una alerta de arrebato con '
+        '"Elegí qué tipo de alerta es."', () async {
+      await expectLater(
+        () => crear(categoria: CategoriaAlerta.arrebato, tipo: 'Arrebato'),
+        errorCon('Elegí qué tipo de alerta es.'),
+      );
+      expect(
+        servidor.alertas().where((a) => a['categoria'] == 'arrebato'),
+        isEmpty,
+      );
+    });
+
+    test(
+      'el servidor simulado rechaza un título vacío con el mismo mensaje que '
+      'la API',
+      () async {
+        await expectLater(
+          () => crear(tipo: '   '),
+          errorCon('Escribí un título para la alerta.'),
+        );
+        expect(
+          () => servidor.crearAlerta({
+            'categoria': 'robo',
+            'tipo': 'Robo',
+            'descripcion': 'a' * 501,
+            'direccion': '',
+            'latitud': -32.87,
+            'longitud': -68.87,
+            'reportada_por': 'clara',
+          }),
+          errorCon('Acortá la descripción: puede tener hasta 500 letras.'),
+        );
+        expect(
+          () => servidor.crearAlerta({
+            'categoria': 'robo',
+            'tipo': 'Robo',
+            'descripcion': '',
+            'direccion': 'a' * 121,
+            'latitud': -32.87,
+            'longitud': -68.87,
+            'reportada_por': 'clara',
+          }),
+          errorCon('Acortá la dirección: puede tener hasta 120 letras.'),
+        );
+      },
+    );
+
+    test('una alerta nueva del servidor simulado queda activa', () async {
+      final alerta = await crear();
+      expect(alerta.estado, EstadoAlerta.activa);
+      expect(alerta.categoria, CategoriaAlerta.actividadSospechosa);
+      final guardada = servidor.alertas().firstWhere(
+        (a) => a['id'] == alerta.id,
+      );
+      expect(guardada['estado'], 'activa');
+    });
+
+    test(
+      'los datos del servidor simulado no tienen alertas de arrebato y a4 es '
+      '"Robo de celular"',
+      () {
+        final alertas = servidor.alertas();
+        expect(alertas.where((a) => a['categoria'] == 'arrebato'), isEmpty);
+        final a4 = alertas.firstWhere((a) => a['id'] == 'a4');
+        expect(a4['categoria'], 'robo');
+        expect(a4['tipo'], 'Robo de celular');
+        expect(
+          a4['descripcion'],
+          'Le sacaron el celular a una vecina en la parada del colectivo.',
+        );
+        expect(a4['direccion'], 'Parada de colectivo de Carlos W. Lencinas');
+        expect(a4['latitud'], -32.879792);
+        expect(a4['longitud'], -68.868027);
+        expect(a4['estado'], 'resuelta');
+        expect(a4['reportada_por'], 'clara');
+      },
+    );
   });
 
   group('Rol contra el servidor simulado', () {

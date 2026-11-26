@@ -11,20 +11,29 @@
 // Los tests usan una fuente de prueba con letras cuadradas, más ancha que
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
+import 'dart:ui' show CheckedState;
+
+import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
 import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/ui/core/tema/app_colors.dart';
+import 'package:barrio_seguro/ui/core/tema/app_theme.dart';
 import 'package:barrio_seguro/ui/core/tema/transiciones.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
+import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
+import 'package:barrio_seguro/ui/core/widgets/tarjeta_tocable.dart';
+import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
+import 'package:barrio_seguro/ui/reportar_alerta/widgets/reportar_alerta_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ayudas/app_de_prueba.dart';
+import 'ayudas/bases_de_prueba.dart';
 import 'ayudas/falsos.dart';
 
 // ---------------------------------------------------------------------------
@@ -175,7 +184,7 @@ final pantallas = <Pantalla>[
     await irAPestania(tester, 'Mapa');
     await activarConLector(
       tester,
-      find.bySemanticsLabel(RegExp('^Alerta: Arrebato')),
+      find.bySemanticsLabel(RegExp('^Alerta: Robo de celular')),
     );
     expect(find.text('Ver detalle'), findsOneWidget);
   }),
@@ -309,7 +318,31 @@ final pantallas = <Pantalla>[
     expect(find.text(marcaDePrueba), findsOneWidget);
     await mostrar(tester, find.text('Pedro'));
   }),
+  Pantalla('Reportar alerta', abrirReportarAlerta),
+  Pantalla('Reportar alerta con errores', (tester) async {
+    await abrirReportarAlerta(tester);
+    await tocar(tester, find.text('Enviar alerta'));
+    await mostrar(
+      tester,
+      find.text('Elegí qué tipo de alerta es.', skipOffstage: false),
+    );
+    expect(find.text('Escribí un título para la alerta.'), findsOneWidget);
+  }),
+  Pantalla('Descartar la alerta (diálogo)', (tester) async {
+    await abrirReportarAlerta(tester);
+    await tocar(tester, find.text('Robo'));
+    await tocar(tester, find.byTooltip('Cerrar'));
+    expect(find.text('¿Descartar la alerta?'), findsOneWidget);
+    await mostrar(tester, find.text('Sí, descartar'));
+  }),
 ];
+
+/// Ingresa y toca "Reportar alerta" en el inicio.
+Future<void> abrirReportarAlerta(WidgetTester tester) async {
+  await ingresar(tester);
+  await tocar(tester, find.text('Reportar alerta'));
+  expect(find.text('¿Qué pasó?'), findsOneWidget);
+}
 
 /// Ingresa, toca el botón SOS y envía la alerta.
 Future<void> abrirSosEnviado(WidgetTester tester) async {
@@ -477,6 +510,65 @@ void main() {
       expect(nodo.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
       handle.dispose();
     });
+
+    testWidgets(
+      'al 200 % en 360 dp el SOS mide al menos 104 de alto y entra en la '
+      'pantalla sin desbordes',
+      (tester) async {
+        configurarPantalla(tester, alto: 640, escalaTexto: 2.0);
+        await ingresar(tester);
+
+        expect(tester.takeException(), isNull);
+        final sos = tester.getRect(find.byType(BotonSos));
+        expect(sos.height, greaterThanOrEqualTo(104));
+        expect(sos.left, greaterThanOrEqualTo(0));
+        expect(sos.right, lessThanOrEqualTo(360));
+      },
+    );
+
+    testWidgets(
+      'al 200 % en 360 x 640 el mapa y la última alerta del inicio se pueden '
+      'ver enteros por encima del SOS',
+      (tester) async {
+        configurarPantalla(tester, alto: 640, escalaTexto: 2.0);
+        await ingresar(tester);
+
+        final mapa = find.ancestor(
+          of: find.text('Abrir el mapa de alertas', skipOffstage: false),
+          matching: find.byType(TarjetaTocable, skipOffstage: false),
+        );
+        await mostrar(tester, find.text('Abrir el mapa de alertas'));
+        await tester.ensureVisible(mapa);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(mapa).bottom,
+          lessThanOrEqualTo(tester.getRect(find.byType(BotonSos)).top),
+        );
+
+        // Hasta el final de la lista: la última tarjeta queda a la vista.
+        final lista = find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        );
+        final posicion = tester.state<ScrollableState>(lista).position;
+        while (posicion.pixels < posicion.maxScrollExtent) {
+          await tester.drag(lista, const Offset(0, -200));
+          await tester.pumpAndSettle();
+        }
+        final tarjetas = find.byType(TarjetaAlerta);
+        expect(tarjetas, findsWidgets);
+        final ultimaAbajo = tarjetas
+            .evaluate()
+            .map((e) => tester.getRect(find.byElementPredicate((x) => x == e)))
+            .map((r) => r.bottom)
+            .reduce((a, b) => a > b ? a : b);
+        expect(
+          ultimaAbajo,
+          lessThanOrEqualTo(tester.getRect(find.byType(BotonSos)).top),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('SOS enviado', () {
@@ -669,5 +761,197 @@ void main() {
       expect(icono.minimo, ParContraste.componente);
       expect(icono.cumple, isTrue);
     });
+  });
+
+  group('Reportar alerta', () {
+    testWidgets(
+      'los tipos se anuncian con su nombre y si están elegidos y los campos '
+      'con su nombre',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+        await abrirReportarAlerta(tester);
+        await tocar(tester, find.text('Robo'));
+
+        SemanticsData datosDe(String tipo) => tester
+            .getSemantics(
+              find.widgetWithText(RadioListTile<CategoriaAlerta>, tipo),
+            )
+            .getSemanticsData();
+
+        for (final tipo in [
+          'Actividad sospechosa',
+          'Vehículo sospechoso',
+          'Robo',
+          'Ruidos',
+        ]) {
+          final datos = datosDe(tipo);
+          expect(datos.label, tipo);
+          expect(datos.flagsCollection.isInMutuallyExclusiveGroup, isTrue);
+          expect(
+            datos.flagsCollection.isChecked,
+            tipo == 'Robo' ? CheckedState.isTrue : CheckedState.isFalse,
+          );
+        }
+
+        for (final campo in [
+          'Título',
+          'Descripción (opcional)',
+          'Dirección o referencia (opcional)',
+        ]) {
+          final datos = tester
+              .getSemantics(find.widgetWithText(TextField, campo))
+              .getSemanticsData();
+          expect(datos.label, contains(campo));
+          expect(datos.flagsCollection.isTextField, isTrue);
+        }
+        expect(tester.getSemantics(find.byTooltip('Cerrar')).tooltip, 'Cerrar');
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'los errores de tipo y de envío son regiones en vivo con ícono',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+        final vm = ReportarAlertaViewModel(
+          alertas: AlertasFalsas([], true),
+          sesion: SesionFalsa(vecinaDePrueba),
+          bus: BusDeEventos(),
+          ubicacion: UbicacionDeAlerta(
+            capacidades: const CapacidadesFalsas(),
+            preferencias: preferenciasEnMemoria(),
+            ubicacion: UbicacionFalsa(),
+          ),
+        );
+        addTearDown(vm.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: ReportarAlertaScreen(viewModel: vm),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        void esRegionEnVivoConIcono(String mensaje) {
+          final region = find.ancestor(
+            of: find.text(mensaje),
+            matching: find.byWidgetPredicate(
+              (w) => w is Semantics && (w.properties.liveRegion ?? false),
+            ),
+          );
+          expect(region, findsOneWidget);
+          expect(
+            find.descendant(
+              of: region,
+              matching: find.byIcon(Icons.error_outline),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .getSemantics(find.text(mensaje))
+                .getSemanticsData()
+                .flagsCollection
+                .isLiveRegion,
+            isTrue,
+          );
+        }
+
+        await tocar(tester, find.text('Enviar alerta'));
+        esRegionEnVivoConIcono('Elegí qué tipo de alerta es.');
+
+        await tocar(tester, find.text('Robo'));
+        await tocar(tester, find.text('Enviar alerta'));
+        esRegionEnVivoConIcono(
+          'No pudimos enviar la alerta. Revisá tu conexión y probá de nuevo.',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('el formulario se lee en orden', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirReportarAlerta(tester);
+
+      // Etiquetas (y tooltips) en el orden en que las recorre el lector.
+      final leidas = <String>[];
+      void recorrer(SemanticsNode nodo) {
+        final datos = nodo.getSemanticsData();
+        leidas.add('${datos.tooltip} ${datos.label}'.trim());
+        for (final hijo in nodo.debugListChildrenInOrder(
+          DebugSemanticsDumpOrder.traversalOrder,
+        )) {
+          recorrer(hijo);
+        }
+      }
+
+      recorrer(
+        tester
+            .binding
+            .renderViews
+            .first
+            .owner!
+            .semanticsOwner!
+            .rootSemanticsNode!,
+      );
+
+      int posicion(String texto) {
+        final i = leidas.indexWhere((l) => l.contains(texto));
+        expect(i, isNot(-1), reason: '"$texto" no se lee: $leidas');
+        return i;
+      }
+
+      final orden = [
+        'Cerrar',
+        'Reportar alerta',
+        'Actividad sospechosa',
+        'Vehículo sospechoso',
+        'Robo',
+        'Ruidos',
+        'Título',
+        'Descripción (opcional)',
+        'Vamos a mandar',
+        'Dirección o referencia (opcional)',
+        'Enviar alerta',
+        'Cancelar',
+      ].map(posicion).toList();
+      expect(orden, [...orden]..sort());
+      expect(orden.toSet(), hasLength(orden.length));
+      handle.dispose();
+    });
+
+    testWidgets(
+      'con el teclado abierto y el texto al 200 % se llega a "Enviar alerta" '
+      'y se puede tocar',
+      (tester) async {
+        configurarPantalla(tester, alto: 640, escalaTexto: 2.0);
+        await abrirReportarAlerta(tester);
+        await tocar(tester, find.text('Ruidos'));
+        await tocar(tester, find.widgetWithText(TextField, 'Título'));
+
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300 * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        await mostrar(tester, find.text('Enviar alerta'));
+        expect(find.text('Enviar alerta').hitTestable(), findsOneWidget);
+        await tester.tap(find.text('Enviar alerta'));
+        // Al cerrarse el formulario el campo pierde el foco y el teclado
+        // se va.
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
+
+        expect(find.text('¿Qué pasó?'), findsNothing);
+        expect(
+          find.text('Reportaste la alerta. Ya aparece en la lista y el mapa.'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }
