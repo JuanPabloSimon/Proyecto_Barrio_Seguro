@@ -131,6 +131,40 @@
       ],
       "sdd": true,
       "status": "pending"
+    },
+    {
+      "id": 15,
+      "name": "requiere_conexion",
+      "title": "La app requiere conexión",
+      "description": "La app solo se usa con conexión a internet (wifi o datos móviles). Se quita el envío diferido de alertas creadas sin señal (parte de avisos_y_segundo_plano); la copia local de alertas y turnos queda solo como caché, no para trabajar sin conexión.",
+      "acceptance": [
+        "Sin conexión, la app muestra \"Necesitás conexión a internet para usar la app\" en lugar de las pantallas normales",
+        "Sin conexión, el botón Llamar al 911 sigue a mano y funciona",
+        "Cuando vuelve la conexión, la app sigue sola sin tener que reiniciarla",
+        "Ya no se puede crear una alerta sin conexión ni queda ninguna guardada para mandar después; se quita el código del envío diferido",
+        "La copia local de alertas y turnos queda solo como caché y no permite usar la app sin conexión",
+        "La pantalla sin conexión cumple las reglas de accesibilidad del proyecto",
+        "Pruebas de la detección de conexión, del ViewModel y de la pantalla sin conexión"
+      ],
+      "sdd": true,
+      "status": "in_progress"
+    },
+    {
+      "id": 16,
+      "name": "avisos_tardios",
+      "title": "Avisos de alertas que llegaron con demora",
+      "description": "Cuando el teléfono de un vecino estuvo sin señal, los avisos de alertas que le llegan tarde lo dicen, con la hora real de la alerta. Depende de requiere_conexion.",
+      "acceptance": [
+        "Una alerta es tardía si el aviso llega al teléfono más de 5 minutos después de creada",
+        "El aviso de una alerta tardía tiene el título \"SOS de <nombre> <hora de la alerta>\" (por ejemplo \"SOS de Marta 15:10\") y el cuerpo \"Llegó con demora por falta de señal. Puede que ya no esté pasando.\"",
+        "Si el aviso llega más de 2 horas después de creada la alerta, no se muestra la notificación; la alerta igual aparece en la lista y el mapa",
+        "En la lista y en el mapa, una alerta tardía figura como tardía con su hora real",
+        "Las alertas que llegan a tiempo se avisan igual que hoy",
+        "La marca de tardía cumple las reglas de accesibilidad del proyecto",
+        "Pruebas del cálculo de tardía, del aviso y de la lista y el mapa"
+      ],
+      "sdd": true,
+      "status": "pending"
     }
   ]
 }
