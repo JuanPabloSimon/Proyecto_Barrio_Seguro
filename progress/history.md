@@ -65,3 +65,10 @@
 - **Resultado:** Refactorizados los métodos de construcción de vista a clases `StatelessWidget` privadas en `SosScreen` (`_VistaConfirmarSos`, `_VistaSosEnviada`), `DetalleAlertaScreen` (`_CuerpoDetalleAlerta`), `InicioScreen` (`_ContenidoInicio`), `MapaScreen` (`_ContenidoMapa`, `_PastillaFiltro`), `TurnosScreen` (`_ContenidoTurnos`, `_VistaCalendarioTurnos`, `_VistaListaMisTurnos`), `MisAlertasScreen` (`_ListaMisAlertas`) y `PerfilScreen` (`_CuerpoPerfil`). Mejorado `VigilanteDeAlertas` con `AppLifecycleListener` (`onPause` y `onResume`) y agregada prueba del ciclo de vida del sistema en `test/unit/notificaciones_test.dart`.
 - **Verificación:** `flutter analyze` y `dart analyze` sin avisos; todas las pruebas de la app (162) y del backend (28) pasando en verde.
 - **Próximo:** Features SDD #13 (`rol_comision`) y #14 (`informe_alertas`).
+
+## 2026-11-25 — Feature 14 (`informe_alertas`): Informe de alertas para la comisión (con descarga CSV)
+
+- **Quién:** equipo (Juan Pablo Simón) + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/informe_alertas/` (R1–R13, T1–T9). Implementados `InformeAlertas.delMes`, `nombreArchivoCsv` y `toCsv()` en `lib/domain/informe_alertas.dart`; `DescargaCsvService` (`DescargaCsvServiceLocal` y `DescargaCsvFalsa`) en `lib/data/services/descarga_csv_service.dart`; `InformeAlertasViewModel` y `InformeAlertasScreen` (resumen mensual por calle, por tipo y por franja horaria, selector de mes, descarga de CSV y estado vacío sin tablas ni botón de descarga); entrada `"Informe mensual de alertas"` en `PerfilScreen` visible solo para miembros de la comisión (`esComision`).
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 192 pruebas en la app y 42 en el backend pasando). Review aprobado en `progress/review_informe_alertas.md`.
+- **Próximo:** Todas las features (1 a 14) de `feature_list.json` están en `done`.

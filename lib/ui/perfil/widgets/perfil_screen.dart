@@ -6,6 +6,8 @@ import '../../core/widgets/aviso.dart';
 import '../../core/widgets/con_view_model.dart';
 import '../../editar_perfil/view_models/editar_perfil_view_model.dart';
 import '../../editar_perfil/widgets/editar_perfil_screen.dart';
+import '../../informe_alertas/view_models/informe_alertas_view_model.dart';
+import '../../informe_alertas/widgets/informe_alertas_screen.dart';
 import '../../login/view_models/login_view_model.dart';
 import '../../login/widgets/login_screen.dart';
 import '../../mis_alertas/view_models/mis_alertas_view_model.dart';
@@ -95,6 +97,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
+  void _abrirInformeAlertas() {
+    final d = widget.dependencias;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ConViewModel(
+          crear: () => InformeAlertasViewModel(
+            alertas: d.alertas,
+            bus: d.bus,
+            reloj: d.reloj,
+            descargaCsv: d.descargaCsv,
+          )..cargar(),
+          builder: (_, vm) => InformeAlertasScreen(viewModel: vm),
+        ),
+      ),
+    );
+  }
+
   Future<void> _cerrarSesion() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -145,6 +164,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         onAbrirMisAlertas: _abrirMisAlertas,
         onAbrirMisTurnos: () => widget.onIrA(Pestania.turnos),
         onAbrirEditarDatos: _abrirEditarDatos,
+        onAbrirInformeAlertas: _abrirInformeAlertas,
         onCerrarSesion: _cerrarSesion,
       ),
     );
@@ -159,6 +179,7 @@ class _CuerpoPerfil extends StatelessWidget {
     required this.onAbrirMisAlertas,
     required this.onAbrirMisTurnos,
     required this.onAbrirEditarDatos,
+    required this.onAbrirInformeAlertas,
     required this.onCerrarSesion,
   });
 
@@ -168,6 +189,7 @@ class _CuerpoPerfil extends StatelessWidget {
   final VoidCallback onAbrirMisAlertas;
   final VoidCallback onAbrirMisTurnos;
   final VoidCallback onAbrirEditarDatos;
+  final VoidCallback onAbrirInformeAlertas;
   final VoidCallback onCerrarSesion;
 
   @override
@@ -329,6 +351,15 @@ class _CuerpoPerfil extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: onAbrirEditarDatos,
                 ),
+                if (viewModel.esComision) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.assessment_outlined),
+                    title: const Text('Informe mensual de alertas'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: onAbrirInformeAlertas,
+                  ),
+                ],
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(
