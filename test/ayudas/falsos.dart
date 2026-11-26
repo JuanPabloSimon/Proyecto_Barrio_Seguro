@@ -8,6 +8,7 @@ import 'package:barrio_seguro/data/services/alertas_service.dart';
 import 'package:barrio_seguro/data/services/conexion_service.dart';
 import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
 import 'package:barrio_seguro/data/services/local/turnos_dao.dart';
+import 'package:barrio_seguro/data/services/descarga_csv_service.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/telefono_service.dart';
@@ -476,5 +477,27 @@ class TurnosDaoEnMemoria implements TurnosDao {
     guardados
       ..removeWhere((t) => t.fecha == turno.fecha && t.franja == turno.franja)
       ..add(turno);
+  }
+}
+
+/// Guarda en memoria los archivos CSV que la app pidió descargar.
+class DescargaCsvFalsa implements DescargaCsvService {
+  DescargaCsvFalsa({this.falla = false});
+
+  bool falla;
+  String? ultimoNombre;
+  String? ultimoContenido;
+  int descargas = 0;
+
+  @override
+  Future<String?> guardarCsv({
+    required String nombreArchivo,
+    required String contenido,
+  }) async {
+    if (falla) return null;
+    descargas++;
+    ultimoNombre = nombreArchivo;
+    ultimoContenido = contenido;
+    return '/descargas/$nombreArchivo';
   }
 }

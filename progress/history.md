@@ -66,6 +66,13 @@
 - **Verificación:** `flutter analyze` y `dart analyze` sin avisos; todas las pruebas de la app (162) y del backend (28) pasando en verde.
 - **Próximo:** Features SDD #13 (`rol_comision`) y #14 (`informe_alertas`).
 
+## 2026-11-25 — Feature 14 (`informe_alertas`): Informe de alertas para la comisión (con descarga CSV)
+
+- **Quién:** equipo (Juan Pablo Simón) + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/informe_alertas/` (R1–R13, T1–T9). Implementados `InformeAlertas.delMes`, `nombreArchivoCsv` y `toCsv()` en `lib/domain/informe_alertas.dart`; `DescargaCsvService` (`DescargaCsvServiceLocal` y `DescargaCsvFalsa`) en `lib/data/services/descarga_csv_service.dart`; `InformeAlertasViewModel` y `InformeAlertasScreen` (resumen mensual por calle, por tipo y por franja horaria, selector de mes, descarga de CSV y estado vacío sin tablas ni botón de descarga); entrada `"Informe mensual de alertas"` en `PerfilScreen` visible solo para miembros de la comisión (`esComision`).
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 192 pruebas en la app y 42 en el backend pasando). Review aprobado en `progress/review_informe_alertas.md`.
+- **Próximo:** Todas las features (1 a 14) de `feature_list.json` están en `done`.
+
 ## 2026-11-25 — Nota de dependencias (feature 15 `requiere_conexion`)
 
 - **Se quitó el paquete `workmanager`** de `pubspec.yaml` (y `pubspec.lock` actualizado con `flutter pub get`). Lo autoriza el design de `specs/requiere_conexion/` aprobado por el equipo: la feature 15 quita el envío diferido de alertas (feature 10) "y lo que quede sin uso", y `workmanager` solo servía para eso. Paquetes nuevos: ninguno.

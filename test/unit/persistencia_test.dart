@@ -13,6 +13,7 @@ import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/descarga_csv_service.dart';
 import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
 import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
 import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
@@ -538,6 +539,24 @@ void main() {
       expect(await nueva.getVersion(), versionDelEsquema);
       expect(await AlertasDao(nueva).listar(), hasLength(1));
       expect(await tablasDe(nueva), isNot(contains('alertas_pendientes')));
+    });
+  });
+
+  group('Descarga de CSV', () {
+    test('DescargaCsvServiceLocal guarda el archivo CSV en disco', () async {
+      final carpeta = Directory.systemTemp.createTempSync('barrio_seguro_csv');
+      addTearDown(() => carpeta.deleteSync(recursive: true));
+      final servicio = DescargaCsvServiceLocal(carpetaDestino: carpeta);
+
+      final ruta = await servicio.guardarCsv(
+        nombreArchivo: 'informe_alertas_2026_10.csv',
+        contenido: 'Sección,Detalle,Cantidad\nResumen,Total del mes,3\n',
+      );
+
+      expect(ruta, isNotNull);
+      final archivo = File(ruta!);
+      expect(archivo.existsSync(), isTrue);
+      expect(archivo.readAsStringSync(), contains('Resumen,Total del mes,3'));
     });
   });
 }

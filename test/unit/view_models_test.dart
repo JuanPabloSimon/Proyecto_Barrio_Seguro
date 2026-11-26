@@ -10,9 +10,12 @@ import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/core/estado_carga.dart';
+import 'package:barrio_seguro/ui/informe_alertas/view_models/informe_alertas_view_model.dart';
 import 'package:barrio_seguro/ui/mapa/view_models/mapa_view_model.dart';
+import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/registro/view_models/registro_view_model.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:barrio_seguro/ui/turnos/view_models/turnos_view_model.dart';
@@ -338,6 +341,97 @@ void main() {
       vm.verEnCalendario(DateTime(2026, 10, 9));
       expect(vm.soloMios, isFalse);
       expect(vm.dia, DateTime(2026, 10, 9));
+    });
+  });
+
+  group('InformeAlertasViewModel y rol en PerfilViewModel', () {
+    test('PerfilViewModel.esComision distingue comisión de vecino común', () {
+      final vecinaComision = Vecino(
+        id: 'clara',
+        nombre: 'Clara Medina',
+        fechaNacimiento: DateTime(1981, 5, 14),
+        rol: RolVecino.comision,
+      );
+      PerfilViewModel crearPerfil(Vecino vecino) => PerfilViewModel(
+        sesion: SesionFalsa(vecino),
+        bus: bus,
+        reloj: reloj,
+        capacidades: const CapacidadesFalsas(),
+        politicas: const PoliticasFalsas(),
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        notificacionesService: NotificacionesFalsas(),
+      );
+
+      expect(crearPerfil(vecinaComision).esComision, isTrue);
+      expect(crearPerfil(vecinaDePrueba).esComision, isFalse);
+    });
+
+    test(
+      'carga el informe del mes actual, cambia de mes y reacciona al bus',
+      () async {
+        final alertas = AlertasFalsas([alertaDePrueba(id: 'oct-1')]);
+        final vm = InformeAlertasViewModel(
+          alertas: alertas,
+          bus: bus,
+          reloj: reloj,
+        );
+
+        await vm.cargar();
+        expect(vm.estado, EstadoCarga.exito);
+        expect(vm.mes, DateTime(2026, 10));
+        expect(vm.informe.total, 1);
+        expect(vm.informe.sinAlertas, isFalse);
+
+        // Cambiar al mes anterior (septiembre 2026, sin alertas).
+        vm.mesAnterior();
+        expect(vm.mes, DateTime(2026, 9));
+        expect(vm.informe.sinAlertas, isTrue);
+
+        // Volver a octubre y publicar una alerta nueva por el bus.
+        vm.mesSiguiente();
+        expect(vm.mes, DateTime(2026, 10));
+        alertas.alertas.add(alertaDePrueba(id: 'oct-2'));
+        bus.publicar(const AlertasActualizadas());
+        await Future<void>.delayed(Duration.zero);
+
+        expect(vm.informe.total, 2);
+        vm.dispose();
+      },
+    );
+
+    test('si falla la carga pasa al estado de error', () async {
+      final vm = InformeAlertasViewModel(
+        alertas: AlertasFalsas([], true),
+        bus: bus,
+        reloj: reloj,
+      );
+
+      await vm.cargar();
+      expect(vm.estado, EstadoCarga.error);
+      vm.dispose();
+    });
+
+    test('descargarCsv guarda el CSV del mes y avisa si falla', () async {
+      final descarga = DescargaCsvFalsa();
+      final vm = InformeAlertasViewModel(
+        alertas: AlertasFalsas([alertaDePrueba(id: 'oct-1')]),
+        bus: bus,
+        reloj: reloj,
+        descargaCsv: descarga,
+      );
+      await vm.cargar();
+
+      final exito = await vm.descargarCsv();
+      expect(exito, 'Informe descargado: informe_alertas_2026_10.csv');
+      expect(descarga.descargas, 1);
+      expect(descarga.ultimoNombre, 'informe_alertas_2026_10.csv');
+      expect(descarga.ultimoContenido, contains('Calle de prueba,1'));
+
+      descarga.falla = true;
+      final fallo = await vm.descargarCsv();
+      expect(fallo, 'No pudimos descargar el informe. Probá de nuevo.');
+      vm.dispose();
     });
   });
 }

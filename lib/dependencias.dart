@@ -9,6 +9,7 @@ import 'data/repositories/turnos_repository.dart';
 import 'data/services/alertas_service.dart';
 import 'data/services/bus_de_eventos.dart';
 import 'data/services/conexion_service.dart';
+import 'data/services/descarga_csv_service.dart';
 import 'data/services/http/alertas_service_http.dart';
 import 'data/services/http/cliente_api.dart';
 import 'data/services/http/conexion_service_http.dart';
@@ -57,6 +58,7 @@ class Dependencias {
     required this.ubicacion,
     required this.notificaciones,
     this.push = const PushServiceNinguno(),
+    this.descargaCsv = const DescargaCsvServiceLocal(),
   });
 
   /// Los datos vienen del [ServidorSimulado], sin internet. Las
@@ -79,6 +81,7 @@ class Dependencias {
     NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
     PushService push = const PushServiceNinguno(),
     ConexionService? conexion,
+    DescargaCsvService descargaCsv = const DescargaCsvServiceLocal(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
@@ -101,6 +104,7 @@ class Dependencias {
       ubicacion: ubicacion,
       notificaciones: notificaciones,
       push: push,
+      descargaCsv: descargaCsv,
       preferencias: preferencias,
       almacenSeguro: almacenSeguro,
       alertasDao: alertasDao,
@@ -121,6 +125,7 @@ class Dependencias {
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
     PushService push = const PushServiceNinguno(),
+    DescargaCsvService descargaCsv = const DescargaCsvServiceLocal(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
@@ -141,6 +146,7 @@ class Dependencias {
       ubicacion: ubicacion,
       notificaciones: notificaciones,
       push: push,
+      descargaCsv: descargaCsv,
       preferencias: preferencias,
       almacenSeguro: almacen,
       alertasDao: alertasDao,
@@ -161,6 +167,7 @@ class Dependencias {
     required UbicacionService ubicacion,
     required NotificacionesService notificaciones,
     required PushService push,
+    required DescargaCsvService descargaCsv,
     required Preferencias? preferencias,
     required AlmacenSeguro? almacenSeguro,
     required AlertasDao? alertasDao,
@@ -198,6 +205,7 @@ class Dependencias {
       ubicacion: ubicacion,
       notificaciones: notificaciones,
       push: push,
+      descargaCsv: descargaCsv,
     );
   }
 
@@ -230,4 +238,7 @@ class Dependencias {
 
   /// Avisos push que llegan con la app cerrada (FCM).
   final PushService push;
+
+  /// Guarda archivos CSV generados por la app.
+  final DescargaCsvService descargaCsv;
 }

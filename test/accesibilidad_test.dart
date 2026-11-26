@@ -185,6 +185,11 @@ final pantallas = <Pantalla>[
     await irAPestania(tester, 'Perfil');
     await tocar(tester, find.text('Mis alertas reportadas'));
   }),
+  Pantalla('Informe de alertas', (tester) async {
+    await irAPestania(tester, 'Perfil');
+    await tocar(tester, find.text('Informe mensual de alertas'));
+    expect(find.text('Informe de alertas'), findsOneWidget);
+  }),
   Pantalla('SOS: confirmación', (tester) async {
     await ingresar(tester);
     await tocar(tester, find.byType(BotonSos));
