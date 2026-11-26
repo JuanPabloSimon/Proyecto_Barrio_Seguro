@@ -1,12 +1,14 @@
 // Pruebas de la capa de dominio: reglas y cálculos puros, sin Flutter.
 
 import 'package:barrio_seguro/domain/fechas.dart';
+import 'package:barrio_seguro/domain/informe_alertas.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/domain/reglas_turnos.dart';
 import 'package:barrio_seguro/ui/core/formato.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../ayudas/falsos.dart';
 
@@ -187,6 +189,147 @@ void main() {
         expect(copia.rol, rol);
         expect(copia.toJson()['rol'], rol.json);
       }
+    });
+  });
+
+  group('Informe de alertas', () {
+    Alerta crearAlerta({
+      required String id,
+      required DateTime fecha,
+      String direccion = 'Calle Plantamura',
+      String tipo = 'Intento de robo',
+    }) {
+      return Alerta(
+        id: id,
+        categoria: CategoriaAlerta.robo,
+        tipo: tipo,
+        descripcion: 'Prueba',
+        direccion: direccion,
+        creadaEn: fecha,
+        estado: EstadoAlerta.activa,
+        ubicacion: const LatLng(-32.8765, -68.8706),
+        reportadaPor: 'clara',
+      );
+    }
+
+    final octubre = DateTime(2026, 10);
+
+    test('incluye solo las alertas del mes y año elegidos', () {
+      final alertas = [
+        crearAlerta(id: 'oct-1', fecha: DateTime(2026, 10, 5, 10)),
+        crearAlerta(id: 'sep-1', fecha: DateTime(2026, 9, 30, 23)),
+        crearAlerta(id: 'nov-1', fecha: DateTime(2026, 11, 1, 0)),
+        crearAlerta(id: 'otro-anio', fecha: DateTime(2025, 10, 5, 10)),
+      ];
+
+      final informe = InformeAlertas.delMes(alertas: alertas, mes: octubre);
+
+      expect(informe.total, 1);
+      expect(informe.sinAlertas, isFalse);
+    });
+
+    test(
+      'agrupa y ordena por calle y por tipo de mayor a menor y alfabéticamente',
+      () {
+        final alertas = [
+          crearAlerta(
+            id: '1',
+            fecha: DateTime(2026, 10, 1, 9),
+            direccion: 'Plantamura',
+            tipo: 'Arrebato',
+          ),
+          crearAlerta(
+            id: '2',
+            fecha: DateTime(2026, 10, 2, 14),
+            direccion: 'Democracia',
+            tipo: 'Robo',
+          ),
+          crearAlerta(
+            id: '3',
+            fecha: DateTime(2026, 10, 3, 21),
+            direccion: 'Plantamura',
+            tipo: 'Robo',
+          ),
+          crearAlerta(
+            id: '4',
+            fecha: DateTime(2026, 10, 4, 2),
+            direccion: 'Cabildo',
+            tipo: 'Moto a alta velocidad',
+          ),
+        ];
+
+        final informe = InformeAlertas.delMes(alertas: alertas, mes: octubre);
+
+        expect(informe.porCalle.map((f) => '${f.nombre}:${f.cantidad}'), [
+          'Plantamura:2',
+          'Cabildo:1',
+          'Democracia:1',
+        ]);
+        expect(informe.porTipo.map((f) => '${f.nombre}:${f.cantidad}'), [
+          'Robo:2',
+          'Arrebato:1',
+          'Moto a alta velocidad:1',
+        ]);
+      },
+    );
+
+    test('agrupa por franja horaria según la hora de creación', () {
+      final alertas = [
+        crearAlerta(id: 'mad1', fecha: DateTime(2026, 10, 1, 1, 30)),
+        crearAlerta(id: 'mad2', fecha: DateTime(2026, 10, 2, 5, 59)),
+        crearAlerta(id: 'man1', fecha: DateTime(2026, 10, 3, 8, 0)),
+        crearAlerta(id: 'tar1', fecha: DateTime(2026, 10, 4, 15, 20)),
+        crearAlerta(id: 'noc1', fecha: DateTime(2026, 10, 5, 22, 10)),
+        crearAlerta(id: 'noc2', fecha: DateTime(2026, 10, 6, 20, 0)),
+        crearAlerta(id: 'noc3', fecha: DateTime(2026, 10, 7, 23, 45)),
+      ];
+
+      final informe = InformeAlertas.delMes(alertas: alertas, mes: octubre);
+
+      expect(informe.porFranja.map((f) => '${f.nombre}:${f.cantidad}'), [
+        'Noche (20:00 - 00:00):3',
+        'Madrugada (00:00 - 06:00):2',
+        'Mañana (06:00 - 12:00):1',
+        'Tarde (12:00 - 20:00):1',
+      ]);
+    });
+
+    test(
+      'sin alertas en el mes devuelve sinAlertas en true y tablas vacías',
+      () {
+        final informe = InformeAlertas.delMes(
+          alertas: [crearAlerta(id: 'sep', fecha: DateTime(2026, 9, 10, 12))],
+          mes: octubre,
+        );
+
+        expect(informe.total, 0);
+        expect(informe.sinAlertas, isTrue);
+        expect(informe.porCalle, isEmpty);
+        expect(informe.porTipo, isEmpty);
+        expect(informe.porFranja, isEmpty);
+      },
+    );
+
+    test('toCsv y nombreArchivoCsv exportan el informe y escapan comas', () {
+      final informe = InformeAlertas.delMes(
+        alertas: [
+          crearAlerta(
+            id: '1',
+            fecha: DateTime(2026, 10, 10, 21),
+            direccion: 'Cabildo, Cuadra 12',
+            tipo: 'Pedido de ayuda (SOS)',
+          ),
+        ],
+        mes: octubre,
+      );
+
+      expect(informe.nombreArchivoCsv, 'informe_alertas_2026_10.csv');
+      final csv = informe.toCsv();
+      expect(csv, contains('Sección,Detalle,Cantidad'));
+      expect(csv, contains('Resumen,Total del mes,1'));
+      expect(csv, contains('Por calle,"Cabildo, Cuadra 12",1'));
+      expect(csv, contains('Por tipo,Pedido de ayuda (SOS),1'));
+      expect(csv, contains('Por franja horaria,Noche (20:00 - 00:00),1'));
     });
   });
 }

@@ -43,6 +43,9 @@ class PerfilViewModel extends ChangeNotifier {
 
   Vecino? get usuario => _sesion.usuario;
 
+  /// Si el vecino con sesión abierta pertenece a la comisión vecinal.
+  bool get esComision => usuario?.esComision ?? false;
+
   bool get esGuardiaVentana =>
       usuario?.esGuardiaVentanaEn(_reloj.ahora()) ?? false;
 

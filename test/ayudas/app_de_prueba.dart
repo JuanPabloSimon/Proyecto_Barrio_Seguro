@@ -1,3 +1,4 @@
+import 'package:barrio_seguro/data/services/descarga_csv_service.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
@@ -33,6 +34,7 @@ BarrioSeguroApp appDePrueba({
   UbicacionService? ubicacion,
   NotificacionesService? notificaciones,
   PushService? push,
+  DescargaCsvService? descargaCsv,
 }) {
   MapaBarrio.cargarCalles = false;
   return BarrioSeguroApp(
@@ -45,6 +47,7 @@ BarrioSeguroApp appDePrueba({
       ubicacion: ubicacion ?? UbicacionFalsa(),
       notificaciones: notificaciones ?? NotificacionesFalsas(),
       push: push ?? PushFalso(),
+      descargaCsv: descargaCsv ?? DescargaCsvFalsa(),
       preferencias: preferenciasEnMemoria(),
       almacenSeguro: almacenSeguroEnMemoria(),
     ),
