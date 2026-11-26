@@ -136,7 +136,6 @@ class InicioViewModel extends ChangeNotifier {
   ResumenTurno? _resumir(List<Turno> turnos) {
     final usuario = _sesion.usuario;
     if (usuario == null) return null;
-    final esGuardia = usuario.esGuardiaVentanaEn(_reloj.ahora());
 
     final mios = turnos.where((t) => t.incluye(usuario)).toList()
       ..sort((a, b) {
@@ -147,14 +146,18 @@ class InicioViewModel extends ChangeNotifier {
       });
 
     if (mios.isEmpty) {
+      // Sin turnos, lo que le tocaría al anotarse (la preferencia actual).
       return ResumenTurno(
         titulo: 'Todavía no tenés turnos en ${nombreMes(_mesDeTurnos.month)}',
         lineas: const ['Elegí un día y un horario en el calendario de turnos.'],
-        esGuardiaVentana: esGuardia,
+        esGuardiaVentana: usuario.esGuardiaVentanaEn(_reloj.ahora()),
       );
     }
 
     final turno = mios.first;
+    // Con turno, el lugar que ocupa en él: cambiar la guardia normal no
+    // mueve los turnos ya tomados.
+    final esGuardia = turno.guardiaVentana?.id == usuario.id;
     final patrulla = turno
         .companierosDe(usuario)
         .map((v) => v.nombre)

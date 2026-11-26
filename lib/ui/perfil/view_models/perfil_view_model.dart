@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/sesion_repository.dart';
 import '../../../data/services/bus_de_eventos.dart';
+import '../../../data/services/error_del_servidor.dart';
 import '../../../data/services/local/preferencias.dart';
 import '../../../data/services/notificaciones_service.dart';
 import '../../../data/services/push_service.dart';
@@ -18,7 +19,7 @@ import '../../core/formato.dart';
 class PerfilViewModel extends ChangeNotifier {
   PerfilViewModel({
     required this._sesion,
-    required BusDeEventos bus,
+    required this._bus,
     required this._reloj,
     required this._capacidades,
     required this._politicas,
@@ -28,10 +29,13 @@ class PerfilViewModel extends ChangeNotifier {
     this._pushService = const PushServiceNinguno(),
   }) {
     // Si se editan los datos, el perfil se vuelve a dibujar.
-    _suscripcion = bus.de<PerfilActualizado>().listen((_) => notifyListeners());
+    _suscripcion = _bus.de<PerfilActualizado>().listen(
+      (_) => notifyListeners(),
+    );
   }
 
   final SesionRepository _sesion;
+  final BusDeEventos _bus;
   final Reloj _reloj;
   final Capacidades _capacidades;
   final Politicas _politicas;
@@ -50,6 +54,43 @@ class PerfilViewModel extends ChangeNotifier {
       usuario?.esGuardiaVentanaEn(_reloj.ahora()) ?? false;
 
   String get rol => esGuardiaVentana ? 'guardia de ventana' : 'patrullaje';
+
+  /// Si el vecino ve la opción de guardia normal (70 años o más).
+  bool get puedeElegirGuardiaNormal =>
+      usuario?.puedeElegirGuardiaNormalEn(_reloj.ahora()) ?? false;
+
+  /// El valor que confirmó el servidor.
+  bool get guardiaNormal => usuario?.guardiaNormal ?? false;
+
+  bool _cambiandoGuardiaNormal = false;
+
+  /// True mientras se espera al servidor: el interruptor se desactiva.
+  bool get cambiandoGuardiaNormal => _cambiandoGuardiaNormal;
+
+  /// Pide el cambio al servidor. Devuelve null si salió bien o el mensaje
+  /// para el vecino si no. Si falla, todo queda como estaba.
+  ///
+  /// A diferencia de las preferencias del teléfono, la guardia normal la
+  /// guarda el servidor (es quien decide el lugar al anotarse): el
+  /// interruptor cambia recién cuando confirma.
+  Future<String?> cambiarGuardiaNormal(bool activa) async {
+    _cambiandoGuardiaNormal = true;
+    notifyListeners();
+    try {
+      await _sesion.cambiarGuardiaNormal(activa: activa);
+      // Turnos, inicio y este perfil se redibujan con el lugar nuevo.
+      _bus.publicar(const PerfilActualizado());
+      return null;
+    } on ErrorDelServidor catch (e) {
+      return e.mensaje;
+    } catch (_) {
+      return 'No pudimos guardar el cambio. Revisá tu conexión y probá de '
+          'nuevo.';
+    } finally {
+      _cambiandoGuardiaNormal = false;
+      notifyListeners();
+    }
+  }
 
   /// "Cabildo de Mendoza, Cuadra 12"
   String get direccion {

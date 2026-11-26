@@ -11,6 +11,7 @@ import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/dependencias.dart';
+import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/domain/reglas_alertas.dart';
@@ -34,6 +35,8 @@ import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_vie
 import 'package:barrio_seguro/ui/reportar_alerta/widgets/reportar_alerta_screen.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:barrio_seguro/ui/sos/widgets/sos_screen.dart';
+import 'package:barrio_seguro/ui/turnos/view_models/turnos_view_model.dart';
+import 'package:barrio_seguro/ui/turnos/widgets/turnos_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -555,6 +558,182 @@ void main() {
         expect(find.text('Informe mensual de alertas'), findsNothing);
       },
     );
+  });
+
+  group('Perfil: guardia normal', () {
+    const titulo = 'Hacer guardia normal (patrulla)';
+    const textoApagado =
+        'Hacés guardia de ventana desde tu casa. Los turnos que ya tomaste '
+        'no cambian.';
+    const textoPrendido =
+        'Te anotás en la patrulla, como el resto. Los turnos que ya tomaste '
+        'no cambian.';
+
+    /// Arma el perfil del vecino de [sesion] con las dependencias simuladas.
+    Future<void> abrirPerfil(WidgetTester tester, SesionFalsa sesion) async {
+      tester.view.devicePixelRatio = 3;
+      tester.view.physicalSize = const Size(360 * 3, 1600 * 3);
+      addTearDown(tester.view.reset);
+      final dependencias = Dependencias.simuladas(
+        reloj: relojDePrueba,
+        demora: Duration.zero,
+        capacidades: const CapacidadesFalsas(),
+        politicas: const PoliticasFalsas(),
+        telefono: TelefonoFalso(),
+        ubicacion: UbicacionFalsa(),
+        notificaciones: NotificacionesFalsas(),
+        push: PushFalso(),
+        descargaCsv: DescargaCsvFalsa(),
+        preferencias: preferenciasEnMemoria(),
+        almacenSeguro: almacenSeguroEnMemoria(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConViewModel(
+            crear: () => PerfilViewModel(
+              sesion: sesion,
+              bus: dependencias.bus,
+              reloj: dependencias.reloj,
+              capacidades: dependencias.capacidades,
+              politicas: dependencias.politicas,
+              preferencias: dependencias.preferencias,
+              ubicacion: dependencias.ubicacion,
+              notificacionesService: dependencias.notificaciones,
+              pushService: dependencias.push,
+            )..cargar(),
+            builder: (_, vm) => PerfilScreen(
+              viewModel: vm,
+              dependencias: dependencias,
+              onIrA: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    SwitchListTile interruptor(WidgetTester tester) => tester
+        .widget<SwitchListTile>(find.widgetWithText(SwitchListTile, titulo));
+
+    testWidgets('un menor no ve la opción', (tester) async {
+      await abrirPerfil(tester, SesionFalsa(vecinaDePrueba));
+
+      expect(find.text('Mi perfil'), findsOneWidget);
+      expect(find.text(titulo), findsNothing);
+      expect(find.text('Turnos'), findsNothing);
+      expect(find.text('Turnos: patrullaje'), findsOneWidget);
+    });
+
+    testWidgets('un mayor la ve apagada con su texto', (tester) async {
+      await abrirPerfil(tester, SesionFalsa(vecinoMayor));
+
+      expect(find.text('Turnos'), findsOneWidget);
+      expect(find.text(titulo), findsOneWidget);
+      expect(interruptor(tester).value, isFalse);
+      expect(interruptor(tester).onChanged, isNotNull);
+      expect(find.text(textoApagado), findsOneWidget);
+      expect(find.text('Turnos: guardia de ventana'), findsOneWidget);
+    });
+
+    testWidgets('al tocarla espera al servidor y después queda prendida', (
+      tester,
+    ) async {
+      final sesion = SesionFalsa(vecinoMayor)
+        ..demoraAlCambiarGuardia = Completer<void>();
+      await abrirPerfil(tester, sesion);
+
+      await _tocar(tester, find.text(titulo));
+
+      expect(sesion.cambiosDeGuardiaNormal, [true]);
+      expect(find.text('Guardando el cambio'), findsOneWidget);
+      expect(interruptor(tester).onChanged, isNull);
+      expect(interruptor(tester).value, isFalse);
+
+      sesion.demoraAlCambiarGuardia!.complete();
+      await tester.pumpAndSettle();
+
+      expect(interruptor(tester).value, isTrue);
+      expect(interruptor(tester).onChanged, isNotNull);
+      expect(find.text(textoPrendido), findsOneWidget);
+      expect(find.text('Guardando el cambio'), findsNothing);
+      expect(find.text('Turnos: patrullaje'), findsOneWidget);
+    });
+
+    testWidgets('si el servidor la rechaza muestra el mensaje y queda '
+        'apagada', (tester) async {
+      const mensaje =
+          'Solo los vecinos de 70 años o más pueden elegir la guardia normal.';
+      final sesion = SesionFalsa(vecinoMayor)
+        ..errorAlCambiarGuardia = const ErrorDelServidor(mensaje);
+      await abrirPerfil(tester, sesion);
+
+      await _tocar(tester, find.text(titulo));
+
+      expect(find.text(mensaje), findsOneWidget);
+      expect(interruptor(tester).value, isFalse);
+      expect(find.text(textoApagado), findsOneWidget);
+      expect(find.text('Turnos: guardia de ventana'), findsOneWidget);
+      expect(sesion.usuario?.guardiaNormal, isFalse);
+    });
+
+    testWidgets('sin conexión muestra el aviso de conexión y queda apagada', (
+      tester,
+    ) async {
+      final sesion = SesionFalsa(vecinoMayor)
+        ..falloAlCambiarGuardia = const SocketException('sin red');
+      await abrirPerfil(tester, sesion);
+
+      await _tocar(tester, find.text(titulo));
+
+      expect(
+        find.text(
+          'No pudimos guardar el cambio. Revisá tu conexión y probá de nuevo.',
+        ),
+        findsOneWidget,
+      );
+      expect(interruptor(tester).value, isFalse);
+      expect(find.text(textoApagado), findsOneWidget);
+      expect(sesion.usuario?.guardiaNormal, isFalse);
+    });
+
+    testWidgets('al activar la guardia normal, Turnos ofrece "Anotarme" sin '
+        'recargar', (tester) async {
+      tester.view.devicePixelRatio = 3;
+      tester.view.physicalSize = const Size(360 * 3, 1600 * 3);
+      addTearDown(tester.view.reset);
+      final bus = BusDeEventos();
+      addTearDown(bus.cerrar);
+      final sesion = SesionFalsa(vecinoMayor);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConViewModel(
+            crear: () => TurnosViewModel(
+              turnos: TurnosFalsos(),
+              sesion: sesion,
+              bus: bus,
+              reloj: relojDePrueba,
+              mes: DateTime(2026, 10),
+            )..cargar(),
+            builder: (_, vm) => TurnosScreen(viewModel: vm),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // El 1/10, sin turnos: los tres horarios ofrecen la guardia.
+      expect(find.text('Anotarme como guardia de ventana'), findsWidgets);
+      expect(find.text('Anotarme'), findsNothing);
+
+      sesion.usuario = Vecino.fromJson({
+        ...vecinoMayor.toJson(),
+        'guardia_normal': true,
+      });
+      bus.publicar(const PerfilActualizado());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Anotarme'), findsWidgets);
+      expect(find.text('Anotarme como guardia de ventana'), findsNothing);
+    });
   });
 
   group('Alertas tardías', () {

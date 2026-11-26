@@ -23,13 +23,40 @@ class ReglasTurnos {
     return edad;
   }
 
+  /// Si por la edad le toca guardia de ventana (sin mirar la preferencia).
   static bool esGuardiaVentana(DateTime nacimiento, DateTime hoy) =>
       edad(nacimiento, hoy) >= edadGuardiaVentana;
 
+  /// Desde [edadGuardiaVentana] el vecino puede elegir hacer guardia normal
+  /// (patrulla) en lugar de guardia de ventana.
+  static bool puedeElegirGuardiaNormal(DateTime nacimiento, DateTime hoy) =>
+      edad(nacimiento, hoy) >= edadGuardiaVentana;
+
+  /// Si al anotarse va a la guardia de ventana: mayor y sin guardia normal.
+  static bool haceGuardiaVentana(
+    DateTime nacimiento,
+    DateTime hoy, {
+    required bool guardiaNormal,
+  }) => esGuardiaVentana(nacimiento, hoy) && !guardiaNormal;
+
+  /// El 409 de `PUT /vecinos/<id>` cuando un menor de 70 pide la guardia
+  /// normal. Mismo texto que la app.
+  static const mensajeGuardiaNormalSoloMayores =
+      'Solo los vecinos de $edadGuardiaVentana años o más pueden elegir la '
+      'guardia normal.';
+
+  /// El 400 de `PUT /vecinos/<id>` cuando `guardia_normal` no es booleano.
+  /// Mismo texto que la app.
+  static const mensajeGuardiaNormalInvalida =
+      'La opción de guardia normal no es válida.';
+
   /// Por qué el vecino no puede anotarse en el turno, o null si puede.
+  /// [guardiaNormal] es obligatorio a propósito: el servidor nunca se
+  /// olvida de mirar la preferencia del vecino.
   static String? motivoNoDisponible({
     required String vecinoId,
     required DateTime nacimiento,
+    required bool guardiaNormal,
     required List<String> patrulleros,
     required String? guardiaVentana,
     required int turnosEnElMes,
@@ -41,7 +68,7 @@ class ReglasTurnos {
     if (turnosEnElMes >= maxTurnosPorMes) {
       return 'Ya tenés $maxTurnosPorMes turnos este mes, que es el máximo permitido.';
     }
-    if (esGuardiaVentana(nacimiento, hoy)) {
+    if (haceGuardiaVentana(nacimiento, hoy, guardiaNormal: guardiaNormal)) {
       if (guardiaVentana != null) {
         return 'Este turno ya tiene guardia de ventana.';
       }

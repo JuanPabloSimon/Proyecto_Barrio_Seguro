@@ -26,6 +26,7 @@ class Vecino {
     this.cuadra = '',
     this.vecinoDesde,
     this.rol = RolVecino.vecino,
+    this.guardiaNormal = false,
   });
 
   factory Vecino.fromJson(Map<String, dynamic> json) {
@@ -39,6 +40,9 @@ class Vecino {
       cuadra: json['cuadra'] as String? ?? '',
       vecinoDesde: desde == null ? null : DateTime.parse(desde),
       rol: RolVecino.desdeJson(json['rol']),
+      // Ante cualquier valor que no sea `true`, desactivada: es el valor por
+      // defecto y no cambia nada.
+      guardiaNormal: json['guardia_normal'] == true,
     );
   }
 
@@ -54,14 +58,26 @@ class Vecino {
 
   final RolVecino rol;
 
+  /// Un mayor de 70 que eligió hacer guardia normal (patrulla) en lugar de
+  /// guardia de ventana. Lo guarda el servidor; para un menor no cambia
+  /// nada.
+  final bool guardiaNormal;
+
   /// Si es miembro de la comisión vecinal (ve las opciones de la comisión).
   bool get esComision => rol == RolVecino.comision;
 
   int edadEn(DateTime hoy) => calcularEdad(fechaNacimiento, hoy: hoy);
 
-  /// Los mayores de 70 no patrullan: hacen guardia de ventana.
-  bool esGuardiaVentanaEn(DateTime hoy) =>
-      ReglasTurnos.esGuardiaVentana(edadEn(hoy));
+  /// Si al anotarse va a la guardia de ventana: los mayores de 70 que no
+  /// eligieron la guardia normal.
+  bool esGuardiaVentanaEn(DateTime hoy) => ReglasTurnos.haceGuardiaVentana(
+    edad: edadEn(hoy),
+    guardiaNormal: guardiaNormal,
+  );
+
+  /// Si ve la opción de guardia normal en el perfil.
+  bool puedeElegirGuardiaNormalEn(DateTime hoy) =>
+      ReglasTurnos.puedeElegirGuardiaNormal(edadEn(hoy));
 
   String get primerNombre => nombre.trim().split(RegExp(r'\s+')).first;
 
@@ -82,9 +98,12 @@ class Vecino {
     'cuadra': cuadra,
     if (vecinoDesde != null) 'vecino_desde': _soloFecha(vecinoDesde!),
     'rol': rol.json,
+    'guardia_normal': guardiaNormal,
   };
 
-  /// No recibe `rol` a propósito: el rol no se cambia desde la app.
+  /// No recibe `rol` ni `guardiaNormal` a propósito: el rol no se cambia
+  /// desde la app y la guardia normal se cambia solo con
+  /// `SesionRepository.cambiarGuardiaNormal`.
   Vecino copyWith({
     String? nombre,
     String? telefono,
@@ -100,6 +119,7 @@ class Vecino {
       cuadra: cuadra ?? this.cuadra,
       vecinoDesde: vecinoDesde,
       rol: rol,
+      guardiaNormal: guardiaNormal,
     );
   }
 }

@@ -78,6 +78,8 @@ class ServidorSimulado {
       'vecino_desde': hoy.toIso8601String().substring(0, 10),
       // Quien se registra es siempre vecino común, mande lo que mande.
       'rol': RolVecino.vecino.json,
+      // Y arranca haciendo lo que le toca por la edad.
+      'guardia_normal': false,
     };
     _vecinos[vecino['id'] as String] = vecino;
     _vecinoDeLaSesion = vecino['id'] as String;
@@ -92,6 +94,20 @@ class ServidorSimulado {
     if (datos.containsKey('rol') && datos['rol'] != actual['rol']) {
       throw const ErrorDelServidor(mensajeRolFijo);
     }
+    // Mismo orden que `PUT /vecinos/<id>`: se valida antes de tocar nada.
+    final guardiaNormal = datos['guardia_normal'];
+    if (datos.containsKey('guardia_normal')) {
+      if (guardiaNormal is! bool) {
+        throw const ErrorDelServidor(ReglasTurnos.mensajeGuardiaNormalInvalida);
+      }
+      final puedeElegir = Vecino.fromJson(actual)
+          .puedeElegirGuardiaNormalEn(_reloj.ahora());
+      if (guardiaNormal && !puedeElegir) {
+        throw const ErrorDelServidor(
+          ReglasTurnos.mensajeGuardiaNormalSoloMayores,
+        );
+      }
+    }
     // El id, la fecha de nacimiento y la antigüedad no se cambian desde la app.
     final actualizado = {
       ...actual,
@@ -100,6 +116,10 @@ class ServidorSimulado {
       'fecha_nacimiento': actual['fecha_nacimiento'],
       'vecino_desde': actual['vecino_desde'],
       'rol': actual['rol'],
+      // Si no vino en el pedido, queda la que estaba.
+      'guardia_normal': guardiaNormal is bool
+          ? guardiaNormal
+          : actual['guardia_normal'] == true,
     };
     _vecinos[id] = actualizado;
     return Map.of(actualizado);
@@ -329,54 +349,63 @@ const _vecinosDeEjemplo = <Map<String, dynamic>>[
     'cuadra': 'Cuadra 12',
     'vecino_desde': '2021-03-01',
     'rol': 'comision',
+    'guardia_normal': false,
   },
   {
     'id': 'jorge',
     'nombre': 'Jorge Ruiz',
     'fecha_nacimiento': '1975-08-02',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'ana',
     'nombre': 'Ana López',
     'fecha_nacimiento': '1990-01-21',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'martin',
     'nombre': 'Martín Sosa',
     'fecha_nacimiento': '1986-11-09',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'pedro',
     'nombre': 'Pedro Gil',
     'fecha_nacimiento': '1979-04-30',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'laura',
     'nombre': 'Laura Vega',
     'fecha_nacimiento': '1993-06-17',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'sofia',
     'nombre': 'Sofía Díaz',
     'fecha_nacimiento': '1988-02-25',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'raul',
     'nombre': 'Raúl Paz',
     'fecha_nacimiento': '1969-09-12',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'ines',
     'nombre': 'Inés Molina',
     'fecha_nacimiento': '1984-12-03',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   // Guardias de ventana (70 años o más)
   {
@@ -384,18 +413,21 @@ const _vecinosDeEjemplo = <Map<String, dynamic>>[
     'nombre': 'Rosa Ibáñez',
     'fecha_nacimiento': '1948-07-08',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'ernesto',
     'nombre': 'Ernesto Funes',
     'fecha_nacimiento': '1952-03-19',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
   {
     'id': 'elena',
     'nombre': 'Elena Quiroga',
     'fecha_nacimiento': '1954-10-27',
     'rol': 'vecino',
+    'guardia_normal': false,
   },
 ];
 

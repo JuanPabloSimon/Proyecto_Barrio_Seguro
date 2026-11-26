@@ -277,6 +277,92 @@ void main() {
       expect(restaurado?.esComision, isFalse);
     });
 
+    /// Una API que deja ingresar como Rosa y responde el `PUT` con
+    /// [respuestaPut]. Devuelve la sesión abierta y la reabierta sobre las
+    /// mismas preferencias y el mismo almacén.
+    Future<(SesionRepositoryRemoto, SesionRepositoryRemoto Function())>
+    sesionDeRosa(http.Response Function() respuestaPut) async {
+      final preferencias = preferenciasEnMemoria();
+      final api = clienteQue((pedido) async {
+        if (pedido.method == 'POST') {
+          return json(200, {'token': 't', 'vecino': vecinoMayor.toJson()});
+        }
+        return respuestaPut();
+      });
+      final sesion = SesionRepositoryRemoto(
+        service: VecinosServiceHttp(api),
+        preferencias: preferencias,
+        almacen: almacen,
+      );
+      await sesion.ingresar(usuario: '261 555-0199', clave: 'barrio1234');
+      pedidos.clear();
+      return (
+        sesion,
+        () => SesionRepositoryRemoto(
+          service: VecinosServiceHttp(api),
+          preferencias: preferencias,
+          almacen: almacen,
+        ),
+      );
+    }
+
+    test('cambiar la guardia normal manda solo guardia_normal y guarda el '
+        'vecino que devuelve', () async {
+      final (sesion, reabrir) = await sesionDeRosa(
+        () => json(200, {...vecinoMayor.toJson(), 'guardia_normal': true}),
+      );
+
+      final vecino = await sesion.cambiarGuardiaNormal(activa: true);
+
+      expect(pedidos.single.method, 'PUT');
+      expect(pedidos.single.url.path, '/vecinos/rosa');
+      expect(jsonDecode(pedidos.single.body), {'guardia_normal': true});
+      expect(vecino.guardiaNormal, isTrue);
+      expect(sesion.usuario?.guardiaNormal, isTrue);
+      final reabierta = reabrir();
+      await reabierta.restaurar();
+      expect(reabierta.usuario?.id, 'rosa');
+      expect(reabierta.usuario?.guardiaNormal, isTrue);
+    });
+
+    test('si la API rechaza la guardia normal, la sesión queda como '
+        'estaba', () async {
+      const mensaje =
+          'Solo los vecinos de 70 años o más pueden elegir la guardia normal.';
+      final (sesion, reabrir) = await sesionDeRosa(
+        () => json(409, {'error': mensaje}),
+      );
+
+      await expectLater(
+        sesion.cambiarGuardiaNormal(activa: true),
+        throwsA(
+          isA<ErrorDelServidor>().having((e) => e.mensaje, 'mensaje', mensaje),
+        ),
+      );
+
+      expect(sesion.usuario?.guardiaNormal, isFalse);
+      final reabierta = reabrir();
+      await reabierta.restaurar();
+      expect(reabierta.usuario?.guardiaNormal, isFalse);
+    });
+
+    test('actualizar los datos no manda guardia_normal', () async {
+      final conGuardiaNormal = Vecino.fromJson({
+        ...vecinoMayor.toJson(),
+        'guardia_normal': true,
+      });
+      final api = clienteQue((_) async => json(200, conGuardiaNormal.toJson()));
+
+      final vecino = await sesionCon(api)
+          .actualizarDatos(conGuardiaNormal.copyWith(calle: 'Otra calle'));
+
+      final cuerpo = jsonDecode(pedidos.single.body) as Map<String, dynamic>;
+      expect(pedidos.single.url.path, '/vecinos/rosa');
+      expect(cuerpo.containsKey('guardia_normal'), isFalse);
+      expect(cuerpo['calle'], 'Otra calle');
+      expect(vecino.guardiaNormal, isTrue);
+    });
+
     test('cerrar sesión avisa a la API y borra el token', () async {
       await almacen.guardarToken('viejo');
       final api = clienteQue((_) async => http.Response('', 204));
