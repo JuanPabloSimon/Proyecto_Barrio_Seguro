@@ -1,3 +1,4 @@
+import 'package:barrio_seguro/data/services/conexion_service.dart';
 import 'package:barrio_seguro/data/services/descarga_csv_service.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
@@ -27,6 +28,9 @@ final relojDePrueba = RelojFijo(DateTime(2026, 10, 1, 12));
 ///
 /// Las preferencias y el almacenamiento seguro arrancan vacíos y en
 /// memoria: la app abre en el login, como la primera vez.
+///
+/// Con [conexion] la prueba decide si la app llega al servidor (por
+/// defecto, siempre conectada).
 BarrioSeguroApp appDePrueba({
   Capacidades capacidades = const CapacidadesFalsas(),
   Politicas politicas = const PoliticasFalsas(),
@@ -34,6 +38,7 @@ BarrioSeguroApp appDePrueba({
   UbicacionService? ubicacion,
   NotificacionesService? notificaciones,
   PushService? push,
+  ConexionService? conexion,
   DescargaCsvService? descargaCsv,
 }) {
   MapaBarrio.cargarCalles = false;
@@ -47,6 +52,7 @@ BarrioSeguroApp appDePrueba({
       ubicacion: ubicacion ?? UbicacionFalsa(),
       notificaciones: notificaciones ?? NotificacionesFalsas(),
       push: push ?? PushFalso(),
+      conexion: conexion,
       descargaCsv: descargaCsv ?? DescargaCsvFalsa(),
       preferencias: preferenciasEnMemoria(),
       almacenSeguro: almacenSeguroEnMemoria(),

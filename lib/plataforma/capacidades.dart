@@ -20,10 +20,11 @@ class Capacidades {
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
-  /// Si hay base de datos local (sqflite) para guardar alertas y turnos.
+  /// Si hay base de datos local (sqflite) para guardar una copia de las
+  /// alertas y los turnos que sirve de caché.
   ///
   /// El plugin funciona en Android, iOS y macOS. En la web y en Windows o
-  /// Linux la app funciona igual, pero sin la copia para usar sin conexión.
+  /// Linux la app funciona igual, pero sin esa caché.
   bool get tieneBaseDeDatosLocal {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||
@@ -47,15 +48,6 @@ class Capacidades {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
-  }
-
-  /// Si se pueden programar tareas que corren con la app cerrada
-  /// (workmanager), por ejemplo para mandar una alerta cuando vuelve la
-  /// señal. Solo Android: en iOS hace falta configurarlo en Xcode, con una
-  /// Mac.
-  bool get correTareasEnSegundoPlano {
-    if (kIsWeb) return false;
-    return defaultTargetPlatform == TargetPlatform.android;
   }
 
   /// Si el dispositivo recibe avisos push con la app cerrada (FCM).

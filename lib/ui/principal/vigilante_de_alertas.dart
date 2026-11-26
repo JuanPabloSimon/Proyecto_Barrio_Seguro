@@ -11,8 +11,7 @@ import '../../domain/evento_de_app.dart';
 import '../../domain/models/alerta.dart';
 
 /// Mientras la app está abierta, revisa cada tanto si hay alertas nuevas
-/// de otros vecinos y avisa con una notificación. También manda las
-/// alertas que quedaron pendientes por falta de señal.
+/// de otros vecinos y avisa con una notificación.
 ///
 /// Reaccionando a los eventos del ciclo de vida del sistema operativo
 /// ([AppLifecycleListener]):
@@ -78,7 +77,6 @@ class VigilanteDeAlertas {
   /// Devuelve las alertas nuevas que avisó (sirve para las pruebas).
   Future<List<Alerta>> revisar() async {
     try {
-      await _alertas.enviarPendientes();
       final todas = await _alertas.obtenerAlertas(refrescar: true);
       final conocidas = _conocidas;
       _conocidas = {for (final a in todas) a.id};

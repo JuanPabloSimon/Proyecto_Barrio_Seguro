@@ -14,9 +14,10 @@ const nombreArchivoBase = 'barrio_seguro.db';
 ///
 /// - 1: alertas y turnos.
 /// - 2: alertas_pendientes (las que no se pudieron enviar sin señal).
-const versionDelEsquema = 2;
+/// - 3: se quita alertas_pendientes (la app requiere conexión).
+const versionDelEsquema = 3;
 
-/// Copia local de las alertas, para verlas sin conexión. Mismas columnas
+/// Copia local de las alertas, que sirve de caché. Mismas columnas
 /// que el JSON de la API. La fecha va en milisegundos (SQLite no tiene
 /// fechas).
 const sqlCrearAlertas = '''
@@ -46,15 +47,6 @@ CREATE TABLE turnos (
 )
 ''';
 
-/// Alertas que el vecino creó sin señal y todavía no llegaron al servidor.
-/// `datos` es el JSON que se le va a mandar a la API.
-const sqlCrearPendientes = '''
-CREATE TABLE alertas_pendientes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  datos TEXT NOT NULL
-)
-''';
-
 /// Abre (o crea, si no existe) la base en [ruta].
 ///
 /// Recibe la [fabrica] por parámetro: la app usa la del dispositivo y las
@@ -68,12 +60,17 @@ Future<Database> abrirBaseDeDatos(DatabaseFactory fabrica, String ruta) {
       onCreate: (db, version) async {
         await db.execute(sqlCrearAlertas);
         await db.execute(sqlCrearTurnos);
-        await db.execute(sqlCrearPendientes);
       },
       // onUpgrade corre cuando el teléfono tiene una base de una versión
-      // anterior de la app: se agrega lo que le falta, sin borrar nada.
+      // anterior de la app: se la lleva a la forma actual sin tocar las
+      // alertas ni los turnos guardados.
       onUpgrade: (db, anterior, nueva) async {
-        if (anterior < 2) await db.execute(sqlCrearPendientes);
+        // Las alertas que hubieran quedado pendientes se descartan sin
+        // enviarse: un SOS de hace horas mandado tarde confunde más de lo
+        // que ayuda. Con una base de la v1 la tabla no existe y no pasa nada.
+        if (anterior < 3) {
+          await db.execute('DROP TABLE IF EXISTS alertas_pendientes');
+        }
       },
     ),
   );

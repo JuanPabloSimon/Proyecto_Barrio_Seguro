@@ -21,10 +21,10 @@ lib/
 │   └── services/          hablan con el exterior y devuelven datos crudos
 │       ├── http/          contra la API real (package:http)
 │       ├── simulados/     servidor simulado en memoria (sin internet)
-│       ├── local/         preferencias, almacenamiento seguro, sqflite (DAOs)
-│       └── tareas/        workmanager (segundo plano)
+│       └── local/         preferencias, almacenamiento seguro, sqflite (DAOs)
 └── ui/
     ├── core/              tema, widgets compartidos, EstadoCarga, formato
+    ├── conexion/          compuerta y pantalla sin conexión (tapa a todas)
     └── <pantalla>/
         ├── view_models/   un ViewModel (ChangeNotifier) por pantalla
         └── widgets/       la pantalla y sus partes
@@ -65,9 +65,14 @@ backend/                   proyecto de Dart aparte (shelf), con sus propias prue
    los mismos mensajes: el servidor no confía en la app. Si cambia una regla,
    cambia en los dos lados y en las pruebas de los dos lados.
 
-7. **Funciona sin conexión.** Si falla la red, el repositorio muestra la
-   copia local y avisa `sinConexion`. Una alerta sin señal queda pendiente y
-   se envía sola (workmanager en Android, al volver a primer plano en el resto).
+7. **Requiere conexión.** La app se usa solo si llega a su servidor
+   (`GET /salud`). Mientras no llega, la compuerta de `ui/conexion/`
+   (montada en `MaterialApp.builder`) tapa todas las pantallas con "Necesitás
+   conexión a internet para usar la app" y deja a mano "Llamar al 911"; al
+   volver la conexión se ve de nuevo lo que estaba abierto. La copia local
+   de alertas y turnos queda solo como caché: si un pedido falla, el
+   repositorio la muestra con `sinConexion` hasta que aparece la compuerta.
+   Una alerta que no se pudo enviar no se guarda para mandarla después.
 
 8. **Privacidad por defecto.** Compartir la ubicación exacta y recibir avisos
    arrancan apagados y se activan desde el perfil, con aviso propio y permiso

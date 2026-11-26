@@ -11,6 +11,7 @@
 // Los tests usan una fuente de prueba con letras cuadradas, más ancha que
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
+import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
 import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
@@ -200,7 +201,19 @@ final pantallas = <Pantalla>[
     await tocar(tester, find.text('Sí, enviar alerta'));
     expect(find.text('Alerta enviada'), findsOneWidget);
   }),
+  Pantalla('Sin conexión', abrirSinConexion),
 ];
+
+const tituloSinConexion = 'Necesitás conexión a internet para usar la app';
+
+/// La app sin conexión: la pantalla sin conexión tapa a todas las demás.
+Future<void> abrirSinConexion(WidgetTester tester) async {
+  await tester.pumpWidget(
+    appDePrueba(conexion: ConexionServiceSimulado(conectado: false)),
+  );
+  await tester.pumpAndSettle();
+  expect(find.text(tituloSinConexion), findsOneWidget);
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -318,5 +331,61 @@ void main() {
       expect(nodo.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
       handle.dispose();
     });
+  });
+
+  group('Pantalla sin conexión', () {
+    testWidgets('el título se anuncia como encabezado', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirSinConexion(tester);
+
+      final datos = tester
+          .getSemantics(find.text(tituloSinConexion))
+          .getSemanticsData();
+      expect(datos.label, tituloSinConexion);
+      expect(datos.flagsCollection.isHeader, isTrue);
+      expect(datos.flagsCollection.isLiveRegion, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('"Llamar al 911" tiene etiqueta y mide al menos 48 x 48 dp', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirSinConexion(tester);
+
+      final boton = find.widgetWithText(FilledButton, 'Llamar al 911');
+      final tamanio = tester.getSize(boton);
+      expect(tamanio.width, greaterThanOrEqualTo(48));
+      expect(tamanio.height, greaterThanOrEqualTo(48));
+      final nodo = tester.getSemantics(boton);
+      expect(nodo.label, contains('Llamar al 911'));
+      expect(nodo.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'al 200 % no desborda y "Llamar al 911" se alcanza desplazando',
+      (tester) async {
+        final telefono = TelefonoFalso();
+        configurarPantalla(tester, alto: 600, escalaTexto: 2.0);
+        await tester.pumpWidget(
+          appDePrueba(
+            conexion: ConexionServiceSimulado(conectado: false),
+            telefono: telefono,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        await tocar(tester, find.text('Llamar al 911'));
+        expect(find.text('¿Llamar al 911?'), findsOneWidget);
+        await tocar(tester, find.text('Llamar'));
+
+        expect(telefono.marcados, ['911']);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

@@ -1,75 +1,19 @@
-// Pruebas de los avisos de alertas nuevas y del envío de alertas
-// pendientes (las que se crearon sin señal).
+// Pruebas de los avisos de alertas nuevas, con la app abierta (vigilante)
+// y con la app cerrada (push).
 
-import 'dart:io';
-
-import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
-import 'package:barrio_seguro/data/services/alertas_service.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
-import 'package:barrio_seguro/data/services/error_del_servidor.dart';
-import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
-import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
-import 'package:barrio_seguro/data/services/local/pendientes_dao.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
-import 'package:barrio_seguro/data/services/tareas/envio_de_pendientes.dart';
-import 'package:barrio_seguro/data/services/tareas/tarea_de_fondo.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/principal/vigilante_de_alertas.dart';
-import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../ayudas/app_de_prueba.dart';
 import '../ayudas/bases_de_prueba.dart';
 import '../ayudas/falsos.dart';
-
-/// La "API" de alertas: guarda lo que recibe. Con [sinSenal] falla como
-/// sin conexión; con [rechaza], la API responde con un error.
-class AlertasServiceDePrueba implements AlertasService {
-  final List<Map<String, dynamic>> recibidas = [];
-  bool sinSenal = false;
-  bool rechaza = false;
-
-  void _revisar() {
-    if (sinSenal) throw const SocketException('sin señal');
-    if (rechaza) throw const ErrorDelServidor('Elegí qué tipo de alerta es.');
-  }
-
-  @override
-  Future<List<Map<String, dynamic>>> obtenerAlertas() async {
-    _revisar();
-    return [
-      for (var i = 0; i < recibidas.length; i++)
-        {
-          ...recibidas[i],
-          'id': 'srv-$i',
-          'estado': 'activa',
-          'creada_en': recibidas[i]['creada_en'] ?? 0,
-        },
-    ];
-  }
-
-  @override
-  Future<Map<String, dynamic>> crearAlerta(Map<String, dynamic> datos) async {
-    _revisar();
-    recibidas.add(datos);
-    return {
-      ...datos,
-      'id': 'srv-${recibidas.length - 1}',
-      'estado': 'activa',
-      'creada_en': 0,
-    };
-  }
-
-  @override
-  Future<Map<String, dynamic>> cambiarEstado(String id, String estado) =>
-      throw UnimplementedError();
-}
 
 void main() {
   group('Vigilante de alertas', () {
@@ -152,11 +96,6 @@ void main() {
       },
     );
 
-    test('cada revisión intenta mandar las alertas pendientes', () async {
-      await crear().revisar();
-      expect(alertas.enviosDePendientes, 1);
-    });
-
     testWidgets(
       'reacciona a eventos del sistema: pausa el reloj en segundo plano y revisa al volver (onResume)',
       (tester) async {
@@ -188,239 +127,11 @@ void main() {
 
         expect(vigilante.enPrimerPlano, isTrue);
         expect(notificaciones.avisadas.map((a) => a.id), ['al-volver']);
-        expect(alertas.enviosDePendientes, greaterThanOrEqualTo(2));
 
         vigilante.detener();
       },
     );
   });
-
-  group('Alertas sin señal', () {
-    late Database db;
-    late AlertasServiceDePrueba api;
-    late TareasFalsas tareas;
-    late AlertasRepositoryRemoto repositorio;
-
-    setUp(() async {
-      db = await baseEnMemoria();
-      api = AlertasServiceDePrueba();
-      tareas = TareasFalsas();
-      repositorio = AlertasRepositoryRemoto(
-        service: api,
-        pendientes: PendientesDao(db),
-        tareas: tareas,
-        reloj: relojDePrueba,
-      );
-    });
-    tearDown(() => db.close());
-
-    Future<Alerta> crearSos() => repositorio.crearAlerta(
-      categoria: CategoriaAlerta.sos,
-      tipo: 'Pedido de ayuda (SOS)',
-      descripcion: '',
-      direccion: 'Barrio Soberanía',
-      ubicacion: const LatLng(-32.876568, -68.870672),
-      reportadaPor: 'clara',
-    );
-
-    test('queda guardada, se ve en la lista y se programa el envío', () async {
-      api.sinSenal = true;
-      final alerta = await crearSos();
-
-      expect(repositorio.estaPendiente(alerta.id), isTrue);
-      expect(tareas.programadas, 1);
-      final lista = await repositorio.obtenerAlertas();
-      expect(lista.map((a) => a.id), contains(alerta.id));
-    });
-
-    test('al volver la señal se manda una sola vez', () async {
-      api.sinSenal = true;
-      await crearSos();
-
-      api.sinSenal = false;
-      await repositorio.enviarPendientes();
-      await repositorio.enviarPendientes();
-
-      expect(api.recibidas, hasLength(1));
-      expect(await PendientesDao(db).listar(), isEmpty);
-      final lista = await repositorio.obtenerAlertas();
-      expect(lista.where((a) => repositorio.estaPendiente(a.id)), isEmpty);
-    });
-
-    test(
-      'si la API la rechaza no se guarda: el error llega al vecino',
-      () async {
-        api.rechaza = true;
-        await expectLater(crearSos(), throwsA(isA<ErrorDelServidor>()));
-        expect(await PendientesDao(db).listar(), isEmpty);
-      },
-    );
-
-    test('cerrar una alerta pendiente la saca de la cola', () async {
-      api.sinSenal = true;
-      final alerta = await crearSos();
-
-      final cerrada = await repositorio.cambiarEstado(
-        alerta.id,
-        EstadoAlerta.resuelta,
-      );
-
-      expect(cerrada.estado, EstadoAlerta.resuelta);
-      expect(await PendientesDao(db).listar(), isEmpty);
-    });
-
-    test('el SOS sin señal avisa que se va a enviar solo', () async {
-      api.sinSenal = true;
-      final vm = SosViewModel(
-        alertas: repositorio,
-        sesion: SesionFalsa(vecinaDePrueba),
-        bus: BusDeEventos(),
-        preferencias: preferenciasEnMemoria(),
-        ubicacion: UbicacionFalsa(),
-        capacidades: const CapacidadesFalsas(),
-      );
-
-      await vm.enviar();
-
-      expect(vm.paso, PasoSos.enviada);
-      expect(vm.pendiente, isTrue);
-    });
-  });
-
-  group('Tarea de envío', () {
-    late Database db;
-    setUp(() async => db = await baseEnMemoria());
-    tearDown(() => db.close());
-
-    test('sin red devuelve false para que el sistema reintente', () async {
-      final pendientes = PendientesDao(db);
-      await pendientes.agregar({'categoria': 'sos'});
-      final api = AlertasServiceDePrueba()..sinSenal = true;
-
-      final ok = await enviarAlertasPendientes(
-        pendientes: pendientes,
-        servicio: api,
-      );
-
-      expect(ok, isFalse);
-      expect(await pendientes.listar(), hasLength(1));
-    });
-
-    test('una alerta rechazada se descarta y no frena a las demás', () async {
-      final pendientes = PendientesDao(db);
-      await pendientes.agregar({'categoria': 'ovni'});
-      await pendientes.agregar({'categoria': 'sos'});
-      var pedidos = 0;
-      final api = _ServicioQueRechazaLaPrimera(() => pedidos++);
-
-      final ok = await enviarAlertasPendientes(
-        pendientes: pendientes,
-        servicio: api,
-      );
-
-      expect(ok, isTrue);
-      expect(pedidos, 2);
-      expect(await pendientes.listar(), isEmpty);
-    });
-
-    test('ejecutarTareaDeFondo procesa pendientes aun sin API_URL y actualiza AlertasDao', () async {
-      final pendientes = PendientesDao(db);
-      final alertasDao = AlertasDao(db);
-      await pendientes.agregar({
-        'categoria': 'sos',
-        'tipo': 'Pedido de ayuda (SOS)',
-        'descripcion': 'Desde segundo plano',
-        'direccion': 'Calle Plantamura',
-        'latitud': -32.876568,
-        'longitud': -68.870672,
-        'reportada_por': 'clara',
-        'creada_en': DateTime(2026, 10, 1, 12).millisecondsSinceEpoch,
-      });
-
-      final ok = await ejecutarTareaDeFondo(
-        tareaEnviarPendientes,
-        db: db,
-        urlBaseApi: '',
-      );
-
-      expect(ok, isTrue);
-      expect(await pendientes.listar(), isEmpty);
-      final guardadas = await alertasDao.listar();
-      expect(guardadas, hasLength(1));
-      expect(guardadas.single.descripcion, 'Desde segundo plano');
-    });
-
-    test('si la tarea de fondo ya envió las pendientes, el repositorio limpia la caché', () async {
-      final pendientes = PendientesDao(db);
-      final alertasDao = AlertasDao(db);
-      final api = AlertasServiceDePrueba()..sinSenal = true;
-      final repositorio = AlertasRepositoryRemoto(
-        service: api,
-        dao: alertasDao,
-        pendientes: pendientes,
-        reloj: relojDePrueba,
-      );
-
-      final pendiente = await repositorio.crearAlerta(
-        categoria: CategoriaAlerta.sos,
-        tipo: 'Pedido de ayuda (SOS)',
-        descripcion: '',
-        direccion: 'Barrio Soberanía',
-        ubicacion: const LatLng(-32.876568, -68.870672),
-        reportadaPor: 'clara',
-      );
-      expect(repositorio.estaPendiente(pendiente.id), isTrue);
-
-      // Ahora el worker de segundo plano la envía mientras la app está en
-      // segundo plano.
-      api.sinSenal = false;
-      final ok = await ejecutarTareaDeFondo(
-        tareaEnviarPendientes,
-        db: db,
-        servicio: api,
-      );
-      expect(ok, isTrue);
-      expect(await pendientes.listar(), isEmpty);
-
-      // Cuando la app vuelve a primer plano, enviarPendientes detecta que
-      // la cola ya se vació en segundo plano e invalida la caché.
-      await repositorio.enviarPendientes();
-      final actuales = await repositorio.obtenerAlertas();
-      expect(actuales.where((a) => repositorio.estaPendiente(a.id)), isEmpty);
-      expect(actuales.map((a) => a.id), ['srv-0']);
-    });
-  });
-
-  test(
-    'la migración agrega la tabla de pendientes sin borrar alertas',
-    () async {
-      sqfliteFfiInit();
-      final carpeta = Directory.systemTemp.createTempSync('barrio_seguro');
-      addTearDown(() => carpeta.deleteSync(recursive: true));
-      final ruta = '${carpeta.path}/barrio_seguro.db';
-
-      // Una base de la versión 1 de la app, con una alerta guardada.
-      final vieja = await databaseFactoryFfi.openDatabase(
-        ruta,
-        options: OpenDatabaseOptions(
-          version: 1,
-          onCreate: (db, _) async {
-            await db.execute(sqlCrearAlertas);
-            await db.execute(sqlCrearTurnos);
-          },
-        ),
-      );
-      await vieja.insert('alertas', alertaDePrueba().toMap());
-      await vieja.close();
-
-      final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
-      addTearDown(nueva.close);
-
-      expect(await nueva.getVersion(), versionDelEsquema);
-      expect(await nueva.query('alertas'), hasLength(1));
-      expect(await PendientesDao(nueva).listar(), isEmpty);
-    },
-  );
 
   group('Avisos push con la app cerrada', () {
     late NotificacionesFalsas notificaciones;
@@ -584,21 +295,4 @@ void main() {
       await vmConFalloPush.cerrarSesion();
     });
   });
-}
-
-class _ServicioQueRechazaLaPrimera extends AlertasServiceDePrueba {
-  _ServicioQueRechazaLaPrimera(this._alPedir);
-
-  final void Function() _alPedir;
-  var _primera = true;
-
-  @override
-  Future<Map<String, dynamic>> crearAlerta(Map<String, dynamic> datos) async {
-    _alPedir();
-    if (_primera) {
-      _primera = false;
-      throw const ErrorDelServidor('Elegí qué tipo de alerta es.');
-    }
-    return super.crearAlerta(datos);
-  }
 }

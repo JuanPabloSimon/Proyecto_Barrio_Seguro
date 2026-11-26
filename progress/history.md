@@ -72,3 +72,18 @@
 - **Resultado:** Spec en `specs/informe_alertas/` (R1–R13, T1–T9). Implementados `InformeAlertas.delMes`, `nombreArchivoCsv` y `toCsv()` en `lib/domain/informe_alertas.dart`; `DescargaCsvService` (`DescargaCsvServiceLocal` y `DescargaCsvFalsa`) en `lib/data/services/descarga_csv_service.dart`; `InformeAlertasViewModel` y `InformeAlertasScreen` (resumen mensual por calle, por tipo y por franja horaria, selector de mes, descarga de CSV y estado vacío sin tablas ni botón de descarga); entrada `"Informe mensual de alertas"` en `PerfilScreen` visible solo para miembros de la comisión (`esComision`).
 - **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 192 pruebas en la app y 42 en el backend pasando). Review aprobado en `progress/review_informe_alertas.md`.
 - **Próximo:** Todas las features (1 a 14) de `feature_list.json` están en `done`.
+
+## 2026-11-25 — Nota de dependencias (feature 15 `requiere_conexion`)
+
+- **Se quitó el paquete `workmanager`** de `pubspec.yaml` (y `pubspec.lock` actualizado con `flutter pub get`). Lo autoriza el design de `specs/requiere_conexion/` aprobado por el equipo: la feature 15 quita el envío diferido de alertas (feature 10) "y lo que quede sin uso", y `workmanager` solo servía para eso. Paquetes nuevos: ninguno.
+
+## 2026-11-25 — Feature 15 (`requiere_conexion`): La app requiere conexión
+
+- **Quién:** equipo + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/requiere_conexion/` (T1–T26, R1–R25). Detección de conexión con `ConexionService` (`ConexionServiceHttp` con `GET /salud` y 5 s de límite, y `ConexionServiceSimulado`) y `ConexionRepositoryRemoto` (un solo pedido en vuelo, avisa solo los cambios). `ConexionViewModel` comprueba cada 30 s con conexión y cada 5 s sin ella, y al volver publica `AlertasActualizadas` y `TurnosActualizados`. `CompuertaDeConexion` (en `MaterialApp.builder`) tapa la app con `SinConexionScreen` (título anunciado, Llamar al 911 de 64 dp, desplazable al 200 %) y `AtrasSinConexion` hace que Atrás no cierre lo tapado. Se quitó el envío diferido: `PendientesDao`, `tareas/`, `correTareasEnSegundoPlano`, la tabla `alertas_pendientes` (base v3) y los textos de "Alerta guardada"; el SOS sin red queda en error. La copia local de alertas y turnos queda solo como caché. `docs/architecture.md` con el principio 7.
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 211 pruebas en la app y 42 en el backend). Review aprobado en `progress/review_requiere_conexion.md`.
+- **Pendientes (no bloquean):**
+  - Si se activa `android:enableOnBackInvokedCallback` (atrás predictivo), revisar R25 (`AtrasSinConexion`), como anota el design.
+  - `ConexionRepositoryRemoto.cerrar()` no se llama en la app; hoy no se pierde nada porque `Dependencias` vive lo mismo que la app.
+  - Falta commitear el trabajo de la rama `feature/requiere_conexion`.
+- **Próximo:** feature 16 (`avisos_tardios`).

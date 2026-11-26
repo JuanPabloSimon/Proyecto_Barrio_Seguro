@@ -34,11 +34,6 @@ class SosViewModel extends ChangeNotifier {
   /// barrio.
   bool get conUbicacionExacta => _conUbicacionExacta;
 
-  bool _pendiente = false;
-
-  /// Si no había señal y la alerta quedó guardada para enviarse sola.
-  bool get pendiente => _pendiente;
-
   final AlertasRepository _repositorio;
   final SesionRepository _sesion;
   final BusDeEventos _bus;
@@ -48,7 +43,6 @@ class SosViewModel extends ChangeNotifier {
 
   Alerta? _enviada;
 
-  /// Envía la alerta a los vecinos. Por ahora con la ubicación del centro
   /// Envía la alerta a los vecinos. Si el vecino aceptó compartir su
   /// ubicación exacta, va la del GPS; si no (o el GPS no responde a
   /// tiempo), la del centro del barrio como zona aproximada.
@@ -68,7 +62,6 @@ class SosViewModel extends ChangeNotifier {
         ubicacion: exacta ?? Barrio.centro,
         reportadaPor: _sesion.usuario?.id ?? '',
       );
-      _pendiente = _repositorio.estaPendiente(_enviada!.id);
       _paso = PasoSos.enviada;
       _bus.publicar(const AlertasActualizadas());
     } catch (_) {
