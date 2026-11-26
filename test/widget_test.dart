@@ -9,9 +9,14 @@ import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/dependencias.dart';
 import 'package:barrio_seguro/main.dart';
+import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
+import 'package:barrio_seguro/ui/alerta_detalle/widgets/detalle_alerta_screen.dart';
 import 'package:barrio_seguro/ui/core/widgets/con_view_model.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/mapa_barrio.dart';
+import 'package:barrio_seguro/ui/core/widgets/marca_tardia.dart';
+import 'package:barrio_seguro/ui/core/widgets/pin_alerta.dart';
+import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
 import 'package:barrio_seguro/ui/core/tema/app_theme.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/perfil/widgets/perfil_screen.dart';
@@ -476,5 +481,261 @@ void main() {
         expect(find.text('Informe mensual de alertas'), findsNothing);
       },
     );
+  });
+
+  group('Alertas tardías', () {
+    // El reloj de prueba marca las 12:00. En los datos de ejemplo, a3
+    // ("Intento de robo", de Pedro) es de las 11:00 y a2 ("Moto a alta
+    // velocidad", de Martín) de las 11:42.
+    final llegadas = {
+      'a3': DateTime(2026, 10, 1, 11, 30), // 30 minutos tarde
+      'a2': DateTime(2026, 10, 1, 11, 43), // a tiempo
+    };
+    const marca = 'Llegó con demora. Alerta de las 11:00';
+
+    Future<void> abrir(
+      WidgetTester tester, {
+      Map<String, DateTime>? conLlegadas,
+    }) async {
+      await tester.pumpWidget(appDePrueba(llegadas: conLlegadas ?? llegadas));
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+    }
+
+    Future<void> irAlMapa(WidgetTester tester) async {
+      await _tocar(
+        tester,
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text('Mapa'),
+        ),
+      );
+    }
+
+    Finder tarjeta(String tipo) => find.widgetWithText(TarjetaAlerta, tipo);
+
+    Finder pin(String tipo) => find.bySemanticsLabel(RegExp('^Alerta: $tipo'));
+
+    testWidgets(
+      'el inicio muestra "Llegó con demora. Alerta de las …" en la tarjeta de una alerta tardía',
+      (tester) async {
+        await abrir(tester);
+
+        await tester.scrollUntilVisible(tarjeta('Intento de robo'), 200);
+        expect(
+          find.descendant(
+            of: tarjeta('Intento de robo'),
+            matching: find.text(marca),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('una alerta a tiempo no muestra la marca', (tester) async {
+      await abrir(tester, conLlegadas: {'a2': llegadas['a2']!});
+
+      await tester.scrollUntilVisible(tarjeta('Moto a alta velocidad'), 200);
+      expect(find.textContaining('Llegó con demora'), findsNothing);
+      expect(find.byType(MarcaTardia), findsNothing);
+
+      await irAlMapa(tester);
+      expect(
+        find.descendant(
+          of: pin('Moto a alta velocidad'),
+          matching: find.byIcon(Icons.schedule),
+        ),
+        findsNothing,
+      );
+
+      await _tocar(tester, pin('Moto a alta velocidad'));
+      expect(find.byType(MarcaTardia), findsNothing);
+      await _tocar(tester, find.text('Ver detalle'));
+      expect(find.text('Detalle de alerta'), findsOneWidget);
+      expect(find.byType(MarcaTardia), findsNothing);
+    });
+
+    testWidgets(
+      'el pin de una alerta tardía tiene el reloj y el resumen muestra la marca',
+      (tester) async {
+        await abrir(tester);
+        await irAlMapa(tester);
+
+        expect(
+          find.descendant(
+            of: pin('Intento de robo'),
+            matching: find.byIcon(Icons.schedule),
+          ),
+          findsOneWidget,
+        );
+        // Las demás no llevan el reloj.
+        expect(
+          find.descendant(
+            of: pin('Moto a alta velocidad'),
+            matching: find.byIcon(Icons.schedule),
+          ),
+          findsNothing,
+        );
+
+        await _tocar(tester, pin('Intento de robo'));
+        expect(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.text(marca),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('el detalle de una alerta tardía muestra la marca', (
+      tester,
+    ) async {
+      await abrir(tester);
+      await tester.scrollUntilVisible(tarjeta('Intento de robo'), 200);
+      await _tocar(tester, tarjeta('Intento de robo'));
+
+      expect(find.text('Detalle de alerta'), findsOneWidget);
+      expect(find.text(marca), findsOneWidget);
+    });
+
+    testWidgets('la leyenda muestra "Llegó con demora"', (tester) async {
+      await abrir(tester);
+      await irAlMapa(tester);
+
+      final item = find.ancestor(
+        of: find.text('Llegó con demora'),
+        matching: find.byType(Row),
+      );
+      expect(item, findsOneWidget);
+      final muestra = tester.widget<PinAlerta>(
+        find.descendant(of: item, matching: find.byType(PinAlerta)),
+      );
+      expect(muestra.tardia, isTrue);
+    });
+
+    testWidgets('la marca tiene ícono de reloj y texto', (tester) async {
+      await abrir(tester);
+      await tester.scrollUntilVisible(tarjeta('Intento de robo'), 200);
+
+      final marcaEnTarjeta = find.descendant(
+        of: tarjeta('Intento de robo'),
+        matching: find.byType(MarcaTardia),
+      );
+      expect(
+        find.descendant(
+          of: marcaEnTarjeta,
+          matching: find.byIcon(Icons.schedule),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: marcaEnTarjeta, matching: find.text(marca)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'el detalle de una alerta ajena muestra el nombre de quien la reportó',
+      (tester) async {
+        await abrir(tester);
+        await tester.scrollUntilVisible(tarjeta('Intento de robo'), 200);
+        await _tocar(tester, tarjeta('Intento de robo'));
+
+        final reportadaPor = find.widgetWithText(ListTile, 'Reportada por');
+        await tester.ensureVisible(reportadaPor);
+        expect(
+          find.descendant(of: reportadaPor, matching: find.text('Pedro')),
+          findsOneWidget,
+        );
+        expect(find.text('Un vecino de la zona'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'el detalle de una alerta ajena sin nombre muestra "Un vecino"',
+      (tester) async {
+        MapaBarrio.cargarCalles = false;
+        final alerta = alertaDePrueba(reportadaPor: 'jorge');
+        final vm = DetalleAlertaViewModel(
+          alerta: alerta,
+          alertas: AlertasFalsas([alerta]),
+          sesion: SesionFalsa(vecinaDePrueba),
+          bus: BusDeEventos(),
+          reloj: relojDePrueba,
+          avisos: AvisosRecibidosFalsos(),
+        );
+        addTearDown(vm.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: DetalleAlertaScreen(
+              viewModel: vm,
+              capacidades: const CapacidadesFalsas(),
+              telefono: TelefonoFalso(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final reportadaPor = find.widgetWithText(ListTile, 'Reportada por');
+        await tester.ensureVisible(reportadaPor);
+        expect(
+          find.descendant(of: reportadaPor, matching: find.text('Un vecino')),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('el detalle de una alerta propia muestra "Vos"', (
+      tester,
+    ) async {
+      await abrir(tester);
+      // a1, "Actividad sospechosa", la reportó Clara (la vecina de prueba).
+      await tester.scrollUntilVisible(tarjeta('Actividad sospechosa'), 200);
+      await _tocar(tester, tarjeta('Actividad sospechosa'));
+
+      final reportadaPor = find.widgetWithText(ListTile, 'Reportada por');
+      await tester.ensureVisible(reportadaPor);
+      expect(
+        find.descendant(of: reportadaPor, matching: find.text('Vos')),
+        findsOneWidget,
+      );
+      expect(find.text('Clara'), findsNothing);
+    });
+
+    testWidgets('la tarjeta y el resumen del mapa no muestran quién reportó', (
+      tester,
+    ) async {
+      await abrir(tester);
+      await tester.scrollUntilVisible(tarjeta('Intento de robo'), 200);
+      expect(
+        find.descendant(
+          of: tarjeta('Intento de robo'),
+          matching: find.textContaining('Pedro'),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel(RegExp('^Alerta de intento')))
+            .label,
+        isNot(contains('Pedro')),
+      );
+
+      await irAlMapa(tester);
+      expect(
+        tester.getSemantics(pin('Intento de robo')).label,
+        isNot(contains('Pedro')),
+      );
+      await _tocar(tester, pin('Intento de robo'));
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.textContaining('Pedro'),
+        ),
+        findsNothing,
+      );
+    });
   });
 }

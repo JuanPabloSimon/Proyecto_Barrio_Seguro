@@ -4,6 +4,7 @@ import '../../../domain/models/alerta.dart';
 import '../presentacion_alerta.dart';
 import '../tema/app_colors.dart';
 import 'chip_estado.dart';
+import 'marca_tardia.dart';
 import 'tarjeta_tocable.dart';
 
 class TarjetaAlerta extends StatelessWidget {
@@ -12,6 +13,7 @@ class TarjetaAlerta extends StatelessWidget {
     required this.alerta,
     required this.hace,
     required this.onTap,
+    this.tardia,
   });
 
   final Alerta alerta;
@@ -20,15 +22,21 @@ class TarjetaAlerta extends StatelessWidget {
   final String hace;
   final VoidCallback onTap;
 
-  /// Lo que lee el lector de pantalla: tipo, cuándo, estado y dónde.
-  static String descripcion(Alerta alerta, String hace) =>
+  /// Texto de la marca si el aviso llegó con demora; null si no (R20).
+  final String? tardia;
+
+  /// Lo que lee el lector de pantalla: tipo, cuándo, estado, la marca de
+  /// tardía si la hay (R28) y dónde.
+  static String descripcion(Alerta alerta, String hace, {String? tardia}) =>
       'Alerta de ${alerta.tipo.toLowerCase()}, ${hace.toLowerCase()}, '
-      '${alerta.estado.etiqueta.toLowerCase()}. ${alerta.direccion}';
+      '${alerta.estado.etiqueta.toLowerCase()}. '
+      '${tardia == null ? '' : '$tardia. '}${alerta.direccion}';
 
   @override
   Widget build(BuildContext context) {
+    final tardia = this.tardia;
     return TarjetaTocable(
-      etiqueta: '${descripcion(alerta, hace)}. Ver detalle',
+      etiqueta: '${descripcion(alerta, hace, tardia: tardia)}. Ver detalle',
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,6 +66,10 @@ class TarjetaAlerta extends StatelessWidget {
                   hace,
                   style: const TextStyle(color: AppColors.textoSecundario),
                 ),
+                if (tardia != null) ...[
+                  const SizedBox(height: 8),
+                  MarcaTardia(texto: tardia),
+                ],
                 const SizedBox(height: 8),
                 ChipEstado(estado: alerta.estado),
               ],

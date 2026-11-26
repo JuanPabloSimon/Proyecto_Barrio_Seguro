@@ -20,11 +20,15 @@ class Preferencias {
   static const claveCompartirUbicacion = 'compartir_ubicacion';
   static const claveNotificaciones = 'notificaciones';
   static const claveVecino = 'vecino';
+  static const claveAvisosRecibidos = 'avisos_recibidos';
+  static const claveDesfaseReloj = 'desfase_reloj';
 
   static const todasLasClaves = {
     claveCompartirUbicacion,
     claveNotificaciones,
     claveVecino,
+    claveAvisosRecibidos,
+    claveDesfaseReloj,
   };
 
   /// Arranca apagado: la ubicación exacta se comparte recién cuando el
@@ -60,6 +64,33 @@ class Preferencias {
       _prefs.setString(claveVecino, jsonEncode(vecino.toJson()));
 
   Future<void> olvidarVecino() => _prefs.remove(claveVecino);
+
+  /// Cuándo llegó a este teléfono el aviso de cada alerta: id -> milisegundos
+  /// en hora del servidor. {} si falta o no se puede leer.
+  Future<Map<String, int>> avisosRecibidos() async {
+    final texto = await _prefs.getString(claveAvisosRecibidos);
+    if (texto == null) return {};
+    try {
+      final datos = jsonDecode(texto) as Map<String, dynamic>;
+      return {
+        for (final MapEntry(:key, :value) in datos.entries)
+          if (value is int) key: value,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> guardarAvisosRecibidos(Map<String, int> llegadas) =>
+      _prefs.setString(claveAvisosRecibidos, jsonEncode(llegadas));
+
+  /// Hora del servidor menos hora del teléfono, en milisegundos. 0 si nunca
+  /// se midió.
+  Future<int> desfaseReloj() async =>
+      await _prefs.getInt(claveDesfaseReloj) ?? 0;
+
+  Future<void> guardarDesfaseReloj(int milisegundos) =>
+      _prefs.setInt(claveDesfaseReloj, milisegundos);
 
   /// Borra solo las claves de esta clase, no las de otros paquetes.
   Future<void> olvidarTodo() => _prefs.clear(allowList: todasLasClaves);

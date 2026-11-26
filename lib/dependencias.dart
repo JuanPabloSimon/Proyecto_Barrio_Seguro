@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/repositories/alertas_repository.dart';
+import 'data/repositories/avisos_recibidos_repository.dart';
 import 'data/repositories/conexion_repository.dart';
 import 'data/repositories/sesion_repository.dart';
 import 'data/repositories/turnos_repository.dart';
@@ -57,6 +58,7 @@ class Dependencias {
     required this.preferencias,
     required this.ubicacion,
     required this.notificaciones,
+    required this.avisos,
     this.push = const PushServiceNinguno(),
     this.descargaCsv = const DescargaCsvServiceLocal(),
   });
@@ -138,7 +140,7 @@ class Dependencias {
       alertasService: AlertasServiceHttp(api),
       turnosService: TurnosServiceHttp(api),
       vecinosService: VecinosServiceHttp(api),
-      conexionService: ConexionServiceHttp(api),
+      conexionService: ConexionServiceHttp(api, reloj: reloj),
       reloj: reloj,
       capacidades: capacidades,
       politicas: politicas,
@@ -174,9 +176,18 @@ class Dependencias {
     required TurnosDao? turnosDao,
   }) {
     final prefs = preferencias ?? Preferencias(SharedPreferencesAsync());
+    // Cuándo llegó cada aviso y el desfase del reloj: lo comparten la
+    // conexión (que mide el desfase), el vigilante y las pantallas.
+    final avisos = AvisosRecibidosRepositoryLocal(
+      preferencias: prefs,
+      reloj: reloj,
+    );
     // Primero la conexión: los repositorios de alertas y turnos le avisan
     // cuando un pedido falla por la red.
-    final conexion = ConexionRepositoryRemoto(service: conexionService);
+    final conexion = ConexionRepositoryRemoto(
+      service: conexionService,
+      avisos: avisos,
+    );
     return Dependencias(
       conexion: conexion,
       alertas: AlertasRepositoryRemoto(
@@ -204,6 +215,7 @@ class Dependencias {
       preferencias: prefs,
       ubicacion: ubicacion,
       notificaciones: notificaciones,
+      avisos: avisos,
       push: push,
       descargaCsv: descargaCsv,
     );
@@ -235,6 +247,9 @@ class Dependencias {
 
   /// Avisos de alertas nuevas.
   final NotificacionesService notificaciones;
+
+  /// Cuándo llegó a este teléfono el aviso de cada alerta (avisos tardíos).
+  final AvisosRecibidosRepository avisos;
 
   /// Avisos push que llegan con la app cerrada (FCM).
   final PushService push;

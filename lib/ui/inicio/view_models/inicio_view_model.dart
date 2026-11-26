@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/alertas_repository.dart';
+import '../../../data/repositories/avisos_recibidos_repository.dart';
 import '../../../data/repositories/sesion_repository.dart';
 import '../../../data/repositories/turnos_repository.dart';
 import '../../../data/services/bus_de_eventos.dart';
 import '../../../data/services/reloj.dart';
+import '../../../domain/avisos_tardios.dart';
 import '../../../domain/models/alerta.dart';
 import '../../../domain/models/turno.dart';
 import '../../core/estado_carga.dart';
@@ -33,6 +35,7 @@ class InicioViewModel extends ChangeNotifier {
     required BusDeEventos bus,
     required this._reloj,
     required this._mesDeTurnos,
+    required this._avisos,
   }) {
     // Si otra pantalla anota un turno o envía una alerta, el inicio se
     // actualiza solo.
@@ -44,6 +47,7 @@ class InicioViewModel extends ChangeNotifier {
   final SesionRepository _sesion;
   final Reloj _reloj;
   final DateTime _mesDeTurnos;
+  final AvisosRecibidosRepository _avisos;
   StreamSubscription<Object>? _suscripcion;
 
   EstadoCarga _estado = EstadoCarga.inicial;
@@ -68,6 +72,26 @@ class InicioViewModel extends ChangeNotifier {
   String hace(Alerta alerta) =>
       tiempoTranscurrido(alerta.creadaEn, _reloj.ahora());
 
+  /// Cuándo llegó a este teléfono el aviso de cada alerta.
+  Map<String, DateTime> _llegadas = const {};
+
+  /// Texto de la marca o null si no es tardía (R20, R25).
+  String? tardia(Alerta alerta) {
+    final llegada = _llegadas[alerta.id];
+    if (llegada == null) return null;
+    final puntualidad = clasificarAviso(
+      creadaEn: alerta.creadaEn,
+      llegada: llegada,
+    );
+    if (!esTardia(puntualidad)) return null;
+    return marcaTardia(creadaEn: alerta.creadaEn, ahora: _reloj.ahora());
+  }
+
+  /// id → texto de la marca, para el mapa.
+  Map<String, String> get tardias => {
+    for (final alerta in _cercanas) alerta.id: ?tardia(alerta),
+  };
+
   Future<void> cargar() async {
     // El indicador de carga solo se muestra la primera vez; después los
     // datos se actualizan sin borrar lo que ya se ve.
@@ -83,6 +107,7 @@ class InicioViewModel extends ChangeNotifier {
       ]);
       final alertas = resultados[0] as List<Alerta>;
       final turnos = resultados[1] as List<Turno>;
+      _llegadas = await _leerLlegadas();
 
       _cercanas = alertas
           .where((a) => a.estado != EstadoAlerta.resuelta)
@@ -96,6 +121,15 @@ class InicioViewModel extends ChangeNotifier {
       if (_estado != EstadoCarga.exito) _estado = EstadoCarga.error;
     } finally {
       notifyListeners();
+    }
+  }
+
+  /// Si no se pueden leer, no hay marcas: la lista no deja de verse.
+  Future<Map<String, DateTime>> _leerLlegadas() async {
+    try {
+      return await _avisos.llegadas();
+    } catch (_) {
+      return const {};
     }
   }
 

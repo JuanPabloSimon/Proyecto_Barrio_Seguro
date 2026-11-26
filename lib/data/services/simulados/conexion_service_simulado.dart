@@ -8,6 +8,11 @@ class ConexionServiceSimulado implements ConexionService {
 
   bool conectado;
 
+  /// El servidor simulado usa el mismo reloj que la app: desfase cero. Las
+  /// pruebas lo pueden cambiar.
+  @override
+  Duration? desfase = Duration.zero;
+
   @override
   Future<bool> hayConexion() async => conectado;
 }

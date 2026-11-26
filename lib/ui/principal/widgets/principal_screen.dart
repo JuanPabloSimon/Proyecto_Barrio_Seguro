@@ -56,6 +56,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       bus: d.bus,
       reloj: d.reloj,
       mesDeTurnos: d.mesDeTurnos,
+      avisos: d.avisos,
     )..cargar();
     _turnos = TurnosViewModel(
       turnos: d.turnos,
@@ -64,8 +65,12 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       reloj: d.reloj,
       mes: d.mesDeTurnos,
     )..cargar();
-    _mapa = MapaViewModel(alertas: d.alertas, bus: d.bus, reloj: d.reloj)
-      ..cargar();
+    _mapa = MapaViewModel(
+      alertas: d.alertas,
+      bus: d.bus,
+      reloj: d.reloj,
+      avisos: d.avisos,
+    )..cargar();
     _perfil = PerfilViewModel(
       sesion: d.sesion,
       bus: d.bus,
@@ -84,6 +89,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       notificaciones: d.notificaciones,
       preferencias: d.preferencias,
       bus: d.bus,
+      avisos: d.avisos,
     )..empezar();
 
     _sincronizarSuscripcionPush();

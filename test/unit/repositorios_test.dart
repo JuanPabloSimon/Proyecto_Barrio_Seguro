@@ -2,19 +2,24 @@
 // servicio en modelos, mantienen un Future con estado y guardan una caché.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/avisos_recibidos_repository.dart';
 import 'package:barrio_seguro/data/repositories/futuro_con_estado.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
 import 'package:barrio_seguro/data/services/alertas_service.dart';
 import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
 import 'package:barrio_seguro/data/services/simulados/turnos_service_simulado.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../ayudas/bases_de_prueba.dart';
 import '../ayudas/falsos.dart';
 
 /// Servicio controlado por un [Completer] para observar el estado `cargando`
@@ -325,5 +330,109 @@ void main() {
     );
     final alertas = await falsas.obtenerAlertas();
     expect(alertas.first.id, startsWith('nueva'));
+  });
+
+  group('Llegadas de los avisos', () {
+    final ahora = DateTime(2026, 10, 1, 12);
+
+    AvisosRecibidosRepositoryLocal crear(Preferencias preferencias) =>
+        AvisosRecibidosRepositoryLocal(
+          preferencias: preferencias,
+          reloj: RelojFijo(ahora),
+        );
+
+    test(
+      'la llegada es la hora del teléfono más el desfase guardado',
+      () async {
+        final preferencias = preferenciasEnMemoria();
+        final avisos = crear(preferencias);
+        await avisos.guardarDesfase(const Duration(minutes: -3));
+        expect(await preferencias.desfaseReloj(), -180000);
+
+        final llegada = await avisos.registrarLlegada('a1');
+
+        expect(llegada, ahora.subtract(const Duration(minutes: 3)));
+        expect((await avisos.llegadas())['a1'], llegada);
+      },
+    );
+
+    test('sin desfase guardado la llegada es la hora del teléfono', () async {
+      final avisos = crear(preferenciasEnMemoria());
+      expect(await avisos.registrarLlegada('a1'), ahora);
+    });
+
+    test('la segunda llegada de la misma alerta conserva la primera', () async {
+      final preferencias = preferenciasEnMemoria();
+      await crear(preferencias).registrarLlegada('a1');
+
+      // Más tarde, otra instancia (por ejemplo, el isolate del push).
+      final despues = AvisosRecibidosRepositoryLocal(
+        preferencias: preferencias,
+        reloj: RelojFijo(ahora.add(const Duration(hours: 1))),
+      );
+      expect(await despues.registrarLlegada('a1'), ahora);
+      expect((await despues.llegadas())['a1'], ahora);
+    });
+
+    test('las llegadas de más de 30 días se borran al registrar', () async {
+      final viejo = ahora.subtract(const Duration(days: 31));
+      final reciente = ahora.subtract(const Duration(days: 29));
+      final preferencias = preferenciasEnMemoria({
+        Preferencias.claveAvisosRecibidos: jsonEncode({
+          'vieja': viejo.millisecondsSinceEpoch,
+          'reciente': reciente.millisecondsSinceEpoch,
+        }),
+      });
+      final avisos = crear(preferencias);
+
+      await avisos.registrarLlegada('nueva');
+
+      expect((await avisos.llegadas()).keys.toSet(), {'reciente', 'nueva'});
+    });
+
+    test('una clave ilegible se lee como sin llegadas', () async {
+      final avisos = crear(
+        preferenciasEnMemoria({Preferencias.claveAvisosRecibidos: 'no-json'}),
+      );
+      expect(await avisos.llegadas(), isEmpty);
+    });
+  });
+
+  test('el servidor simulado devuelve el primer nombre de quien reportó', () {
+    final servidor = ServidorSimulado(
+      reloj: RelojFijo(DateTime(2026, 10, 1, 12)),
+      demora: Duration.zero,
+    );
+
+    final porId = {for (final a in servidor.alertas()) a['id']: a};
+    expect(porId['a1']!['reportada_por_nombre'], 'Clara');
+    expect(porId['a2']!['reportada_por_nombre'], 'Martín');
+
+    final creada = servidor.crearAlerta({
+      'categoria': 'robo',
+      'tipo': 'Robo',
+      'descripcion': '',
+      'direccion': '',
+      'latitud': -32.87,
+      'longitud': -68.87,
+      'reportada_por': 'rosa',
+    });
+    expect(creada['reportada_por_nombre'], 'Rosa');
+    expect(
+      servidor.cambiarEstadoDeAlerta('a1', 'resuelta')['reportada_por_nombre'],
+      'Clara',
+    );
+
+    // Un vecino que no existe da nombre vacío.
+    final huerfana = servidor.crearAlerta({
+      'categoria': 'robo',
+      'tipo': 'Robo',
+      'descripcion': '',
+      'direccion': '',
+      'latitud': -32.87,
+      'longitud': -68.87,
+      'reportada_por': 'nadie',
+    });
+    expect(Alerta.fromJson(huerfana).reportadaPorNombre, '');
   });
 }

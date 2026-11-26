@@ -11,7 +11,7 @@ dart pub get
 dart run bin/servidor.dart
 ```
 
-La API queda escuchando en `http://localhost:8080`. Para comprobarlo, abrí `http://localhost:8080/salud` en el navegador: tiene que responder `{"estado":"ok"}`.
+La API queda escuchando en `http://localhost:8080`. Para comprobarlo, abrí `http://localhost:8080/salud` en el navegador: tiene que responder `{"estado":"ok","ahora":...}` (`ahora` es la hora del servidor en milisegundos).
 
 La primera vez crea `datos/barrio.json` con los mismos vecinos, turnos y alertas de ejemplo que muestra la app. Esa carpeta no se sube al repositorio. Para volver a los datos de ejemplo, borrá el archivo y reiniciá el servidor.
 
@@ -70,11 +70,13 @@ Las pruebas le pasan pedidos al handler directamente, sin abrir un puerto.
 
 Todo va y viene en JSON, con los mismos nombres de campo que usa la app (`fecha_nacimiento`, `creada_en`, etc.). Salvo `/salud`, `POST /sesiones` y `POST /vecinos`, todas las rutas piden el encabezado `Authorization: Bearer <token>`.
 
+Cada alerta (en `GET /alertas`, `POST /alertas` y `PATCH /alertas/<id>`) trae `reportada_por_nombre`: el primer nombre de quien la reportó (`""` si el vecino ya no existe). No se guarda en `datos/barrio.json`: se calcula al responder. El aviso push de una alerta nueva lleva en sus datos las mismas claves de la alerta, incluido `reportada_por_nombre`; ningún otro dato de quien la reportó.
+
 El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae el campo `rol`: `"vecino"` o `"comision"`. Los vecinos que aparecen dentro de un turno (`patrulleros` y `guardia_ventana`) **no** traen `rol`.
 
 | Método y ruta | Qué hace | Respuesta |
 |---|---|---|
-| `GET /salud` | Comprueba que la API está andando | `{"estado": "ok"}` |
+| `GET /salud` | Comprueba que la API está andando. `ahora` es la hora del servidor en milisegundos: la app la usa para medir el desfase de su reloj (avisos tardíos) | `{"estado": "ok", "ahora": 1759330800000}` |
 | `POST /sesiones` | Ingresar con `{usuario, clave}` (usuario = teléfono) | `{token, vecino}` |
 | `DELETE /sesiones` | Cerrar la sesión (el token deja de servir) | 204 |
 | `POST /vecinos` | Registrarse: `{nombre, fecha_nacimiento, telefono, calle, cuadra, codigo_comision, clave}` | 201 `{token, vecino}` |

@@ -11,6 +11,7 @@ import '../../core/widgets/chip_estado.dart';
 import '../../core/widgets/con_view_model.dart';
 import '../../core/widgets/dialogo_911.dart';
 import '../../core/widgets/mapa_barrio.dart';
+import '../../core/widgets/marca_tardia.dart';
 import '../view_models/detalle_alerta_view_model.dart';
 
 class DetalleAlertaScreen extends StatelessWidget {
@@ -43,7 +44,8 @@ class DetalleAlertaScreen extends StatelessWidget {
             sesion: dependencias.sesion,
             bus: dependencias.bus,
             reloj: dependencias.reloj,
-          ),
+            avisos: dependencias.avisos,
+          )..cargarLlegada(),
           builder: (_, vm) => DetalleAlertaScreen(
             viewModel: vm,
             capacidades: dependencias.capacidades,
@@ -110,7 +112,7 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alerta = viewModel.alerta;
-    final esMia = viewModel.esMia;
+    final tardia = viewModel.tardia;
     final puedeCerrarla = viewModel.puedeCerrarla;
     final cargando = viewModel.estado == EstadoCarga.cargando;
     final error = viewModel.error;
@@ -151,6 +153,8 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
                 viewModel.hace,
                 style: const TextStyle(color: AppColors.textoSecundario),
               ),
+              // R24: la marca de tardía, con su hora real.
+              if (tardia != null) MarcaTardia(texto: tardia),
             ],
           ),
           const SizedBox(height: 12),
@@ -167,11 +171,14 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
             title: const Text('Ubicación aproximada'),
             subtitle: Text(alerta.direccion),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.person_outline),
-            title: const Text('Reportada por'),
-            subtitle: Text(esMia ? 'Vos' : 'Un vecino de la zona'),
+          // R35: el lector dice "Reportada por" y el nombre juntos.
+          MergeSemantics(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.person_outline),
+              title: const Text('Reportada por'),
+              subtitle: Text(viewModel.reportadaPor),
+            ),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(

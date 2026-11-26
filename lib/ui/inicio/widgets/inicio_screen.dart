@@ -113,6 +113,7 @@ class _ContenidoInicio extends StatelessWidget {
                   encuadre: EncuadreMapa.alertas,
                   mostrarRadio: false,
                   tamanioPin: 28,
+                  tardias: viewModel.tardias,
                 ),
               ),
               const Padding(
@@ -182,6 +183,7 @@ class _ContenidoInicio extends StatelessWidget {
             child: TarjetaAlerta(
               alerta: alerta,
               hace: viewModel.hace(alerta),
+              tardia: viewModel.tardia(alerta),
               onTap: () =>
                   DetalleAlertaScreen.abrir(context, alerta, dependencias),
             ),

@@ -43,6 +43,7 @@ class Alerta {
     required this.estado,
     required this.ubicacion,
     required this.reportadaPor,
+    this.reportadaPorNombre = '',
   });
 
   factory Alerta.fromJson(Map<String, dynamic> json) {
@@ -60,6 +61,7 @@ class Alerta {
         (json['longitud'] as num).toDouble(),
       ),
       reportadaPor: json['reportada_por'] as String,
+      reportadaPorNombre: json['reportada_por_nombre'] as String? ?? '',
     );
   }
 
@@ -86,6 +88,10 @@ class Alerta {
   /// Id del vecino que la reportó.
   final String reportadaPor;
 
+  /// Primer nombre de quien la reportó, para el aviso tardío. '' si el
+  /// servidor no lo mandó.
+  final String reportadaPorNombre;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'categoria': categoria.valorApi,
@@ -97,6 +103,7 @@ class Alerta {
     'latitud': ubicacion.latitude,
     'longitud': ubicacion.longitude,
     'reportada_por': reportadaPor,
+    'reportada_por_nombre': reportadaPorNombre,
   };
 
   /// Objeto -> fila de la tabla `alertas`.

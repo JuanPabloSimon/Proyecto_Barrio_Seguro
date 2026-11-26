@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../services/conexion_service.dart';
+import 'avisos_recibidos_repository.dart';
 
 /// Si la app llega a su servidor. Lo comparten el ViewModel de conexión
 /// (que comprueba cada tanto) y los repositorios de alertas y turnos (que
@@ -17,11 +18,14 @@ abstract class ConexionRepository {
   Future<bool> comprobar();
 }
 
-/// Le pregunta al [ConexionService] y recuerda la última respuesta.
+/// Le pregunta al [ConexionService] y recuerda la última respuesta. Con
+/// [avisos], guarda en el teléfono el desfase del reloj que midió el
+/// servicio después de cada comprobación buena (R3).
 class ConexionRepositoryRemoto implements ConexionRepository {
-  ConexionRepositoryRemoto({required this._service});
+  ConexionRepositoryRemoto({required this._service, this._avisos});
 
   final ConexionService _service;
+  final AvisosRecibidosRepository? _avisos;
   final StreamController<bool> _cambios = StreamController<bool>.broadcast();
   Future<bool>? _enCurso;
 
@@ -45,10 +49,20 @@ class ConexionRepositoryRemoto implements ConexionRepository {
       // El servicio no debería lanzar; si lo hace, es que no llegó.
       hay = false;
     }
+    if (hay) _guardarDesfase();
     final cambio = hay != _hayConexion;
     _hayConexion = hay;
     if (cambio && !_cambios.isClosed) _cambios.add(hay);
     return hay;
+  }
+
+  /// Sin `ahora` en la respuesta (servidor viejo) no hay desfase y queda el
+  /// último guardado. Si guardar falla, la comprobación no se entera.
+  void _guardarDesfase() {
+    final avisos = _avisos;
+    final desfase = _service.desfase;
+    if (avisos == null || desfase == null) return;
+    unawaited(avisos.guardarDesfase(desfase).catchError((Object _) {}));
   }
 
   /// Cierra el stream de [cambios].

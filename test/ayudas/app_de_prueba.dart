@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:barrio_seguro/data/services/conexion_service.dart';
 import 'package:barrio_seguro/data/services/descarga_csv_service.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
@@ -31,6 +34,9 @@ final relojDePrueba = RelojFijo(DateTime(2026, 10, 1, 12));
 ///
 /// Con [conexion] la prueba decide si la app llega al servidor (por
 /// defecto, siempre conectada).
+///
+/// Con [llegadas] (id de alerta → hora de llegada del aviso) el teléfono
+/// arranca con esos avisos ya recibidos, para ver alertas tardías.
 BarrioSeguroApp appDePrueba({
   Capacidades capacidades = const CapacidadesFalsas(),
   Politicas politicas = const PoliticasFalsas(),
@@ -40,6 +46,7 @@ BarrioSeguroApp appDePrueba({
   PushService? push,
   ConexionService? conexion,
   DescargaCsvService? descargaCsv,
+  Map<String, DateTime> llegadas = const {},
 }) {
   MapaBarrio.cargarCalles = false;
   return BarrioSeguroApp(
@@ -54,7 +61,13 @@ BarrioSeguroApp appDePrueba({
       push: push ?? PushFalso(),
       conexion: conexion,
       descargaCsv: descargaCsv ?? DescargaCsvFalsa(),
-      preferencias: preferenciasEnMemoria(),
+      preferencias: preferenciasEnMemoria({
+        if (llegadas.isNotEmpty)
+          Preferencias.claveAvisosRecibidos: jsonEncode({
+            for (final MapEntry(:key, :value) in llegadas.entries)
+              key: value.millisecondsSinceEpoch,
+          }),
+      }),
       almacenSeguro: almacenSeguroEnMemoria(),
     ),
   );

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../../domain/avisos_tardios.dart';
 import '../../domain/models/alerta.dart';
 
 /// Avisos del sistema operativo: aparecen aunque el vecino esté en otra app.
@@ -15,6 +16,11 @@ abstract class NotificacionesService {
 
   /// Muestra el aviso de una alerta nueva.
   Future<void> avisarAlerta(Alerta alerta);
+
+  /// R14. Muestra el aviso de una alerta que llegó con demora. Mismo id y
+  /// payload que [avisarAlerta]: si después llega el aviso normal de la
+  /// misma alerta, se reemplaza.
+  Future<void> avisarAlertaTardia(Alerta alerta);
 
   /// El id de la alerta de cada aviso que el vecino toca con la app abierta
   /// o en segundo plano.
@@ -96,11 +102,30 @@ class NotificacionesServiceLocales implements NotificacionesService {
   @override
   Future<void> avisarAlerta(Alerta alerta) {
     final esSos = alerta.categoria == CategoriaAlerta.sos;
+    return _mostrar(
+      alerta,
+      titulo: esSos ? 'SOS: un vecino pidió ayuda' : alerta.tipo,
+      cuerpo: '${alerta.direccion}. Tocá para ver dónde.',
+    );
+  }
+
+  @override
+  Future<void> avisarAlertaTardia(Alerta alerta) => _mostrar(
+    alerta,
+    titulo: tituloAvisoTardio(alerta),
+    cuerpo: cuerpoAvisoTardio,
+  );
+
+  Future<void> _mostrar(
+    Alerta alerta, {
+    required String titulo,
+    required String cuerpo,
+  }) {
     return _plugin.show(
       // Un id por alerta: si se avisa de nuevo, se reemplaza, no se apila.
       id: alerta.id.hashCode & 0x7fffffff,
-      title: esSos ? 'SOS: un vecino pidió ayuda' : alerta.tipo,
-      body: '${alerta.direccion}. Tocá para ver dónde.',
+      title: titulo,
+      body: cuerpo,
       notificationDetails: _detalles,
       payload: '$_prefijo${alerta.id}',
     );
@@ -134,6 +159,9 @@ class NotificacionesServiceNinguno implements NotificacionesService {
 
   @override
   Future<void> avisarAlerta(Alerta alerta) async {}
+
+  @override
+  Future<void> avisarAlertaTardia(Alerta alerta) async {}
 
   @override
   Stream<String> get alertasTocadas => const Stream.empty();

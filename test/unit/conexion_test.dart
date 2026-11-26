@@ -9,6 +9,7 @@ import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/http/cliente_api.dart';
 import 'package:barrio_seguro/data/services/http/conexion_service_http.dart';
 import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
+import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/ui/conexion/view_models/conexion_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,8 +32,9 @@ void main() {
     });
 
     ConexionServiceHttp servicioQue(
-      Future<http.Response> Function(http.Request pedido) responder,
-    ) {
+      Future<http.Response> Function(http.Request pedido) responder, {
+      Reloj reloj = const RelojDelSistema(),
+    }) {
       return ConexionServiceHttp(
         ClienteApi(
           base: _base,
@@ -42,8 +44,66 @@ void main() {
             return responder(pedido);
           }),
         ),
+        reloj: reloj,
       );
     }
+
+    test(
+      '/salud con ahora mide el desfase en el punto medio del pedido',
+      () async {
+        // El teléfono marca 12:00:00 al salir y 12:00:02 al volver: el punto
+        // medio es 12:00:01. El servidor dice 12:10:01: desfase de 10 minutos.
+        final reloj = _RelojQueAvanza([
+          DateTime(2026, 10, 1, 12),
+          DateTime(2026, 10, 1, 12, 0, 2),
+        ]);
+        final servidor = DateTime(2026, 10, 1, 12, 10, 1);
+        final servicio = servicioQue(
+          (_) async => http.Response(
+            jsonEncode({
+              'estado': 'ok',
+              'ahora': servidor.millisecondsSinceEpoch,
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
+          reloj: reloj,
+        );
+
+        expect(servicio.desfase, isNull);
+        expect(await servicio.hayConexion(), isTrue);
+        expect(servicio.desfase, const Duration(minutes: 10));
+      },
+    );
+
+    test(
+      '/salud sin ahora no cambia el desfase y sigue dando conexión',
+      () async {
+        var conAhora = true;
+        final ahora = DateTime(2026, 10, 1, 12);
+        final servicio = servicioQue(
+          (_) async => http.Response(
+            jsonEncode({
+              'estado': 'ok',
+              if (conAhora)
+                'ahora': ahora
+                    .add(const Duration(seconds: 30))
+                    .millisecondsSinceEpoch,
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
+          reloj: RelojFijo(ahora),
+        );
+
+        await servicio.hayConexion();
+        expect(servicio.desfase, const Duration(seconds: 30));
+
+        conAhora = false;
+        expect(await servicio.hayConexion(), isTrue);
+        expect(servicio.desfase, const Duration(seconds: 30));
+      },
+    );
 
     test('/salud con {"estado":"ok"} da conexión', () async {
       final servicio = servicioQue(
@@ -135,6 +195,32 @@ void main() {
   });
 
   group('ConexionRepositoryRemoto', () {
+    test('una comprobación buena guarda el desfase en el teléfono', () async {
+      final servicio = ConexionFalsa(desfase: const Duration(minutes: 7));
+      final avisos = AvisosRecibidosFalsos();
+      final repositorio = ConexionRepositoryRemoto(
+        service: servicio,
+        avisos: avisos,
+      );
+      addTearDown(repositorio.cerrar);
+
+      await repositorio.comprobar();
+      await Future<void>.delayed(Duration.zero);
+      expect(avisos.desfase, const Duration(minutes: 7));
+
+      // Sin conexión, o sin desfase medido, no se pisa el guardado.
+      servicio
+        ..hay = false
+        ..desfase = const Duration(hours: 3);
+      await repositorio.comprobar();
+      servicio
+        ..hay = true
+        ..desfase = null;
+      await repositorio.comprobar();
+      await Future<void>.delayed(Duration.zero);
+      expect(avisos.desfase, const Duration(minutes: 7));
+    });
+
     test('dos comprobar() simultáneos hacen un solo pedido', () async {
       final servicio = ConexionFalsa(demora: const Duration(milliseconds: 10));
       final repositorio = ConexionRepositoryRemoto(service: servicio);
@@ -338,4 +424,15 @@ void main() {
       expect(conexion.tieneOyentes, isFalse);
     });
   });
+}
+
+/// Devuelve las [horas] en orden, una por llamada (la última se repite).
+class _RelojQueAvanza implements Reloj {
+  _RelojQueAvanza(this.horas);
+
+  final List<DateTime> horas;
+  var _i = 0;
+
+  @override
+  DateTime ahora() => horas[_i < horas.length - 1 ? _i++ : _i];
 }
