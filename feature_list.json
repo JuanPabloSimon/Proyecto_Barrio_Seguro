@@ -254,7 +254,7 @@
         "Pruebas en la app"
       ],
       "sdd": true,
-      "status": "pending"
+      "status": "spec_ready"
     }
   ]
 }
