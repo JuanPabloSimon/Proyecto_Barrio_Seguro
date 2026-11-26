@@ -5,7 +5,13 @@
     "one_feature_at_a_time": true,
     "require_tests_to_close": true,
     "require_approved_spec_to_implement": true,
-    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "valid_status": [
+      "pending",
+      "spec_ready",
+      "in_progress",
+      "done",
+      "blocked"
+    ],
     "sdd_required_when": "feature has \"sdd\": true"
   },
   "features": [
@@ -168,15 +174,51 @@
     },
     {
       "id": 17,
-      "name": "quitar_arrebato",
-      "title": "Quitar el tipo de alerta Arrebato",
-      "description": "El tipo de alerta Arrebato deja de existir para reportar alertas nuevas, en la app y en el backend.",
+      "name": "sos_mejorado",
+      "title": "SOS con contexto y confirmaciones",
+      "description": "El botón SOS crea automáticamente una alerta de intento de robo, deja volver sin cerrarla y pide confirmación antes de darla por resuelta o falsa.",
       "acceptance": [
-        "Al reportar una alerta, Arrebato ya no aparece entre los tipos para elegir",
-        "La API rechaza una alerta nueva con categoría arrebato",
-        "Las alertas de arrebato que ya existen se siguen viendo en la lista, el mapa y el detalle",
+        "El botón SOS crea una alerta de categoría SOS con el título \"Intento de robo\" (con ubicación, hora y quien la reportó, como hoy)",
+        "En la pantalla del SOS enviado hay una opción Volver que cierra la pantalla y deja la alerta activa",
+        "\"Ya estoy a salvo\" pide confirmación antes de marcar la alerta como resuelta; si se cancela, no cambia nada",
+        "\"Fue una falsa alarma\" pide confirmación antes de marcarla; si se cancela, no cambia nada",
+        "Las confirmaciones y el botón Volver cumplen las reglas de accesibilidad del proyecto",
+        "Pruebas del ViewModel y de la pantalla"
+      ],
+      "sdd": true,
+      "status": "in_progress"
+    },
+    {
+      "id": 18,
+      "name": "reportar_alerta",
+      "title": "Reportar alertas desde el inicio",
+      "description": "Botón Reportar alerta en el inicio que abre un formulario para crear alertas que no son SOS. Incluye quitar el tipo Arrebato (análisis previo en progress/spec_quitar_arrebato.md).",
+      "acceptance": [
+        "En el inicio, debajo del mapa y arriba del botón Llamar al 911, hay un botón Reportar alerta del mismo ancho que el mapa",
+        "El botón Llamar al 911 del inicio pasa a ocupar el mismo ancho que el mapa",
+        "Reportar alerta abre un formulario para elegir el tipo (Actividad sospechosa, Vehículo sospechoso, Robo o Ruidos), un título que el vecino puede ajustar, una descripción y la ubicación",
+        "La ubicación sale del GPS del teléfono como en el SOS (o la zona del barrio si no dio permiso), con un campo para escribir la dirección",
+        "Al enviar, la alerta queda creada con estado Activa y aparece en la lista y el mapa; si falla, el formulario lo dice y no se pierde lo escrito",
+        "Arrebato no aparece entre los tipos para elegir y la API rechaza una alerta nueva con categoría arrebato; las alertas de arrebato que ya existen se siguen viendo",
         "Los datos de ejemplo (backend y servidor simulado) ya no crean alertas de arrebato",
-        "Pruebas en la app y en el backend"
+        "El botón y el formulario cumplen las reglas de accesibilidad del proyecto",
+        "Pruebas del ViewModel, del formulario, de la pantalla de inicio y del backend"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 19,
+      "name": "estado_alerta",
+      "title": "Cambiar el estado desde el detalle de la alerta",
+      "description": "Desde el detalle de una alerta se puede cambiar su estado (Activa, En atención, Resuelta).",
+      "acceptance": [
+        "En el detalle de una alerta, quien la reportó y los miembros de la comisión pueden cambiar su estado entre Activa, En atención y Resuelta",
+        "Para el resto de los vecinos, el estado se ve pero no se puede cambiar",
+        "La API permite el cambio a quien la reportó y a la comisión, y responde 403 al resto",
+        "Al cambiar el estado, se actualiza en la lista, el mapa y el detalle",
+        "El control de estado cumple las reglas de accesibilidad del proyecto",
+        "Pruebas en la app y en el backend para cada rol"
       ],
       "sdd": true,
       "status": "pending"
