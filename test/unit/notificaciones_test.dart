@@ -4,6 +4,7 @@
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
+import 'package:barrio_seguro/domain/avisos_tardios.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
@@ -22,6 +23,11 @@ void main() {
     late Preferencias preferencias;
     late BusDeEventos bus;
 
+    /// Las alertas de prueba son de las 11:55 y el aviso llega, por
+    /// defecto, a las 12:00 (a tiempo).
+    late AvisosRecibidosFalsos avisos;
+    final creada = DateTime(2026, 10, 1, 11, 55);
+
     setUp(() async {
       alertas = AlertasFalsas([
         alertaDePrueba(id: 'vieja', reportadaPor: 'jorge'),
@@ -30,6 +36,7 @@ void main() {
       preferencias = preferenciasEnMemoria();
       await preferencias.guardarNotificaciones(true);
       bus = BusDeEventos();
+      avisos = AvisosRecibidosFalsos();
     });
 
     VigilanteDeAlertas crear() => VigilanteDeAlertas(
@@ -38,11 +45,104 @@ void main() {
       notificaciones: notificaciones,
       preferencias: preferencias,
       bus: bus,
+      avisos: avisos,
     );
+
+    /// Arranca el vigilante y agrega una alerta nueva de otro vecino.
+    Future<VigilanteDeAlertas> conUnaNueva(String id) async {
+      final vigilante = crear();
+      await vigilante.revisar();
+      alertas.alertas.insert(
+        0,
+        alertaDePrueba(
+          id: id,
+          reportadaPor: 'jorge',
+          reportadaPorNombre: 'Jorge',
+          creadaEn: creada,
+        ),
+      );
+      return vigilante;
+    }
 
     test('lo que ya estaba al abrir la app no se avisa', () async {
       await crear().revisar();
       expect(notificaciones.avisadas, isEmpty);
+      expect(avisos.guardadas, isEmpty);
+    });
+
+    test('una alerta nueva a tiempo se avisa igual que antes', () async {
+      final vigilante = await conUnaNueva('nueva');
+
+      final avisadas = await vigilante.revisar();
+
+      expect(avisadas.map((a) => a.id), ['nueva']);
+      expect(notificaciones.avisadas.map((a) => a.id), ['nueva']);
+      expect(notificaciones.tardias, isEmpty);
+      expect(avisos.guardadas.keys, ['nueva']);
+    });
+
+    test(
+      'una alerta nueva con 10 minutos de demora se avisa como tardía',
+      () async {
+        final vigilante = await conUnaNueva('tardia');
+        avisos.ahora = creada.add(const Duration(minutes: 10));
+
+        final avisadas = await vigilante.revisar();
+
+        expect(avisadas.map((a) => a.id), ['tardia']);
+        expect(notificaciones.avisadas, isEmpty);
+        expect(notificaciones.tardias.map((a) => a.id), ['tardia']);
+        expect(
+          tituloAvisoTardio(notificaciones.tardias.single),
+          'Robo de Jorge 11:55',
+        );
+      },
+    );
+
+    test('una alerta nueva con 3 horas de demora no se avisa', () async {
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      final vigilante = await conUnaNueva('vieja-nueva');
+      avisos.ahora = creada.add(const Duration(hours: 3));
+
+      final avisadas = await vigilante.revisar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(avisadas, isEmpty);
+      expect(notificaciones.avisadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
+      // Igual queda guardada para la marca y las pantallas se actualizan.
+      expect(avisos.guardadas['vieja-nueva'], avisos.ahora);
+      expect(eventos, contains(isA<AlertasActualizadas>()));
+    });
+
+    test(
+      'si el push ya guardó una llegada a tiempo, el vigilante avisa a tiempo',
+      () async {
+        final vigilante = await conUnaNueva('del-push');
+        avisos.guardadas['del-push'] = creada.add(const Duration(minutes: 1));
+        avisos.ahora = creada.add(const Duration(minutes: 30));
+
+        await vigilante.revisar();
+
+        expect(notificaciones.avisadas.map((a) => a.id), ['del-push']);
+        expect(notificaciones.tardias, isEmpty);
+        expect(
+          avisos.guardadas['del-push'],
+          creada.add(const Duration(minutes: 1)),
+        );
+      },
+    );
+
+    test('con los avisos apagados no guarda llegadas', () async {
+      await preferencias.guardarNotificaciones(false);
+      final vigilante = await conUnaNueva('apagada');
+      avisos.ahora = creada.add(const Duration(minutes: 10));
+
+      await vigilante.revisar();
+
+      expect(avisos.guardadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
     });
 
     test('avisa las alertas nuevas de otros vecinos', () async {
@@ -137,24 +237,32 @@ void main() {
     late NotificacionesFalsas notificaciones;
     late Preferencias preferencias;
 
+    /// La alerta se crea a las 12:00 y, por defecto, el aviso llega a las
+    /// 12:00 (a tiempo).
+    late AvisosRecibidosFalsos avisos;
+    final creada = DateTime(2026, 10, 1, 12);
+
     Map<String, dynamic> datosPush({
       String id = 'a-push-1',
       String estado = 'activa',
       String reportadaPor = 'jorge',
+      String? reportadaPorNombre,
     }) => {
       'id': id,
       'categoria': 'sos',
       'tipo': 'Pedido de ayuda (SOS)',
       'descripcion': 'Urgencia en la vereda',
       'direccion': 'Calle Plantamura',
-      'creada_en': '${DateTime(2026, 10, 1, 12).millisecondsSinceEpoch}',
+      'creada_en': '${creada.millisecondsSinceEpoch}',
       'estado': estado,
       'latitud': '-32.877264',
       'longitud': '-68.868785',
       'reportada_por': reportadaPor,
+      'reportada_por_nombre': ?reportadaPorNombre,
     };
 
     setUp(() async {
+      avisos = AvisosRecibidosFalsos(ahora: creada);
       notificaciones = NotificacionesFalsas();
       preferencias = preferenciasEnMemoria();
       await preferencias.guardarNotificaciones(true);
@@ -166,6 +274,7 @@ void main() {
         datosPush(id: 'ajena', reportadaPor: 'jorge'),
         preferencias: preferencias,
         notificaciones: notificaciones,
+        avisos: avisos,
       );
 
       expect(mostrada, isTrue);
@@ -178,6 +287,7 @@ void main() {
         datosPush(id: 'propia', reportadaPor: 'clara'),
         preferencias: preferencias,
         notificaciones: notificaciones,
+        avisos: avisos,
       );
 
       expect(mostrada, isFalse);
@@ -189,6 +299,7 @@ void main() {
         datosPush(id: 'resuelta', estado: 'resuelta', reportadaPor: 'jorge'),
         preferencias: preferencias,
         notificaciones: notificaciones,
+        avisos: avisos,
       );
 
       expect(mostrada, isFalse);
@@ -204,6 +315,7 @@ void main() {
             datosPush(),
             preferencias: preferencias,
             notificaciones: notificaciones,
+            avisos: avisos,
           ),
           isFalse,
         );
@@ -214,12 +326,124 @@ void main() {
             {'id': 'incompleta'},
             preferencias: preferencias,
             notificaciones: notificaciones,
+            avisos: avisos,
           ),
           isFalse,
         );
         expect(notificaciones.avisadas, isEmpty);
       },
     );
+
+    test('un push a tiempo se avisa igual que antes', () async {
+      avisos.ahora = creada.add(const Duration(minutes: 5));
+
+      final mostrada = await procesarAvisoPush(
+        datosPush(id: 'a-tiempo', reportadaPorNombre: 'Marta'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+        avisos: avisos,
+      );
+
+      expect(mostrada, isTrue);
+      expect(notificaciones.avisadas.map((a) => a.id), ['a-tiempo']);
+      expect(notificaciones.tardias, isEmpty);
+      expect(avisos.guardadas['a-tiempo'], avisos.ahora);
+    });
+
+    test('un push con más de 5 minutos de demora muestra el aviso tardío con título y cuerpo', () async {
+      avisos.ahora = creada.add(const Duration(minutes: 5, seconds: 1));
+
+      final mostrada = await procesarAvisoPush(
+        datosPush(id: 'tardia', reportadaPorNombre: 'Marta'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+        avisos: avisos,
+      );
+
+      expect(mostrada, isTrue);
+      expect(notificaciones.avisadas, isEmpty);
+      final tardia = notificaciones.tardias.single;
+      expect(tardia.id, 'tardia');
+      expect(tituloAvisoTardio(tardia), 'SOS de Marta 12:00');
+      expect(
+        cuerpoAvisoTardio,
+        'Llegó con demora por falta de señal. Puede que ya no esté pasando.',
+      );
+    });
+
+    test('un push con más de 2 horas de demora no muestra notificación pero guarda la llegada', () async {
+      avisos.ahora = creada.add(const Duration(hours: 2, minutes: 1));
+
+      final mostrada = await procesarAvisoPush(
+        datosPush(id: 'vieja'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+        avisos: avisos,
+      );
+
+      expect(mostrada, isFalse);
+      expect(notificaciones.avisadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
+      expect(avisos.guardadas['vieja'], avisos.ahora);
+    });
+
+    test(
+      'si ya había una llegada guardada, clasifica con la primera',
+      () async {
+        avisos.guardadas['repetida'] = creada.add(const Duration(minutes: 1));
+        avisos.ahora = creada.add(const Duration(hours: 1));
+
+        await procesarAvisoPush(
+          datosPush(id: 'repetida'),
+          preferencias: preferencias,
+          notificaciones: notificaciones,
+          avisos: avisos,
+        );
+
+        expect(notificaciones.avisadas.map((a) => a.id), ['repetida']);
+        expect(notificaciones.tardias, isEmpty);
+      },
+    );
+
+    test('con los avisos apagados no se guarda la llegada', () async {
+      await preferencias.guardarNotificaciones(false);
+
+      await procesarAvisoPush(
+        datosPush(id: 'apagados'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+        avisos: avisos,
+      );
+
+      expect(avisos.guardadas, isEmpty);
+    });
+
+    test('un push propio o resuelto no guarda la llegada', () async {
+      await procesarAvisoPush(
+        datosPush(id: 'propia', reportadaPor: 'clara'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+        avisos: avisos,
+      );
+      await procesarAvisoPush(
+        datosPush(id: 'resuelta', estado: 'resuelta'),
+        preferencias: preferencias,
+        notificaciones: notificaciones,
+        avisos: avisos,
+      );
+
+      expect(avisos.guardadas, isEmpty);
+    });
+
+    test('los datos del push traen reportada_por_nombre', () {
+      expect(
+        alertaDesdeDatosPush(datosPush(reportadaPorNombre: 'Marta'))!
+            .reportadaPorNombre,
+        'Marta',
+      );
+      // Un push de un servidor viejo, sin el campo: queda vacío.
+      expect(alertaDesdeDatosPush(datosPush())!.reportadaPorNombre, '');
+    });
 
     test(
       'activar avisos suscribe al push y apagarlos o cerrar sesión desuscribe',

@@ -199,7 +199,9 @@ class ServidorSimulado {
   // Alertas
   // -------------------------------------------------------------------------
 
-  List<Map<String, dynamic>> alertas() => [for (final a in _alertas) Map.of(a)];
+  List<Map<String, dynamic>> alertas() => [
+    for (final a in _alertas) _conNombre(a),
+  ];
 
   Map<String, dynamic> crearAlerta(Map<String, dynamic> datos) {
     final alerta = {
@@ -209,7 +211,7 @@ class ServidorSimulado {
       'estado': 'activa',
     };
     _alertas.insert(0, alerta);
-    return Map.of(alerta);
+    return _conNombre(alerta);
   }
 
   Map<String, dynamic> cambiarEstadoDeAlerta(String id, String estado) {
@@ -218,7 +220,20 @@ class ServidorSimulado {
       throw const ErrorDelServidor('No encontramos esa alerta.');
     }
     alerta['estado'] = estado;
-    return Map.of(alerta);
+    return _conNombre(alerta);
+  }
+
+  /// Una copia de [alerta] con el primer nombre de quien la reportó, como
+  /// la devuelve el backend. No se guarda: se calcula al responder.
+  Map<String, dynamic> _conNombre(Map<String, dynamic> alerta) {
+    final nombre = _vecinos[alerta['reportada_por']]?['nombre'];
+    final partes = nombre is String
+        ? nombre.trim().split(RegExp(r'\s+'))
+        : const <String>[];
+    return {
+      ...alerta,
+      'reportada_por_nombre': partes.isEmpty ? '' : partes.first,
+    };
   }
 
   // -------------------------------------------------------------------------

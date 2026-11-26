@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/avisos_recibidos_repository.dart';
 import 'package:barrio_seguro/data/repositories/conexion_repository.dart';
 import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
@@ -38,6 +39,8 @@ Alerta alertaDePrueba({
   String id = 'a1',
   EstadoAlerta estado = EstadoAlerta.activa,
   String reportadaPor = 'clara',
+  String reportadaPorNombre = '',
+  DateTime? creadaEn,
 }) {
   return Alerta(
     id: id,
@@ -45,10 +48,11 @@ Alerta alertaDePrueba({
     tipo: 'Intento de robo',
     descripcion: 'Prueba',
     direccion: 'Calle de prueba',
-    creadaEn: DateTime(2026, 10, 1, 11, 55),
+    creadaEn: creadaEn ?? DateTime(2026, 10, 1, 11, 55),
     estado: estado,
     ubicacion: const LatLng(-32.8765, -68.8706),
     reportadaPor: reportadaPor,
+    reportadaPorNombre: reportadaPorNombre,
   );
 }
 
@@ -328,6 +332,12 @@ class NotificacionesFalsas implements NotificacionesService {
   @override
   Future<void> avisarAlerta(Alerta alerta) async => avisadas.add(alerta);
 
+  /// Las alertas que se avisaron como tardías, en orden.
+  final List<Alerta> tardias = [];
+
+  @override
+  Future<void> avisarAlertaTardia(Alerta alerta) async => tardias.add(alerta);
+
   @override
   Stream<String> get alertasTocadas => _tocadas.stream;
 
@@ -385,11 +395,14 @@ class PushFalso implements PushService {
 /// Con [demora], la respuesta tarda ese tiempo (para probar pedidos en
 /// vuelo).
 class ConexionFalsa implements ConexionService {
-  ConexionFalsa({this.hay = true, this.demora = Duration.zero});
+  ConexionFalsa({this.hay = true, this.demora = Duration.zero, this.desfase});
 
   bool hay;
   Duration demora;
   int comprobaciones = 0;
+
+  @override
+  Duration? desfase;
 
   @override
   Future<bool> hayConexion() async {
@@ -500,4 +513,37 @@ class DescargaCsvFalsa implements DescargaCsvService {
     ultimoContenido = contenido;
     return '/descargas/$nombreArchivo';
   }
+}
+
+/// Llegadas de avisos en memoria. [registrarLlegada] guarda [ahora] (ya en
+/// hora del servidor) si la alerta no tenía llegada. Con [falla] en true,
+/// leer las llegadas tira error.
+class AvisosRecibidosFalsos implements AvisosRecibidosRepository {
+  AvisosRecibidosFalsos({
+    DateTime? ahora,
+    Map<String, DateTime>? iniciales,
+    this.falla = false,
+  }) : ahora = ahora ?? DateTime(2026, 10, 1, 12),
+       guardadas = {...?iniciales};
+
+  /// La hora (del servidor) en que "llega" el próximo aviso.
+  DateTime ahora;
+  final Map<String, DateTime> guardadas;
+  bool falla;
+
+  /// El último desfase que se pidió guardar.
+  Duration? desfase;
+
+  @override
+  Future<DateTime> registrarLlegada(String alertaId) async =>
+      guardadas.putIfAbsent(alertaId, () => ahora);
+
+  @override
+  Future<Map<String, DateTime>> llegadas() async {
+    if (falla) throw Exception('no se pudo leer');
+    return Map.unmodifiable(guardadas);
+  }
+
+  @override
+  Future<void> guardarDesfase(Duration desfase) async => this.desfase = desfase;
 }

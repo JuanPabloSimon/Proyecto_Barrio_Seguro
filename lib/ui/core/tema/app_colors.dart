@@ -201,6 +201,24 @@ class AppColors {
       mapaFondo,
       ParContraste.componente,
     ),
+    ParContraste(
+      'Texto de la marca tardía',
+      texto,
+      alertaSuave,
+      ParContraste.textoNormal,
+    ),
+    ParContraste(
+      'Ícono de la marca tardía',
+      alerta,
+      alertaSuave,
+      ParContraste.componente,
+    ),
+    ParContraste(
+      'Reloj del pin de una alerta tardía',
+      alerta,
+      superficie,
+      ParContraste.componente,
+    ),
   ];
 }
 

@@ -46,8 +46,11 @@ void configurarPantalla(
 
 /// Cada prueba arranca la app con dependencias nuevas (ver
 /// `appDePrueba`), así ninguna ve lo que cambió otra.
-Future<void> abrirApp(WidgetTester tester) async {
-  await tester.pumpWidget(appDePrueba());
+Future<void> abrirApp(
+  WidgetTester tester, {
+  Map<String, DateTime> llegadas = const {},
+}) async {
+  await tester.pumpWidget(appDePrueba(llegadas: llegadas));
   await tester.pumpAndSettle();
 }
 
@@ -80,13 +83,31 @@ Future<void> tocar(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> ingresar(WidgetTester tester) async {
-  await abrirApp(tester);
+/// Activa el elemento como lo hace un lector de pantalla: la acción "tocar"
+/// de su nodo de semántica. Sirve para los pines del mapa: con el texto al
+/// 200 % el mapa queda bajo, los pines se juntan y el botón SOS tapa parte
+/// de ellos, así que un toque en el centro del pin puede caer en otro.
+Future<void> activarConLector(WidgetTester tester, Finder finder) async {
+  await mostrar(tester, finder);
+  final nodo = tester.getSemantics(finder);
+  nodo.owner!.performAction(nodo.id, SemanticsAction.tap);
+  await tester.pumpAndSettle();
+}
+
+Future<void> ingresar(
+  WidgetTester tester, {
+  Map<String, DateTime> llegadas = const {},
+}) async {
+  await abrirApp(tester, llegadas: llegadas);
   await tocar(tester, find.text('Ingresar'));
 }
 
-Future<void> irAPestania(WidgetTester tester, String pestania) async {
-  await ingresar(tester);
+Future<void> irAPestania(
+  WidgetTester tester,
+  String pestania, {
+  Map<String, DateTime> llegadas = const {},
+}) async {
+  await ingresar(tester, llegadas: llegadas);
   await tocar(
     tester,
     find.descendant(
@@ -151,7 +172,10 @@ final pantallas = <Pantalla>[
   Pantalla('Mapa', (tester) => irAPestania(tester, 'Mapa')),
   Pantalla('Resumen de alerta en el mapa', (tester) async {
     await irAPestania(tester, 'Mapa');
-    await tocar(tester, find.bySemanticsLabel(RegExp('^Alerta: Arrebato')));
+    await activarConLector(
+      tester,
+      find.bySemanticsLabel(RegExp('^Alerta: Arrebato')),
+    );
     expect(find.text('Ver detalle'), findsOneWidget);
   }),
   Pantalla('Perfil', (tester) => irAPestania(tester, 'Perfil')),
@@ -202,7 +226,44 @@ final pantallas = <Pantalla>[
     expect(find.text('Alerta enviada'), findsOneWidget);
   }),
   Pantalla('Sin conexión', abrirSinConexion),
+  Pantalla('Inicio con una alerta tardía', (tester) async {
+    await ingresar(tester, llegadas: llegadasTardias);
+    await mostrar(
+      tester,
+      find.descendant(
+        of: find.widgetWithText(TarjetaAlerta, 'Intento de robo'),
+        matching: find.text(marcaDePrueba),
+      ),
+    );
+  }),
+  Pantalla('Resumen de una alerta tardía en el mapa', (tester) async {
+    await irAPestania(tester, 'Mapa', llegadas: llegadasTardias);
+    await activarConLector(
+      tester,
+      find.bySemanticsLabel(RegExp('^Alerta: Intento')),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text(marcaDePrueba),
+      ),
+      findsOneWidget,
+    );
+  }),
+  Pantalla('Detalle de una alerta tardía, con quién la reportó', (
+    tester,
+  ) async {
+    await ingresar(tester, llegadas: llegadasTardias);
+    await tocar(tester, find.widgetWithText(TarjetaAlerta, 'Intento de robo'));
+    expect(find.text(marcaDePrueba), findsOneWidget);
+    await mostrar(tester, find.text('Pedro'));
+  }),
 ];
+
+/// a3 ("Intento de robo", de Pedro) es de las 11:00 y su aviso llegó a las
+/// 11:30: es tardía.
+final llegadasTardias = {'a3': DateTime(2026, 10, 1, 11, 30)};
+const marcaDePrueba = 'Llegó con demora. Alerta de las 11:00';
 
 const tituloSinConexion = 'Necesitás conexión a internet para usar la app';
 
@@ -387,5 +448,100 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+  });
+
+  group('Alertas tardías', () {
+    testWidgets('la etiqueta de la tarjeta y del pin incluyen la marca', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await ingresar(tester, llegadas: llegadasTardias);
+
+      final tarjeta = find.bySemanticsLabel(RegExp('^Alerta de intento'));
+      await mostrar(tester, tarjeta);
+      expect(
+        tester.getSemantics(tarjeta).label,
+        'Alerta de intento de robo, hace 1 hora, activa. '
+        '$marcaDePrueba. Calle Gran Cap. Sur. Ver detalle',
+      );
+
+      await tocar(
+        tester,
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text('Mapa'),
+        ),
+      );
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel(RegExp('^Alerta: Intento')))
+            .label,
+        'Alerta: Intento de robo, activa, Calle Gran Cap. Sur. '
+        '$marcaDePrueba. Ver resumen',
+      );
+      // Una alerta que no es tardía no la lleva.
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel(RegExp('^Alerta: Moto')))
+            .label,
+        isNot(contains('Llegó con demora')),
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'el lector lee "Reportada por" y el nombre en una sola etiqueta',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+        await ingresar(tester, llegadas: llegadasTardias);
+        await tocar(
+          tester,
+          find.widgetWithText(TarjetaAlerta, 'Intento de robo'),
+        );
+        await mostrar(tester, find.text('Reportada por'));
+
+        final titulo = tester.getSemantics(find.text('Reportada por'));
+        final nombre = tester.getSemantics(find.text('Pedro'));
+        expect(identical(titulo, nombre), isTrue);
+        expect(titulo.label, contains('Reportada por'));
+        expect(titulo.label, contains('Pedro'));
+        handle.dispose();
+      },
+    );
+
+    testWidgets('"Reportada por" con nombre al 200 % sin desbordes', (
+      tester,
+    ) async {
+      configurarPantalla(tester, alto: 800, escalaTexto: 2.0);
+      await ingresar(tester, llegadas: llegadasTardias);
+      await tocar(
+        tester,
+        find.widgetWithText(TarjetaAlerta, 'Intento de robo'),
+      );
+      await mostrar(tester, find.text('Pedro'));
+
+      expect(find.text('Reportada por').hitTestable(), findsOneWidget);
+      expect(find.text('Pedro').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    test('los pares de contraste de la marca están registrados', () {
+      final pares = {
+        for (final par in AppColors.paresDeContraste) par.descripcion: par,
+      };
+      final texto = pares['Texto de la marca tardía']!;
+      expect(texto.frente, AppColors.texto);
+      expect(texto.fondo, AppColors.alertaSuave);
+      expect(texto.minimo, ParContraste.textoNormal);
+      expect(texto.cumple, isTrue);
+
+      final icono = pares['Ícono de la marca tardía']!;
+      expect(icono.frente, AppColors.alerta);
+      expect(icono.fondo, AppColors.alertaSuave);
+      expect(icono.minimo, ParContraste.componente);
+      expect(icono.cumple, isTrue);
+    });
   });
 }

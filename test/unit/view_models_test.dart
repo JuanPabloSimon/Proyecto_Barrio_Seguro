@@ -14,6 +14,7 @@ import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/core/estado_carga.dart';
 import 'package:barrio_seguro/ui/informe_alertas/view_models/informe_alertas_view_model.dart';
+import 'package:barrio_seguro/ui/inicio/view_models/inicio_view_model.dart';
 import 'package:barrio_seguro/ui/mapa/view_models/mapa_view_model.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/registro/view_models/registro_view_model.dart';
@@ -80,8 +81,12 @@ void main() {
   });
 
   group('MapaViewModel', () {
-    MapaViewModel crear(AlertasFalsas alertas) =>
-        MapaViewModel(alertas: alertas, bus: bus, reloj: reloj);
+    MapaViewModel crear(AlertasFalsas alertas) => MapaViewModel(
+      alertas: alertas,
+      bus: bus,
+      reloj: reloj,
+      avisos: AvisosRecibidosFalsos(),
+    );
 
     test('carga las alertas y las filtra por estado', () async {
       final vm = crear(
@@ -223,6 +228,7 @@ void main() {
           sesion: SesionFalsa(vecinaDePrueba),
           bus: bus,
           reloj: reloj,
+          avisos: AvisosRecibidosFalsos(),
         );
 
     test('solo quien la reportó puede cerrarla', () {
@@ -432,6 +438,185 @@ void main() {
       final fallo = await vm.descargarCsv();
       expect(fallo, 'No pudimos descargar el informe. Probá de nuevo.');
       vm.dispose();
+    });
+  });
+
+  group('Alertas tardías en inicio, mapa y detalle', () {
+    // El reloj marca las 12:00; las alertas de prueba son de las 11:55.
+    final creada = DateTime(2026, 10, 1, 11, 55);
+    const marca = 'Llegó con demora. Alerta de las 11:55';
+
+    InicioViewModel inicio(
+      AlertasFalsas alertas,
+      AvisosRecibidosFalsos avisos,
+    ) => InicioViewModel(
+      alertas: alertas,
+      turnos: TurnosFalsos(),
+      sesion: SesionFalsa(vecinaDePrueba),
+      bus: bus,
+      reloj: reloj,
+      mesDeTurnos: DateTime(2026, 10),
+      avisos: avisos,
+    );
+
+    MapaViewModel mapa(AlertasFalsas alertas, AvisosRecibidosFalsos avisos) =>
+        MapaViewModel(alertas: alertas, bus: bus, reloj: reloj, avisos: avisos);
+
+    DetalleAlertaViewModel detalle(
+      Alerta alerta,
+      AvisosRecibidosFalsos avisos,
+    ) => DetalleAlertaViewModel(
+      alerta: alerta,
+      alertas: AlertasFalsas([alerta]),
+      sesion: SesionFalsa(vecinaDePrueba),
+      bus: bus,
+      reloj: reloj,
+      avisos: avisos,
+    );
+
+    Alerta ajena(String id, {String nombre = ''}) => alertaDePrueba(
+      id: id,
+      reportadaPor: 'jorge',
+      reportadaPorNombre: nombre,
+    );
+
+    test('inicio marca como tardía una alerta con llegada tardía', () async {
+      final vm = inicio(
+        AlertasFalsas([ajena('t')]),
+        AvisosRecibidosFalsos(
+          iniciales: {'t': creada.add(const Duration(minutes: 6))},
+        ),
+      );
+      await vm.cargar();
+
+      expect(vm.tardia(vm.cercanas.single), marca);
+      expect(vm.tardias, {'t': marca});
+    });
+
+    test(
+      'inicio no marca una alerta con llegada a tiempo ni una sin llegada',
+      () async {
+        final vm = inicio(
+          AlertasFalsas([ajena('a-tiempo'), ajena('sin-llegada')]),
+          AvisosRecibidosFalsos(
+            iniciales: {'a-tiempo': creada.add(const Duration(minutes: 5))},
+          ),
+        );
+        await vm.cargar();
+
+        for (final alerta in vm.cercanas) {
+          expect(vm.tardia(alerta), isNull, reason: alerta.id);
+        }
+        expect(vm.tardias, isEmpty);
+      },
+    );
+
+    test(
+      'una alerta demasiado tardía aparece en el inicio y en el mapa con marca',
+      () async {
+        final alertas = AlertasFalsas([ajena('muy-tarde')]);
+        final avisos = AvisosRecibidosFalsos(
+          iniciales: {'muy-tarde': creada.add(const Duration(hours: 3))},
+        );
+        final vmInicio = inicio(alertas, avisos);
+        final vmMapa = mapa(alertas, avisos);
+        await vmInicio.cargar();
+        await vmMapa.cargar();
+
+        expect(vmInicio.cercanas.map((a) => a.id), ['muy-tarde']);
+        expect(vmInicio.tardias, {'muy-tarde': marca});
+        expect(vmMapa.visibles.map((a) => a.id), ['muy-tarde']);
+        expect(vmMapa.tardias, {'muy-tarde': marca});
+      },
+    );
+
+    test('mapa expone las marcas por id', () async {
+      final vm = mapa(
+        AlertasFalsas([ajena('t1'), ajena('ok'), ajena('t2')]),
+        AvisosRecibidosFalsos(
+          iniciales: {
+            't1': creada.add(const Duration(minutes: 10)),
+            'ok': creada.add(const Duration(minutes: 1)),
+            't2': creada.add(const Duration(minutes: 30)),
+          },
+        ),
+      );
+      await vm.cargar();
+
+      expect(vm.tardias, {'t1': marca, 't2': marca});
+      expect(vm.tardia(vm.visibles[1]), isNull);
+    });
+
+    test('detalle carga la marca de su alerta', () async {
+      final vm = detalle(
+        ajena('t'),
+        AvisosRecibidosFalsos(
+          iniciales: {'t': creada.add(const Duration(minutes: 20))},
+        ),
+      );
+      var avisos = 0;
+      vm.addListener(() => avisos++);
+      expect(vm.tardia, isNull);
+
+      await vm.cargarLlegada();
+
+      expect(vm.tardia, marca);
+      expect(avisos, 1);
+
+      final aTiempo = detalle(
+        ajena('ok'),
+        AvisosRecibidosFalsos(iniciales: {'ok': creada}),
+      );
+      await aTiempo.cargarLlegada();
+      expect(aTiempo.tardia, isNull);
+    });
+
+    test('si leer las llegadas falla no hay marcas y la lista se ve', () async {
+      final alertas = AlertasFalsas([ajena('t')]);
+      final avisos = AvisosRecibidosFalsos(
+        iniciales: {'t': creada.add(const Duration(minutes: 20))},
+        falla: true,
+      );
+      final vmInicio = inicio(alertas, avisos);
+      final vmMapa = mapa(alertas, avisos);
+      final vmDetalle = detalle(ajena('t'), avisos);
+      await vmInicio.cargar();
+      await vmMapa.cargar();
+      await vmDetalle.cargarLlegada();
+
+      expect(vmInicio.estado, EstadoCarga.exito);
+      expect(vmInicio.cercanas, hasLength(1));
+      expect(vmInicio.tardias, isEmpty);
+      expect(vmMapa.estado, EstadoCarga.exito);
+      expect(vmMapa.tardias, isEmpty);
+      expect(vmDetalle.tardia, isNull);
+    });
+
+    test(
+      'detalle de una alerta ajena con nombre: reportadaPor es el nombre',
+      () {
+        final vm = detalle(
+          ajena('a', nombre: 'Jorge'),
+          AvisosRecibidosFalsos(),
+        );
+        expect(vm.reportadaPor, 'Jorge');
+      },
+    );
+
+    test(
+      'detalle de una alerta ajena sin nombre: reportadaPor es "Un vecino"',
+      () {
+        final vm = detalle(ajena('a'), AvisosRecibidosFalsos());
+        expect(vm.reportadaPor, 'Un vecino');
+      },
+    );
+
+    test('detalle de una alerta propia: reportadaPor es "Vos" aunque traiga nombre', () {
+      final propia = alertaDePrueba(
+        reportadaPor: 'clara',
+        reportadaPorNombre: 'Clara',
+      );
+      expect(detalle(propia, AvisosRecibidosFalsos()).reportadaPor, 'Vos');
     });
   });
 }

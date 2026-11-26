@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../../data/repositories/alertas_repository.dart';
+import '../../data/repositories/avisos_recibidos_repository.dart';
 import '../../data/repositories/sesion_repository.dart';
 import '../../data/services/bus_de_eventos.dart';
 import '../../data/services/local/preferencias.dart';
 import '../../data/services/notificaciones_service.dart';
+import '../../domain/avisos_tardios.dart';
 import '../../domain/evento_de_app.dart';
 import '../../domain/models/alerta.dart';
 
@@ -26,6 +28,7 @@ class VigilanteDeAlertas {
     required this._notificaciones,
     required this._preferencias,
     required this._bus,
+    required this._avisos,
     this.cada = const Duration(seconds: 45),
   });
 
@@ -34,6 +37,7 @@ class VigilanteDeAlertas {
   final NotificacionesService _notificaciones;
   final Preferencias _preferencias;
   final BusDeEventos _bus;
+  final AvisosRecibidosRepository _avisos;
   final Duration cada;
 
   Timer? _reloj;
@@ -74,7 +78,8 @@ class VigilanteDeAlertas {
     _ciclo = null;
   }
 
-  /// Devuelve las alertas nuevas que avisó (sirve para las pruebas).
+  /// Devuelve las alertas nuevas que avisó, a tiempo o tardías; las que
+  /// llegaron demasiado tarde no (sirve para las pruebas).
   Future<List<Alerta>> revisar() async {
     try {
       final todas = await _alertas.obtenerAlertas(refrescar: true);
@@ -92,13 +97,40 @@ class VigilanteDeAlertas {
       ];
       if (nuevas.isEmpty) return const [];
 
+      // R5, R7: la llegada se guarda solo si hay aviso. Si el push ya la
+      // guardó, cuenta la del push (R6). Se guarda antes de publicar, así
+      // las pantallas, al recargar, ya ven la marca de tardía.
+      final conAvisos = await _preferencias.notificaciones();
+      final llegadas = <String, DateTime>{};
+      if (conAvisos) {
+        for (final alerta in nuevas) {
+          llegadas[alerta.id] = await _avisos.registrarLlegada(alerta.id);
+        }
+      }
+
       // Las pantallas abiertas se actualizan solas.
       _bus.publicar(const AlertasActualizadas());
-      if (!await _preferencias.notificaciones()) return const [];
+      if (!conAvisos) return const [];
+
+      // R19: la misma regla que el push.
+      final avisadas = <Alerta>[];
       for (final alerta in nuevas) {
-        await _notificaciones.avisarAlerta(alerta);
+        final puntualidad = clasificarAviso(
+          creadaEn: alerta.creadaEn,
+          llegada: llegadas[alerta.id]!,
+        );
+        switch (puntualidad) {
+          case PuntualidadAviso.aTiempo:
+            await _notificaciones.avisarAlerta(alerta);
+            avisadas.add(alerta);
+          case PuntualidadAviso.tardio:
+            await _notificaciones.avisarAlertaTardia(alerta);
+            avisadas.add(alerta);
+          case PuntualidadAviso.demasiadoTardio:
+            break;
+        }
       }
-      return nuevas;
+      return avisadas;
     } catch (_) {
       // Sin señal: se vuelve a intentar en la próxima revisión.
       return const [];

@@ -87,3 +87,16 @@
   - `ConexionRepositoryRemoto.cerrar()` no se llama en la app; hoy no se pierde nada porque `Dependencias` vive lo mismo que la app.
   - Falta commitear el trabajo de la rama `feature/requiere_conexion`.
 - **Próximo:** feature 16 (`avisos_tardios`).
+
+## 2026-11-25 — Feature 16 (`avisos_tardios`): Avisos de alertas que llegaron con demora
+
+- **Quién:** equipo + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/avisos_tardios/` (T1–T35, R1–R35). Clasificación de la demora en `lib/domain/avisos_tardios.dart` (a tiempo hasta 5 min, tardía hasta 2 h, más de 2 h sin notificación), con título "<tipo> de <nombre> <HH:mm>" ("de un vecino" si no hay nombre) y el cuerpo acordado. `Alerta.reportadaPorNombre` (base local v4 con migración). `AvisosRecibidosRepository` guarda la primera llegada de cada alerta con la hora del teléfono corregida por el desfase que mide `GET /salud` (que ahora devuelve `ahora`) y borra las de más de 30 días. El push y el `VigilanteDeAlertas` avisan a tiempo igual que antes, tardías con `avisarAlertaTardia` o no avisan. `MarcaTardia` (ícono y texto) en la tarjeta, el detalle, el pin y la leyenda del mapa. Backend: `/salud` con `ahora` y `reportada_por_nombre` (solo el primer nombre, sin guardarlo) en las alertas y el push.
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 295 pruebas en la app y 48 en el backend). Review aprobado en `progress/review_avisos_tardios.md`.
+- **Pendientes (no bloquean):**
+  - Llevar al equipo, como feature aparte, el layout del mapa con texto al 200 %: el ítem nuevo de la leyenda achica el mapa en 360 × 800 y el SOS tapa el pin de Arrebato (la prueba de accesibilidad pasó a `activarConLector`).
+  - Si falla `registrarLlegada` (`push_service.dart`, `vigilante_de_alertas.dart`) no se muestra ningún aviso, ni siquiera un SOS a tiempo, y el vigilante no reintenta. Se podría avisar como a tiempo cuando no se puede guardar la llegada.
+  - `push_service.dart` importa un repositorio desde la capa de servicios (lo pide el design); si se repite, anotarlo en `docs/architecture.md`.
+  - `_cerrado` en `detalle_alerta_view_model.dart` podría llamarse `_estaCerrado`.
+  - Falta commitear el trabajo de la rama `feature/avisos_tardios`.
+- **Próximo:** feature 17 (`quitar_arrebato`).

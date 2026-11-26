@@ -156,12 +156,27 @@
       "description": "Cuando el teléfono de un vecino estuvo sin señal, los avisos de alertas que le llegan tarde lo dicen, con la hora real de la alerta. Depende de requiere_conexion.",
       "acceptance": [
         "Una alerta es tardía si el aviso llega al teléfono más de 5 minutos después de creada",
-        "El aviso de una alerta tardía tiene el título \"SOS de <nombre> <hora de la alerta>\" (por ejemplo \"SOS de Marta 15:10\") y el cuerpo \"Llegó con demora por falta de señal. Puede que ya no esté pasando.\"",
+        "El aviso de una alerta tardía tiene el título \"<tipo de alerta> de <nombre de quien la reportó> <hora de la alerta>\" (por ejemplo \"SOS de Marta 15:10\" o \"Robo de Marta 15:10\") y el cuerpo \"Llegó con demora por falta de señal. Puede que ya no esté pasando.\"",
         "Si el aviso llega más de 2 horas después de creada la alerta, no se muestra la notificación; la alerta igual aparece en la lista y el mapa",
         "En la lista y en el mapa, una alerta tardía figura como tardía con su hora real",
         "Las alertas que llegan a tiempo se avisan igual que hoy",
         "La marca de tardía cumple las reglas de accesibilidad del proyecto",
         "Pruebas del cálculo de tardía, del aviso y de la lista y el mapa"
+      ],
+      "sdd": true,
+      "status": "done"
+    },
+    {
+      "id": 17,
+      "name": "quitar_arrebato",
+      "title": "Quitar el tipo de alerta Arrebato",
+      "description": "El tipo de alerta Arrebato deja de existir para reportar alertas nuevas, en la app y en el backend.",
+      "acceptance": [
+        "Al reportar una alerta, Arrebato ya no aparece entre los tipos para elegir",
+        "La API rechaza una alerta nueva con categoría arrebato",
+        "Las alertas de arrebato que ya existen se siguen viendo en la lista, el mapa y el detalle",
+        "Los datos de ejemplo (backend y servidor simulado) ya no crean alertas de arrebato",
+        "Pruebas en la app y en el backend"
       ],
       "sdd": true,
       "status": "pending"

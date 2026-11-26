@@ -78,6 +78,27 @@ Future<List<String>> tablasDe(Database db) async {
   return [for (final f in filas) f['name']! as String];
 }
 
+/// La tabla `alertas` como era hasta la v3 del esquema, sin
+/// `reportada_por_nombre`: así se arman las bases de versiones anteriores.
+const sqlCrearAlertasHastaV3 = '''
+CREATE TABLE alertas (
+  id TEXT PRIMARY KEY,
+  categoria TEXT NOT NULL,
+  tipo TEXT NOT NULL,
+  descripcion TEXT NOT NULL,
+  direccion TEXT NOT NULL,
+  creada_en INTEGER NOT NULL,
+  estado TEXT NOT NULL,
+  latitud REAL NOT NULL,
+  longitud REAL NOT NULL,
+  reportada_por TEXT NOT NULL
+)
+''';
+
+/// Una fila de `alertas` como la guardaba la app hasta la v3.
+Map<String, Object?> filaHastaV3(Alerta alerta) =>
+    alerta.toMap()..remove('reportada_por_nombre');
+
 void main() {
   late Database db;
 
@@ -212,6 +233,17 @@ void main() {
         expect(leidas.last.creadaEn, vieja.creadaEn);
       },
     );
+
+    test('la copia local guarda y lee reportada_por_nombre', () async {
+      final dao = AlertasDao(db);
+      await dao.reemplazarTodas([
+        alertaDePrueba(id: 'con', reportadaPorNombre: 'Marta'),
+        alertaDePrueba(id: 'sin'),
+      ]);
+      final leidas = {for (final a in await dao.listar()) a.id: a};
+      expect(leidas['con']!.reportadaPorNombre, 'Marta');
+      expect(leidas['sin']!.reportadaPorNombre, '');
+    });
 
     test('reemplazarTodas borra lo que ya no está en el servidor', () async {
       final dao = AlertasDao(db);
@@ -474,7 +506,7 @@ void main() {
       final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
       addTearDown(nueva.close);
 
-      expect(await nueva.getVersion(), 3);
+      expect(await nueva.getVersion(), 4);
       final tablas = await tablasDe(nueva);
       expect(tablas, containsAll(['alertas', 'turnos']));
       expect(tablas, isNot(contains('alertas_pendientes')));
@@ -488,7 +520,7 @@ void main() {
         options: OpenDatabaseOptions(
           version: 2,
           onCreate: (db, _) async {
-            await db.execute(sqlCrearAlertas);
+            await db.execute(sqlCrearAlertasHastaV3);
             await db.execute(sqlCrearTurnos);
             await db.execute(
               'CREATE TABLE alertas_pendientes ('
@@ -497,7 +529,7 @@ void main() {
           },
         ),
       );
-      await vieja.insert('alertas', alertaDePrueba().toMap());
+      await vieja.insert('alertas', filaHastaV3(alertaDePrueba()));
       await TurnosDao(vieja).guardar(
         Turno(
           fecha: DateTime(2026, 10, 9),
@@ -525,12 +557,12 @@ void main() {
         options: OpenDatabaseOptions(
           version: 1,
           onCreate: (db, _) async {
-            await db.execute(sqlCrearAlertas);
+            await db.execute(sqlCrearAlertasHastaV3);
             await db.execute(sqlCrearTurnos);
           },
         ),
       );
-      await vieja.insert('alertas', alertaDePrueba().toMap());
+      await vieja.insert('alertas', filaHastaV3(alertaDePrueba()));
       await vieja.close();
 
       final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
@@ -540,6 +572,44 @@ void main() {
       expect(await AlertasDao(nueva).listar(), hasLength(1));
       expect(await tablasDe(nueva), isNot(contains('alertas_pendientes')));
     });
+
+    test(
+      'migración v3 → v4 agrega reportada_por_nombre sin perder alertas',
+      () async {
+        final vieja = await databaseFactoryFfi.openDatabase(
+          ruta,
+          options: OpenDatabaseOptions(
+            version: 3,
+            onCreate: (db, _) async {
+              await db.execute(sqlCrearAlertasHastaV3);
+              await db.execute(sqlCrearTurnos);
+            },
+          ),
+        );
+        await vieja.insert('alertas', filaHastaV3(alertaDePrueba(id: 'a')));
+        await vieja.insert('alertas', filaHastaV3(alertaDePrueba(id: 'b')));
+        await vieja.close();
+
+        final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
+        addTearDown(nueva.close);
+
+        expect(await nueva.getVersion(), 4);
+        final columnas = await nueva.rawQuery('PRAGMA table_info(alertas)');
+        expect(
+          columnas.map((c) => c['name']),
+          contains('reportada_por_nombre'),
+        );
+        final dao = AlertasDao(nueva);
+        final leidas = await dao.listar();
+        expect(leidas.map((a) => a.id).toSet(), {'a', 'b'});
+        expect(leidas.every((a) => a.reportadaPorNombre == ''), isTrue);
+
+        // Y después de migrar se guarda el nombre.
+        await dao.guardar(alertaDePrueba(id: 'a', reportadaPorNombre: 'Marta'));
+        final a = (await dao.listar()).firstWhere((x) => x.id == 'a');
+        expect(a.reportadaPorNombre, 'Marta');
+      },
+    );
   });
 
   group('Descarga de CSV', () {

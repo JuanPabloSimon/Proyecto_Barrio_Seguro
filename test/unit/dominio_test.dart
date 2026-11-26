@@ -122,6 +122,46 @@ void main() {
     });
   });
 
+  group('Marca de alerta tardía', () {
+    test(
+      'marca de una alerta de hoy: "Llegó con demora. Alerta de las 15:10"',
+      () {
+        expect(
+          marcaTardia(
+            creadaEn: DateTime(2026, 11, 25, 15, 10),
+            ahora: DateTime(2026, 11, 25, 18),
+          ),
+          'Llegó con demora. Alerta de las 15:10',
+        );
+        expect(
+          marcaTardia(
+            creadaEn: DateTime(2026, 11, 25, 9, 5),
+            ahora: DateTime(2026, 11, 25, 9, 30),
+          ),
+          'Llegó con demora. Alerta de las 09:05',
+        );
+      },
+    );
+
+    test('marca de una alerta de otro día: "Llegó con demora. Alerta del 24/11 a las 23:50"', () {
+      expect(
+        marcaTardia(
+          creadaEn: DateTime(2026, 11, 24, 23, 50),
+          ahora: DateTime(2026, 11, 25, 0, 30),
+        ),
+        'Llegó con demora. Alerta del 24/11 a las 23:50',
+      );
+      // Mismo día y mes, pero de otro año: lleva fecha.
+      expect(
+        marcaTardia(
+          creadaEn: DateTime(2025, 11, 25, 8),
+          ahora: DateTime(2026, 11, 25, 9),
+        ),
+        'Llegó con demora. Alerta del 25/11 a las 08:00',
+      );
+    });
+  });
+
   group('JSON', () {
     test('una alerta vuelve igual después de ir y volver a JSON', () {
       final original = alertaDePrueba(estado: EstadoAlerta.enAtencion);
@@ -130,6 +170,26 @@ void main() {
       expect(copia.estado, EstadoAlerta.enAtencion);
       expect(copia.ubicacion, original.ubicacion);
       expect(copia.creadaEn, original.creadaEn);
+    });
+
+    test('reportada_por_nombre viaja en el JSON', () {
+      final original = alertaDePrueba(
+        reportadaPor: 'marta',
+        reportadaPorNombre: 'Marta',
+      );
+      final json = original.toJson();
+      expect(json['reportada_por_nombre'], 'Marta');
+      expect(Alerta.fromJson(json).reportadaPorNombre, 'Marta');
+    });
+
+    test('una alerta sin reportada_por_nombre lo toma vacío', () {
+      final json = alertaDePrueba().toJson()..remove('reportada_por_nombre');
+      expect(Alerta.fromJson(json).reportadaPorNombre, '');
+      expect(
+        Alerta.fromJson({...json, 'reportada_por_nombre': null})
+            .reportadaPorNombre,
+        '',
+      );
     });
 
     test('un estado desconocido de la API se toma como activa', () {

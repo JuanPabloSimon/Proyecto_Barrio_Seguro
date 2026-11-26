@@ -49,7 +49,15 @@ class Api {
       const Pipeline().addMiddleware(_manejarErrores).addHandler(_rutas.call);
 
   Router get _rutas => Router()
-    ..get('/salud', (Request _) => _json(200, {'estado': 'ok'}))
+    // La hora del servidor sirve para que la app mida el desfase de su
+    // reloj (avisos tardíos).
+    ..get(
+      '/salud',
+      (Request _) => _json(200, {
+        'estado': 'ok',
+        'ahora': _reloj.ahora().millisecondsSinceEpoch,
+      }),
+    )
     ..post('/sesiones', _ingresar)
     ..delete('/sesiones', _cerrarSesion)
     ..post('/vecinos', _registrar)
@@ -229,7 +237,7 @@ class Api {
     final ordenadas = [
       ..._almacen.alertas,
     ]..sort((a, b) => (b['creada_en'] as int).compareTo(a['creada_en'] as int));
-    return _json(200, ordenadas);
+    return _json(200, ordenadas.map(_conNombre).toList());
   }
 
   Future<Response> _crearAlerta(Request pedido) async {
@@ -264,8 +272,25 @@ class Api {
     };
     _almacen.alertas.insert(0, alerta);
     _almacen.guardar();
-    await notificarAlerta(alerta);
-    return _json(201, alerta);
+    // El nombre se agrega a una copia: no se guarda en el almacén.
+    final respuesta = _conNombre(alerta);
+    await notificarAlerta(respuesta);
+    return _json(201, respuesta);
+  }
+
+  /// Una copia de [alerta] con `reportada_por_nombre`: el primer nombre de
+  /// quien la reportó, o "" si el vecino no existe o no tiene nombre. Se
+  /// calcula al responder y no se guarda, así un cambio de nombre se ve en
+  /// la próxima lectura. Ningún otro dato del vecino viaja (R10).
+  Map<String, dynamic> _conNombre(Map<String, dynamic> alerta) {
+    final nombre = _almacen.vecinos[alerta['reportada_por']]?['nombre'];
+    final partes = nombre is String
+        ? nombre.trim().split(RegExp(r'\s+'))
+        : const <String>[];
+    return {
+      ...alerta,
+      'reportada_por_nombre': partes.isEmpty ? '' : partes.first,
+    };
   }
 
   /// Envía el aviso push de [alerta] si todavía no está resuelta. Si el
@@ -295,7 +320,7 @@ class Api {
     }
     alerta['estado'] = estado;
     _almacen.guardar();
-    return _json(200, alerta);
+    return _json(200, _conNombre(alerta));
   }
 
   // -------------------------------------------------------------------------

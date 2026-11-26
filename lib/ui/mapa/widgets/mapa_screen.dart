@@ -13,6 +13,7 @@ import '../../core/widgets/boton_sos.dart';
 import '../../core/widgets/chip_estado.dart';
 import '../../core/widgets/estado_de_carga.dart';
 import '../../core/widgets/mapa_barrio.dart';
+import '../../core/widgets/marca_tardia.dart';
 import '../../core/widgets/objetivo_tactil.dart';
 import '../../core/widgets/pin_alerta.dart';
 import '../view_models/mapa_view_model.dart';
@@ -81,6 +82,7 @@ class _MapaScreenState extends State<MapaScreen> {
   }
 
   void _mostrarResumen(Alerta alerta) {
+    final tardia = _vm.tardia(alerta);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -103,6 +105,8 @@ class _MapaScreenState extends State<MapaScreen> {
                   _vm.hace(alerta),
                   style: const TextStyle(color: AppColors.textoSecundario),
                 ),
+                // R23: la marca de tardía, con su hora real.
+                if (tardia != null) MarcaTardia(texto: tardia),
               ],
             ),
             const SizedBox(height: 12),
@@ -258,6 +262,7 @@ class _ContenidoMapa extends StatelessWidget {
                     // Abre encuadrando las alertas para que los pines queden
                     // separados; "Ver todo el radio" muestra el círculo entero.
                     encuadre: EncuadreMapa.alertas,
+                    tardias: viewModel.tardias,
                   ),
                 ),
               ),
@@ -316,6 +321,15 @@ class _Leyenda extends StatelessWidget {
             ),
           ),
           'Vos y el radio de alertas (1 km)',
+        ),
+        // R31: el distintivo de reloj de las alertas tardías.
+        item(
+          const PinAlerta(
+            estado: EstadoAlerta.activa,
+            diametro: 22,
+            tardia: true,
+          ),
+          'Llegó con demora',
         ),
       ],
     );

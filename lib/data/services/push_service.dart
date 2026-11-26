@@ -4,9 +4,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../domain/avisos_tardios.dart';
 import '../../domain/models/alerta.dart';
+import '../repositories/avisos_recibidos_repository.dart';
 import 'local/preferencias.dart';
 import 'notificaciones_service.dart';
+import 'reloj.dart';
 
 /// Tópico de Firebase Cloud Messaging al que se suscriben los teléfonos del
 /// barrio para recibir alertas nuevas con la app cerrada.
@@ -22,10 +25,17 @@ Future<void> manejarMensajePushEnSegundoPlano(RemoteMessage mensaje) async {
   } catch (_) {}
   final notificaciones = NotificacionesServiceLocales();
   await notificaciones.inicializar();
+  // Corre en otro isolate, sin Dependencias: arma sus propias piezas sobre
+  // las mismas preferencias (SharedPreferencesAsync no tiene caché).
+  final preferencias = Preferencias(SharedPreferencesAsync());
   await procesarAvisoPush(
     mensaje.data,
-    preferencias: Preferencias(SharedPreferencesAsync()),
+    preferencias: preferencias,
     notificaciones: notificaciones,
+    avisos: AvisosRecibidosRepositoryLocal(
+      preferencias: preferencias,
+      reloj: const RelojDelSistema(),
+    ),
   );
 }
 
@@ -64,6 +74,8 @@ Alerta? alertaDesdeDatosPush(Map<String, dynamic> datos) {
     'latitud': latitud,
     'longitud': longitud,
     'reportada_por': reportadaPor,
+    if (datos['reportada_por_nombre'] case final String nombre)
+      'reportada_por_nombre': nombre,
   });
 }
 
@@ -81,12 +93,15 @@ double? _decimal(Object? valor) {
 
 /// Evalúa un mensaje push recibido en segundo plano: verifica que los avisos
 /// estén activos en [preferencias], que la alerta no sea del vecino con
-/// sesión abierta y que no esté resuelta. Si corresponde, muestra el aviso
-/// con [notificaciones] y devuelve true.
+/// sesión abierta y que no esté resuelta. Si corresponde, guarda la llegada
+/// en [avisos] y muestra el aviso con [notificaciones]: el de siempre si
+/// llegó a tiempo, el tardío si llegó con demora, o ninguno si llegó más de
+/// 2 horas después (R5, R13, R14, R15). Devuelve true si mostró un aviso.
 Future<bool> procesarAvisoPush(
   Map<String, dynamic> datos, {
   required Preferencias preferencias,
   required NotificacionesService notificaciones,
+  required AvisosRecibidosRepository avisos,
 }) async {
   final alerta = alertaDesdeDatosPush(datos);
   if (alerta == null) return false;
@@ -97,8 +112,17 @@ Future<bool> procesarAvisoPush(
   final vecino = await preferencias.vecino();
   if (vecino != null && alerta.reportadaPor == vecino.id) return false;
 
-  await notificaciones.avisarAlerta(alerta);
-  return true;
+  final llegada = await avisos.registrarLlegada(alerta.id);
+  switch (clasificarAviso(creadaEn: alerta.creadaEn, llegada: llegada)) {
+    case PuntualidadAviso.aTiempo:
+      await notificaciones.avisarAlerta(alerta);
+      return true;
+    case PuntualidadAviso.tardio:
+      await notificaciones.avisarAlertaTardia(alerta);
+      return true;
+    case PuntualidadAviso.demasiadoTardio:
+      return false;
+  }
 }
 
 /// Avisos push que llegan aunque la app esté cerrada o el celular bloqueado.

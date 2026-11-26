@@ -1,6 +1,8 @@
 /// Textos con fechas en español para mostrar en pantalla.
 library;
 
+import '../../domain/avisos_tardios.dart' show horaYMinutos;
+
 const diasCalendario = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 const _dias = [
@@ -76,4 +78,21 @@ String tiempoTranscurrido(DateTime desde, DateTime ahora) {
     return 'Ayer a las $hora:$minutos';
   }
   return 'Hace $diasAtras días';
+}
+
+/// "Llegó con demora. Alerta de las 15:10" o, si no es del día de [ahora],
+/// "Llegó con demora. Alerta del 24/11 a las 23:50" (R20, R21). La hora es
+/// la de [creadaEn], en la zona del teléfono.
+String marcaTardia({required DateTime creadaEn, required DateTime ahora}) {
+  final creada = creadaEn.toLocal();
+  final hoy = ahora.toLocal();
+  final hora = horaYMinutos(creada);
+  final mismoDia =
+      creada.year == hoy.year &&
+      creada.month == hoy.month &&
+      creada.day == hoy.day;
+  if (mismoDia) return 'Llegó con demora. Alerta de las $hora';
+  final dia = creada.day.toString().padLeft(2, '0');
+  final mes = creada.month.toString().padLeft(2, '0');
+  return 'Llegó con demora. Alerta del $dia/$mes a las $hora';
 }

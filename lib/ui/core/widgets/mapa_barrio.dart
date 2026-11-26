@@ -37,6 +37,7 @@ class MapaBarrio extends StatelessWidget {
     this.mostrarUsuario = true,
     this.tamanioPin = 32,
     this.margen = const EdgeInsets.all(16),
+    this.tardias = const {},
   });
 
   /// Los tests lo desactivan para no descargar calles de internet.
@@ -81,13 +82,17 @@ class MapaBarrio extends StatelessWidget {
   /// tape los pines.
   final EdgeInsets margen;
 
+  /// id de alerta → texto de la marca, para las alertas cuyo aviso llegó con
+  /// demora: su pin lleva el reloj y su etiqueta la marca (R22, R28).
+  final Map<String, String> tardias;
+
   /// Por ahora es el centro del barrio; con el GPS será la posición real.
   LatLng get ubicacionUsuario => Barrio.centro;
 
   /// Etiqueta que lee el lector de pantalla para cada pin.
-  static String etiquetaDe(Alerta alerta) =>
+  static String etiquetaDe(Alerta alerta, {String? tardia}) =>
       'Alerta: ${alerta.tipo}, ${alerta.estado.etiqueta.toLowerCase()}, '
-      '${alerta.direccion}. Ver resumen';
+      '${alerta.direccion}. ${tardia == null ? '' : '$tardia. '}Ver resumen';
 
   CameraFit get _encuadreInicial {
     if (encuadre == EncuadreMapa.alertas && alertas.isNotEmpty) {
@@ -164,7 +169,12 @@ class MapaBarrio extends StatelessWidget {
   }
 
   Marker _marcador(Alerta alerta) {
-    final pin = PinAlerta(estado: alerta.estado, diametro: tamanioPin);
+    final tardia = tardias[alerta.id];
+    final pin = PinAlerta(
+      estado: alerta.estado,
+      diametro: tamanioPin,
+      tardia: tardia != null,
+    );
     final tocar = onAlertaTap;
 
     if (tocar == null) {
@@ -182,7 +192,7 @@ class MapaBarrio extends StatelessWidget {
       width: ObjetivoTactil.tamanioMinimo,
       height: ObjetivoTactil.tamanioMinimo,
       child: ObjetivoTactil(
-        etiqueta: etiquetaDe(alerta),
+        etiqueta: etiquetaDe(alerta, tardia: tardia),
         onTap: () => tocar(alerta),
         child: pin,
       ),

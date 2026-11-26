@@ -794,4 +794,143 @@ void main() {
       },
     );
   });
+
+  group('Salud', () {
+    test('GET /salud devuelve estado ok y la hora del servidor', () async {
+      // Sin token, como siempre.
+      final (codigo, cuerpo) = await pedir('GET', '/salud');
+      expect(codigo, 200);
+      expect(cuerpo, {
+        'estado': 'ok',
+        'ahora': DateTime(2026, 10, 1, 12).millisecondsSinceEpoch,
+      });
+    });
+  });
+
+  group('Nombre de quien reportó', () {
+    const clavesDeUnaAlerta = {
+      'id',
+      'categoria',
+      'tipo',
+      'descripcion',
+      'direccion',
+      'creada_en',
+      'estado',
+      'latitud',
+      'longitud',
+      'reportada_por',
+      'reportada_por_nombre',
+    };
+
+    Future<Map<String, dynamic>> crear(String token) async {
+      final (codigo, alerta) = await pedir(
+        'POST',
+        '/alertas',
+        token: token,
+        cuerpo: {
+          'categoria': 'robo',
+          'tipo': 'Robo',
+          'descripcion': 'Prueba',
+          'direccion': 'Calle Plantamura',
+          'latitud': -32.876568,
+          'longitud': -68.870672,
+        },
+      );
+      expect(codigo, 201);
+      return alerta as Map<String, dynamic>;
+    }
+
+    test('las alertas traen el primer nombre de quien las reportó', () async {
+      final clara = await ingresar(telefonoClara);
+      final rosa = await ingresar(telefonoRosa);
+
+      // GET /alertas
+      final (codigo, alertas) = await pedir('GET', '/alertas', token: clara);
+      expect(codigo, 200);
+      final porId = {for (final a in alertas as List) a['id']: a};
+      expect(porId['a1']['reportada_por_nombre'], 'Clara');
+      expect(porId['a2']['reportada_por_nombre'], 'Martín');
+      expect(porId['a3']['reportada_por_nombre'], 'Pedro');
+
+      // POST /alertas
+      final nueva = await crear(rosa);
+      expect(nueva['reportada_por_nombre'], 'Rosa');
+
+      // PATCH /alertas/<id>
+      final (cambio, cerrada) = await pedir(
+        'PATCH',
+        '/alertas/a1',
+        token: clara,
+        cuerpo: {'estado': 'resuelta'},
+      );
+      expect(cambio, 200);
+      expect(cerrada['reportada_por_nombre'], 'Clara');
+    });
+
+    test('si el vecino ya no existe, el nombre viene vacío', () async {
+      final clara = await ingresar(telefonoClara);
+      almacen.alertas.first['reportada_por'] = 'nadie';
+      final (_, alertas) = await pedir('GET', '/alertas', token: clara);
+      final huerfana = (alertas as List).firstWhere(
+        (a) => a['reportada_por'] == 'nadie',
+      );
+      expect(huerfana['reportada_por_nombre'], '');
+    });
+
+    test('el push de una alerta nueva trae reportada_por_nombre', () async {
+      await crear(await ingresar(telefonoRosa));
+      expect(push.enviadas.single['reportada_por_nombre'], 'Rosa');
+    });
+
+    test(
+      'ni la alerta ni el push traen otros datos de quien reportó',
+      () async {
+        final clara = await ingresar(telefonoClara);
+        final nueva = await crear(clara);
+        expect(nueva.keys.toSet(), clavesDeUnaAlerta);
+        expect(push.enviadas.single.keys.toSet(), clavesDeUnaAlerta);
+
+        final (_, alertas) = await pedir('GET', '/alertas', token: clara);
+        for (final alerta in alertas as List) {
+          expect(
+            (alerta as Map<String, dynamic>).keys.toSet(),
+            clavesDeUnaAlerta,
+            reason: alerta['id'] as String,
+          );
+        }
+        final (_, cerrada) = await pedir(
+          'PATCH',
+          '/alertas/${nueva['id']}',
+          token: clara,
+          cuerpo: {'estado': 'resuelta'},
+        );
+        expect(
+          (cerrada as Map<String, dynamic>).keys.toSet(),
+          clavesDeUnaAlerta,
+        );
+      },
+    );
+
+    test('reportada_por_nombre no se guarda en el almacén', () async {
+      final clara = await ingresar(telefonoClara);
+      await crear(clara);
+      await pedir('GET', '/alertas', token: clara);
+      await pedir(
+        'PATCH',
+        '/alertas/a1',
+        token: clara,
+        cuerpo: {'estado': 'resuelta'},
+      );
+
+      for (final alerta in almacen.alertas) {
+        expect(alerta.containsKey('reportada_por_nombre'), isFalse);
+      }
+
+      // Un cambio de nombre se ve en la próxima lectura.
+      almacen.vecinos['clara']!['nombre'] = 'Clarita Medina';
+      final (_, alertas) = await pedir('GET', '/alertas', token: clara);
+      final a1 = (alertas as List).firstWhere((a) => a['id'] == 'a1');
+      expect(a1['reportada_por_nombre'], 'Clarita');
+    });
+  });
 }

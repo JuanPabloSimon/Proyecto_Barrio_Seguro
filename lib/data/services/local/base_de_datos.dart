@@ -15,7 +15,8 @@ const nombreArchivoBase = 'barrio_seguro.db';
 /// - 1: alertas y turnos.
 /// - 2: alertas_pendientes (las que no se pudieron enviar sin señal).
 /// - 3: se quita alertas_pendientes (la app requiere conexión).
-const versionDelEsquema = 3;
+/// - 4: alertas con reportada_por_nombre (avisos tardíos).
+const versionDelEsquema = 4;
 
 /// Copia local de las alertas, que sirve de caché. Mismas columnas
 /// que el JSON de la API. La fecha va en milisegundos (SQLite no tiene
@@ -31,7 +32,8 @@ CREATE TABLE alertas (
   estado TEXT NOT NULL,
   latitud REAL NOT NULL,
   longitud REAL NOT NULL,
-  reportada_por TEXT NOT NULL
+  reportada_por TEXT NOT NULL,
+  reportada_por_nombre TEXT NOT NULL DEFAULT ''
 )
 ''';
 
@@ -70,6 +72,13 @@ Future<Database> abrirBaseDeDatos(DatabaseFactory fabrica, String ruta) {
         // que ayuda. Con una base de la v1 la tabla no existe y no pasa nada.
         if (anterior < 3) {
           await db.execute('DROP TABLE IF EXISTS alertas_pendientes');
+        }
+        // Las alertas guardadas quedan sin nombre ('') hasta la próxima
+        // lectura del servidor.
+        if (anterior < 4) {
+          await db.execute(
+            "ALTER TABLE alertas ADD COLUMN reportada_por_nombre TEXT NOT NULL DEFAULT ''",
+          );
         }
       },
     ),
