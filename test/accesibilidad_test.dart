@@ -18,6 +18,7 @@ import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/ui/core/tema/app_colors.dart';
 import 'package:barrio_seguro/ui/core/tema/transiciones.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
+import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -224,6 +225,56 @@ final pantallas = <Pantalla>[
     await tocar(tester, find.byType(BotonSos));
     await tocar(tester, find.text('Sí, enviar alerta'));
     expect(find.text('Alerta enviada'), findsOneWidget);
+    await mostrar(tester, find.text('Volver'));
+    expect(find.text('Volver'), findsOneWidget);
+  }),
+  Pantalla('SOS: confirmar "Ya estoy a salvo" (diálogo)', (tester) async {
+    await abrirSosEnviado(tester);
+    await tocar(tester, find.text('Ya estoy a salvo'));
+    expect(find.text('¿Ya estás a salvo?'), findsOneWidget);
+    await mostrar(tester, find.text('Sí, estoy a salvo'));
+  }),
+  Pantalla('SOS: confirmar "Fue una falsa alarma" (diálogo)', (tester) async {
+    await abrirSosEnviado(tester);
+    await tocar(tester, find.text('Fue una falsa alarma'));
+    expect(find.text('¿Fue una falsa alarma?'), findsOneWidget);
+    await mostrar(tester, find.text('Sí, fue una falsa alarma'));
+  }),
+  Pantalla('Inicio con una alerta SOS', (tester) async {
+    await abrirSosYVolver(tester);
+    final tarjeta = find.bySemanticsLabel(RegExp('^Alerta SOS: '));
+    await mostrar(tester, tarjeta);
+    await mostrar(
+      tester,
+      find.descendant(of: tarjeta, matching: find.byType(MarcaSos)),
+    );
+  }),
+  Pantalla('Resumen de una alerta SOS en el mapa', (tester) async {
+    await abrirSosYVolver(tester);
+    await tocar(
+      tester,
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mapa'),
+      ),
+    );
+    await activarConLector(
+      tester,
+      find.bySemanticsLabel(RegExp('^Alerta SOS: ')),
+    );
+    await mostrar(
+      tester,
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(MarcaSos),
+      ),
+    );
+  }),
+  Pantalla('Detalle de una alerta SOS', (tester) async {
+    await abrirSosYVolver(tester);
+    await tocar(tester, find.bySemanticsLabel(RegExp('^Alerta SOS: ')));
+    expect(find.text('Detalle de alerta'), findsOneWidget);
+    await mostrar(tester, find.byType(MarcaSos));
   }),
   Pantalla('Sin conexión', abrirSinConexion),
   Pantalla('Inicio con una alerta tardía', (tester) async {
@@ -259,6 +310,26 @@ final pantallas = <Pantalla>[
     await mostrar(tester, find.text('Pedro'));
   }),
 ];
+
+/// Ingresa, toca el botón SOS y envía la alerta.
+Future<void> abrirSosEnviado(WidgetTester tester) async {
+  await ingresar(tester);
+  await tocar(tester, find.byType(BotonSos));
+  await tocar(tester, find.text('Sí, enviar alerta'));
+  expect(find.text('Alerta enviada'), findsOneWidget);
+}
+
+/// Envía un SOS y vuelve al inicio con "Volver": la alerta queda activa.
+Future<void> abrirSosYVolver(WidgetTester tester) async {
+  await abrirSosEnviado(tester);
+  await tocar(tester, find.text('Volver'));
+  expect(find.text('Alerta enviada'), findsNothing);
+  // El aviso de "sigue activa" dura 6 segundos. Con texto grande ocupa
+  // media pantalla y sube el botón SOS sobre la lista: se espera a que se
+  // vaya para mirar la pantalla como queda.
+  await tester.pump(const Duration(seconds: 7));
+  await tester.pumpAndSettle();
+}
 
 /// a3 ("Intento de robo", de Pedro) es de las 11:00 y su aviso llegó a las
 /// 11:30: es tardía.
@@ -308,6 +379,20 @@ void main() {
   });
 
   group('Colores', () {
+    test('Los pares de la marca SOS están en AppColors', () {
+      final pares = {
+        for (final par in AppColors.paresDeContraste) par.descripcion: par,
+      };
+      final texto = pares['Texto sobre rojo suave (marca SOS)']!;
+      expect(texto.frente, AppColors.texto);
+      expect(texto.fondo, AppColors.emergenciaSuave);
+      expect(texto.minimo, ParContraste.textoNormal);
+      final icono = pares['Rojo de emergencia sobre rojo suave (marca SOS)']!;
+      expect(icono.frente, AppColors.emergencia);
+      expect(icono.fondo, AppColors.emergenciaSuave);
+      expect(icono.minimo, ParContraste.componente);
+    });
+
     test('Todos los pares de AppColors cumplen el contraste mínimo', () {
       for (final par in AppColors.paresDeContraste) {
         expect(
@@ -392,6 +477,47 @@ void main() {
       expect(nodo.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
       handle.dispose();
     });
+  });
+
+  group('SOS enviado', () {
+    testWidgets(
+      'el botón "Volver" y los botones de los diálogos se anuncian con su texto',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+        await abrirSosEnviado(tester);
+
+        void anunciaSuTexto(Finder boton, String texto) {
+          final datos = tester.getSemantics(boton).getSemanticsData();
+          expect(datos.label, texto);
+          expect(datos.hasAction(SemanticsAction.tap), isTrue);
+        }
+
+        anunciaSuTexto(find.widgetWithText(OutlinedButton, 'Volver'), 'Volver');
+
+        for (final (abrir, titulo, confirmar) in [
+          ('Ya estoy a salvo', '¿Ya estás a salvo?', 'Sí, estoy a salvo'),
+          (
+            'Fue una falsa alarma',
+            '¿Fue una falsa alarma?',
+            'Sí, fue una falsa alarma',
+          ),
+        ]) {
+          await tocar(tester, find.text(abrir));
+          expect(tester.getSemantics(find.text(titulo)).label, titulo);
+          anunciaSuTexto(
+            find.widgetWithText(OutlinedButton, 'Seguir con la alerta'),
+            'Seguir con la alerta',
+          );
+          anunciaSuTexto(
+            find.widgetWithText(FilledButton, confirmar),
+            confirmar,
+          );
+          await tocar(tester, find.text('Seguir con la alerta'));
+        }
+        handle.dispose();
+      },
+    );
   });
 
   group('Pantalla sin conexión', () {

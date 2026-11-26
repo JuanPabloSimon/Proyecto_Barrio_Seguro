@@ -100,3 +100,15 @@
   - `_cerrado` en `detalle_alerta_view_model.dart` podría llamarse `_estaCerrado`.
   - Falta commitear el trabajo de la rama `feature/avisos_tardios`.
 - **Próximo:** feature 17 (`quitar_arrebato`).
+
+## 2026-11-26 — Feature 17 (`sos_mejorado`): SOS con contexto y confirmaciones
+
+- **Quién:** equipo + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/sos_mejorado/` (T1–T21, R1–R34). El SOS crea una alerta de categoría `sos` con el título "Intento de robo" (`tipoAlertaSos` en `SosViewModel`; descripción, dirección y quien reporta como antes). En la pantalla del SOS enviado: botón "Volver" y Atrás (`PopScope`) cierran sin cambiar la alerta y avisan que sigue activa; "Ya estoy a salvo" y "Fue una falsa alarma" piden confirmación (`confirmarCierreSos` en `lib/ui/sos/widgets/confirmar_cierre_sos.dart`, confirmar con relleno y cancelar con contorno) y, si se cancela, no cambia nada; si falla el cierre se avisa que se haga desde "Mis alertas". `MarcaSos` (ícono + texto, sin anunciarse aparte) en la tarjeta, el resumen del mapa y el detalle; las etiquetas de los SOS dicen "Alerta SOS: …" y `Alerta.tituloConCategoria` antepone "SOS: " solo a las alertas `sos`. Dos pares nuevos de contraste en `AppColors`. Backend: solo `backend/test/api_test.dart` (manda "Intento de robo").
+- **Ajuste a la feature 14 (`informe_alertas`):** el informe cuenta todos los SOS en una sola fila "SOS" (también en el CSV) y una alerta de otra categoría titulada "SOS" figura como "SOS (Robo)". Orden y formato del CSV sin cambios; las pruebas de la feature 14 siguen igual y en verde.
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 333 pruebas en la app y 48 en el backend). Review aprobado en `progress/review_sos_mejorado.md`.
+- **Pendientes (no bloquean):**
+  - `lib/ui/sos/widgets/sos_screen.dart`: mientras `cerrarAlerta()` está en curso después de confirmar, "Volver" y Atrás siguen habilitados; con red lenta el vecino podría salir con el aviso "sigue activa" y que la alerta quede resuelta igual (ya pasaba antes con doble toque). Candidato a ajuste futuro.
+  - En el detalle y el resumen de un SOS el lector también lee la descripción fija "Un vecino pidió ayuda con el botón SOS.".
+  - Falta commitear el trabajo de la rama `feature/sos_mejorado`.
+- **Próximo:** feature 18 (`reportar_alerta`).

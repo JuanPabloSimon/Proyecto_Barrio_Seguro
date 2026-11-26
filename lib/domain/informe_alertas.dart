@@ -1,5 +1,10 @@
+import 'avisos_tardios.dart';
 import 'fechas.dart';
 import 'models/alerta.dart';
+
+/// Nombre de la fila de "Por tipo" que cuenta todas las alertas SOS, sea
+/// cual sea su título.
+const filaSosInforme = 'SOS';
 
 /// Franjas del día para clasificar a qué hora ocurren las alertas en el
 /// informe mensual.
@@ -66,18 +71,26 @@ class InformeAlertas {
     final calles = <String, int>{};
     final tipos = <String, int>{};
     final franjas = <String, int>{};
+    // Los SOS se cuentan aparte: una alerta de otra categoría nunca suma
+    // acá, aunque se titule "SOS".
+    var sos = 0;
 
     for (final alerta in delMes) {
       final calle = alerta.direccion.trim().isEmpty
           ? 'Sin calle indicada'
           : alerta.direccion.trim();
-      final tipo = alerta.tipo.trim().isEmpty ? 'Sin tipo' : alerta.tipo.trim();
       final franja = FranjaInforme.deHora(alerta.creadaEn.hour).etiqueta;
 
       calles[calle] = (calles[calle] ?? 0) + 1;
-      tipos[tipo] = (tipos[tipo] ?? 0) + 1;
+      if (alerta.categoria == CategoriaAlerta.sos) {
+        sos++;
+      } else {
+        final tipo = _nombreDeTipo(alerta);
+        tipos[tipo] = (tipos[tipo] ?? 0) + 1;
+      }
       franjas[franja] = (franjas[franja] ?? 0) + 1;
     }
+    if (sos > 0) tipos[filaSosInforme] = sos;
 
     return InformeAlertas(
       mes: mesNormalizado,
@@ -121,6 +134,18 @@ class InformeAlertas {
       );
     }
     return buffer.toString();
+  }
+
+  /// El título tal cual ("Sin tipo" si está vacío). Si una alerta que no es
+  /// SOS se titula "SOS", se le suma la categoría para que su fila no se
+  /// confunda con la de los SOS.
+  static String _nombreDeTipo(Alerta alerta) {
+    final titulo = alerta.tipo.trim();
+    if (titulo.isEmpty) return 'Sin tipo';
+    if (titulo.toLowerCase() == filaSosInforme.toLowerCase()) {
+      return '$titulo (${alerta.categoria.nombreCorto ?? 'otra categoría'})';
+    }
+    return titulo;
   }
 
   static List<FilaInforme> _ordenar(Map<String, int> conteos) {

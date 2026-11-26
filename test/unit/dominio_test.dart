@@ -252,16 +252,28 @@ void main() {
     });
   });
 
+  test('tituloConCategoria antepone "SOS: " solo a las alertas sos', () {
+    expect(
+      alertaDePrueba(categoria: CategoriaAlerta.sos).tituloConCategoria,
+      'SOS: Intento de robo',
+    );
+    expect(
+      alertaDePrueba(categoria: CategoriaAlerta.robo).tituloConCategoria,
+      'Intento de robo',
+    );
+  });
+
   group('Informe de alertas', () {
     Alerta crearAlerta({
       required String id,
       required DateTime fecha,
       String direccion = 'Calle Plantamura',
       String tipo = 'Intento de robo',
+      CategoriaAlerta categoria = CategoriaAlerta.robo,
     }) {
       return Alerta(
         id: id,
-        categoria: CategoriaAlerta.robo,
+        categoria: categoria,
         tipo: tipo,
         descripcion: 'Prueba',
         direccion: direccion,
@@ -390,6 +402,70 @@ void main() {
       expect(csv, contains('Por calle,"Cabildo, Cuadra 12",1'));
       expect(csv, contains('Por tipo,Pedido de ayuda (SOS),1'));
       expect(csv, contains('Por franja horaria,Noche (20:00 - 00:00),1'));
+    });
+
+    List<String> porTipo(InformeAlertas informe) =>
+        informe.porTipo.map((f) => '${f.nombre}:${f.cantidad}').toList();
+
+    test('cuenta todos los SOS en una sola fila "SOS"', () {
+      final dia = DateTime(2026, 10, 3, 10);
+      final informe = InformeAlertas.delMes(
+        alertas: [
+          crearAlerta(id: '1', fecha: dia, categoria: CategoriaAlerta.sos),
+          crearAlerta(
+            id: '2',
+            fecha: dia,
+            categoria: CategoriaAlerta.sos,
+            tipo: 'Pedido de ayuda (SOS)',
+          ),
+          crearAlerta(id: '3', fecha: dia),
+          crearAlerta(id: '4', fecha: dia),
+        ],
+        mes: octubre,
+      );
+
+      expect(porTipo(informe), ['Intento de robo:2', 'SOS:2']);
+      expect(informe.total, 4);
+    });
+
+    test('un robo titulado "SOS" no se suma a la fila de los SOS', () {
+      final dia = DateTime(2026, 10, 3, 10);
+      final informe = InformeAlertas.delMes(
+        alertas: [
+          crearAlerta(id: '1', fecha: dia, categoria: CategoriaAlerta.sos),
+          crearAlerta(id: '2', fecha: dia, tipo: 'SOS'),
+          crearAlerta(id: '3', fecha: dia, tipo: ' sos '),
+          crearAlerta(id: '4', fecha: dia, tipo: 'Pedido de ayuda (SOS)'),
+        ],
+        mes: octubre,
+      );
+
+      expect(porTipo(informe), [
+        'Pedido de ayuda (SOS):1',
+        'SOS:1',
+        'SOS (Robo):1',
+        'sos (Robo):1',
+      ]);
+    });
+
+    test('el CSV trae una sola fila de los SOS', () {
+      final dia = DateTime(2026, 10, 3, 10);
+      final csv = InformeAlertas.delMes(
+        alertas: [
+          crearAlerta(id: '1', fecha: dia, categoria: CategoriaAlerta.sos),
+          crearAlerta(
+            id: '2',
+            fecha: dia,
+            categoria: CategoriaAlerta.sos,
+            tipo: 'Pedido de ayuda (SOS)',
+          ),
+        ],
+        mes: octubre,
+      ).toCsv();
+
+      expect(csv, contains('Por tipo,SOS,2'));
+      expect(csv, isNot(contains('Por tipo,SOS: ')));
+      expect(csv, isNot(contains('Por tipo,Intento de robo')));
     });
   });
 }

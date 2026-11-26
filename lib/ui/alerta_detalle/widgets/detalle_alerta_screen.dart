@@ -11,6 +11,7 @@ import '../../core/widgets/chip_estado.dart';
 import '../../core/widgets/con_view_model.dart';
 import '../../core/widgets/dialogo_911.dart';
 import '../../core/widgets/mapa_barrio.dart';
+import '../../core/widgets/marca_sos.dart';
 import '../../core/widgets/marca_tardia.dart';
 import '../view_models/detalle_alerta_view_model.dart';
 
@@ -148,6 +149,7 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              if (alerta.categoria == CategoriaAlerta.sos) const MarcaSos(),
               ChipEstado(estado: alerta.estado),
               Text(
                 viewModel.hace,
@@ -160,6 +162,8 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             alerta.tipo,
+            // El lector dice "SOS: Intento de robo" para un SOS.
+            semanticsLabel: alerta.tituloConCategoria,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),

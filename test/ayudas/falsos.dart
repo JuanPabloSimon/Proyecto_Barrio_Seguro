@@ -41,13 +41,17 @@ Alerta alertaDePrueba({
   String reportadaPor = 'clara',
   String reportadaPorNombre = '',
   DateTime? creadaEn,
+  CategoriaAlerta categoria = CategoriaAlerta.robo,
+  String tipo = 'Intento de robo',
+  String descripcion = 'Prueba',
+  String direccion = 'Calle de prueba',
 }) {
   return Alerta(
     id: id,
-    categoria: CategoriaAlerta.robo,
-    tipo: 'Intento de robo',
-    descripcion: 'Prueba',
-    direccion: 'Calle de prueba',
+    categoria: categoria,
+    tipo: tipo,
+    descripcion: descripcion,
+    direccion: direccion,
     creadaEn: creadaEn ?? DateTime(2026, 10, 1, 11, 55),
     estado: estado,
     ubicacion: const LatLng(-32.8765, -68.8706),
@@ -107,6 +111,9 @@ class AlertasFalsas implements AlertasRepository {
   /// Dónde se mandó cada alerta creada, en orden.
   final List<LatLng> ubicacionesEnviadas = [];
 
+  /// Cuántas veces se pidió cambiar el estado de una alerta (aunque falle).
+  int cambiosDeEstado = 0;
+
   @override
   bool sinConexion = false;
 
@@ -135,6 +142,10 @@ class AlertasFalsas implements AlertasRepository {
     final alerta = alertaDePrueba(
       id: 'nueva-${alertas.length}',
       reportadaPor: reportadaPor,
+      categoria: categoria,
+      tipo: tipo,
+      descripcion: descripcion,
+      direccion: direccion,
     );
     alertas.insert(0, alerta);
     return alerta;
@@ -142,12 +153,20 @@ class AlertasFalsas implements AlertasRepository {
 
   @override
   Future<Alerta> cambiarEstado(String id, EstadoAlerta estado) async {
+    cambiosDeEstado++;
     _quizasFallar();
     final i = alertas.indexWhere((a) => a.id == id);
+    final anterior = alertas[i];
     final actualizada = alertaDePrueba(
       id: id,
       estado: estado,
-      reportadaPor: alertas[i].reportadaPor,
+      reportadaPor: anterior.reportadaPor,
+      reportadaPorNombre: anterior.reportadaPorNombre,
+      creadaEn: anterior.creadaEn,
+      categoria: anterior.categoria,
+      tipo: anterior.tipo,
+      descripcion: anterior.descripcion,
+      direccion: anterior.direccion,
     );
     alertas[i] = actualizada;
     return actualizada;

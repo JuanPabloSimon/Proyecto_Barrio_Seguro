@@ -11,6 +11,12 @@ import '../../../domain/evento_de_app.dart';
 import '../../../domain/models/alerta.dart';
 import '../../../plataforma/capacidades.dart';
 
+/// Título de la alerta que crea el botón SOS.
+const tipoAlertaSos = 'Intento de robo';
+
+/// Descripción de la alerta del SOS, igual que antes de la feature 17.
+const descripcionAlertaSos = 'Un vecino pidió ayuda con el botón SOS.';
+
 /// Los pasos de la pantalla SOS.
 enum PasoSos { confirmar, enviando, enviada, error }
 
@@ -54,8 +60,8 @@ class SosViewModel extends ChangeNotifier {
       _conUbicacionExacta = exacta != null;
       _enviada = await _repositorio.crearAlerta(
         categoria: CategoriaAlerta.sos,
-        tipo: 'Pedido de ayuda (SOS)',
-        descripcion: 'Un vecino pidió ayuda con el botón SOS.',
+        tipo: tipoAlertaSos,
+        descripcion: descripcionAlertaSos,
         direccion: exacta == null
             ? '${Barrio.nombre} (zona aproximada)'
             : 'Ubicación exacta del vecino',

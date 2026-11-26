@@ -90,9 +90,14 @@ class MapaBarrio extends StatelessWidget {
   LatLng get ubicacionUsuario => Barrio.centro;
 
   /// Etiqueta que lee el lector de pantalla para cada pin.
-  static String etiquetaDe(Alerta alerta, {String? tardia}) =>
-      'Alerta: ${alerta.tipo}, ${alerta.estado.etiqueta.toLowerCase()}, '
-      '${alerta.direccion}. ${tardia == null ? '' : '$tardia. '}Ver resumen';
+  static String etiquetaDe(Alerta alerta, {String? tardia}) {
+    // "Alerta SOS: Intento de robo" para un SOS; "Alerta: …" para el resto.
+    final titulo = alerta.categoria == CategoriaAlerta.sos
+        ? 'Alerta ${alerta.tituloConCategoria}'
+        : 'Alerta: ${alerta.tipo}';
+    return '$titulo, ${alerta.estado.etiqueta.toLowerCase()}, '
+        '${alerta.direccion}. ${tardia == null ? '' : '$tardia. '}Ver resumen';
+  }
 
   CameraFit get _encuadreInicial {
     if (encuadre == EncuadreMapa.alertas && alertas.isNotEmpty) {

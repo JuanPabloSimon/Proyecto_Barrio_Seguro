@@ -7,6 +7,7 @@ import '../../core/tema/app_colors.dart';
 import '../../core/widgets/aviso.dart';
 import '../../core/widgets/dialogo_911.dart';
 import '../view_models/sos_view_model.dart';
+import 'confirmar_cierre_sos.dart';
 
 const _estiloBotonContornoSos = OutlinedButton.styleFrom;
 
@@ -45,11 +46,31 @@ class SosScreen extends StatelessWidget {
     if (mensaje != null) mostrarAviso(anterior.context, mensaje);
   }
 
-  /// "Ya estoy a salvo" o "Fue una falsa alarma": primero se cierra la
-  /// alerta en el servidor y después se vuelve a la app.
-  Future<void> _cerrarAlerta(BuildContext context, String mensaje) async {
+  /// "Volver" o el botón Atrás con la alerta enviada: se cierra la pantalla
+  /// sin tocar la alerta, que sigue activa, y se avisa dónde encontrarla.
+  void _volver(BuildContext context) {
+    final navegador = Navigator.of(context);
+    final mensajero = ScaffoldMessenger.of(context);
+    navegador.pop();
+    mostrarAvisoEn(
+      mensajero,
+      'Tu alerta sigue activa. La encontrás en Perfil, en '
+      '"Mis alertas reportadas".',
+    );
+  }
+
+  /// "Ya estoy a salvo" o "Fue una falsa alarma": primero se confirma,
+  /// después se cierra la alerta en el servidor y se vuelve a la app. Si
+  /// el vecino no confirma, no cambia nada.
+  Future<void> _confirmarYCerrar(BuildContext context, CierreSos cierre) async {
+    final confirmo = await confirmarCierreSos(context, cierre);
+    if (!confirmo || !context.mounted) return;
     final ok = await viewModel.cerrarAlerta();
     if (!context.mounted) return;
+    final mensaje = switch (cierre) {
+      CierreSos.aSalvo => 'Marcaste la alerta como resuelta',
+      CierreSos.falsaAlarma => 'Cancelaste la alerta: fue una falsa alarma',
+    };
     _cerrar(
       context,
       ok ? mensaje : 'No pudimos cerrar la alerta. Hacelo desde "Mis alertas".',
@@ -58,43 +79,56 @@ class SosScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.emergencia,
-      body: SafeArea(
-        // Con texto grande el contenido puede no entrar: se vuelve
-        // desplazable en vez de desbordar.
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final altoDisponible = constraints.maxHeight - 48;
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: altoDisponible > 0 ? altoDisponible : 0,
-                ),
-                child: IntrinsicHeight(
-                  child: ListenableBuilder(
-                    listenable: viewModel,
-                    builder: (context, _) => viewModel.paso == PasoSos.enviada
-                        ? _VistaSosEnviada(
-                            conUbicacionExacta: viewModel.conUbicacionExacta,
-                            capacidades: capacidades,
-                            telefono: telefono,
-                            onCerrarAlerta: (mensaje) =>
-                                _cerrarAlerta(context, mensaje),
-                          )
-                        : _VistaConfirmarSos(
-                            paso: viewModel.paso,
-                            capacidades: capacidades,
-                            telefono: telefono,
-                            onEnviar: _enviar,
-                            onCancelar: () => _cerrar(context),
-                          ),
+    // Con la alerta enviada, el botón Atrás hace lo mismo que "Volver". En
+    // los otros pasos cierra como siempre.
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, pantalla) => PopScope(
+        canPop: viewModel.paso != PasoSos.enviada,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _volver(context);
+        },
+        child: pantalla!,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.emergencia,
+        body: SafeArea(
+          // Con texto grande el contenido puede no entrar: se vuelve
+          // desplazable en vez de desbordar.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final altoDisponible = constraints.maxHeight - 48;
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: altoDisponible > 0 ? altoDisponible : 0,
+                  ),
+                  child: IntrinsicHeight(
+                    child: ListenableBuilder(
+                      listenable: viewModel,
+                      builder: (context, _) => viewModel.paso == PasoSos.enviada
+                          ? _VistaSosEnviada(
+                              conUbicacionExacta: viewModel.conUbicacionExacta,
+                              capacidades: capacidades,
+                              telefono: telefono,
+                              onCerrar: (cierre) =>
+                                  _confirmarYCerrar(context, cierre),
+                              onVolver: () => _volver(context),
+                            )
+                          : _VistaConfirmarSos(
+                              paso: viewModel.paso,
+                              capacidades: capacidades,
+                              telefono: telefono,
+                              onEnviar: _enviar,
+                              onCancelar: () => _cerrar(context),
+                            ),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -226,13 +260,15 @@ class _VistaSosEnviada extends StatelessWidget {
     required this.conUbicacionExacta,
     required this.capacidades,
     required this.telefono,
-    required this.onCerrarAlerta,
+    required this.onCerrar,
+    required this.onVolver,
   });
 
   final bool conUbicacionExacta;
   final Capacidades capacidades;
   final TelefonoService telefono;
-  final ValueChanged<String> onCerrarAlerta;
+  final ValueChanged<CierreSos> onCerrar;
+  final VoidCallback onVolver;
 
   @override
   Widget build(BuildContext context) {
@@ -298,19 +334,26 @@ class _VistaSosEnviada extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         OutlinedButton(
-          onPressed: () => onCerrarAlerta('Marcaste la alerta como resuelta'),
+          onPressed: () => onCerrar(CierreSos.aSalvo),
           style: estiloContorno,
           child: const Text('Ya estoy a salvo', textAlign: TextAlign.center),
         ),
         const SizedBox(height: 16),
         OutlinedButton(
-          onPressed: () =>
-              onCerrarAlerta('Cancelaste la alerta: fue una falsa alarma'),
+          onPressed: () => onCerrar(CierreSos.falsaAlarma),
           style: estiloContorno,
           child: const Text(
             'Fue una falsa alarma',
             textAlign: TextAlign.center,
           ),
+        ),
+        // Último: es la acción menos urgente. Sale sin cerrar la alerta.
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: onVolver,
+          style: estiloContorno,
+          icon: const Icon(Icons.arrow_back),
+          label: const Text('Volver', textAlign: TextAlign.center),
         ),
       ],
     );
