@@ -20,6 +20,7 @@ import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
 import 'package:barrio_seguro/dependencias.dart';
 import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/widgets/detalle_alerta_screen.dart';
@@ -38,6 +39,7 @@ import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/perfil/widgets/perfil_screen.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/widgets/reportar_alerta_screen.dart';
+import 'package:barrio_seguro/ui/turno_incompleto/widgets/tarjeta_turno_incompleto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -365,7 +367,54 @@ final pantallas = <Pantalla>[
     expect(find.text('¿Descartar la alerta?'), findsOneWidget);
     await mostrar(tester, find.text('Sí, descartar'));
   }),
+  Pantalla('Inicio con aviso de turno incompleto', abrirConAvisoDeTurno),
+  Pantalla('Turnos con aviso de turno incompleto', abrirTurnosConAviso),
 ];
+
+const tituloAvisoTurno = 'Tu guardia no se va a hacer';
+const textoAvisoTurno =
+    'Sos la única persona anotada en el turno del viernes 9 de octubre, '
+    '22:00 - 00:00. Con una sola persona, la guardia no se hace: no salgas '
+    'a patrullar.';
+
+/// Clara sola en la Noche del 9/10 (sin Sofía ni Ernesto), el reloj a las
+/// 21:30 e ingresa: el inicio muestra el aviso de turno incompleto.
+Future<void> abrirConAvisoDeTurno(WidgetTester tester) async {
+  final app = appDePrueba(reloj: RelojManual(DateTime(2026, 10, 9, 21, 30)));
+  final nueve = DateTime(2026, 10, 9);
+  for (final (id, nombre) in [
+    ('sofia', 'Sofía Díaz'),
+    ('ernesto', 'Ernesto Funes'),
+  ]) {
+    final vecino = Vecino(
+      id: id,
+      nombre: nombre,
+      fechaNacimiento: DateTime(1960),
+    );
+    final pedido = app.dependencias.turnos.salir(vecino, nueve, Franja.noche);
+    // El servidor simulado espera un Future.delayed aun sin demora: hay que
+    // dejar pasar el tiempo falso (un pump() sin duración no alcanza).
+    await tester.pump(const Duration(milliseconds: 1));
+    await pedido;
+  }
+  await tester.pumpWidget(app);
+  await tester.pumpAndSettle();
+  await tocar(tester, find.text('Ingresar'));
+  expect(find.text(tituloAvisoTurno), findsOneWidget);
+}
+
+/// Como [abrirConAvisoDeTurno], y después la pestaña Turnos.
+Future<void> abrirTurnosConAviso(WidgetTester tester) async {
+  await abrirConAvisoDeTurno(tester);
+  await tocar(
+    tester,
+    find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text('Turnos'),
+    ),
+  );
+  expect(find.text(tituloAvisoTurno), findsOneWidget);
+}
 
 /// Ingresa y toca "Reportar alerta" en el inicio.
 Future<void> abrirReportarAlerta(WidgetTester tester) async {
@@ -1423,5 +1472,104 @@ void main() {
         revisar('No, dejarla resuelta', 'Sí, volver a abrirla');
       },
     );
+  });
+
+  group('Aviso de turno incompleto', () {
+    const etiqueta = '$tituloAvisoTurno. $textoAvisoTurno';
+
+    SemanticsData datosDe(WidgetTester tester, String etiqueta) =>
+        tester.getSemantics(find.bySemanticsLabel(etiqueta)).getSemanticsData();
+
+    testWidgets('en Turnos se anuncia con la etiqueta "<título>. <texto>" y '
+        'como región en vivo', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirTurnosConAviso(tester);
+
+      final datos = datosDe(tester, etiqueta);
+      expect(datos.label, etiqueta);
+      expect(datos.flagsCollection.isLiveRegion, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('en el inicio se anuncia como botón con la etiqueta '
+        '"<título>. <texto>. Ver turnos" y como región en vivo', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirConAvisoDeTurno(tester);
+
+      final datos = datosDe(tester, '$etiqueta. Ver turnos');
+      expect(datos.flagsCollection.isButton, isTrue);
+      expect(datos.flagsCollection.isLiveRegion, isTrue);
+      expect(datos.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('"Entendido" se anuncia como botón con la etiqueta '
+        '"Entendido. Ocultar este aviso"', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirConAvisoDeTurno(tester);
+
+      final datos = datosDe(tester, 'Entendido. Ocultar este aviso');
+      expect(datos.flagsCollection.isButton, isTrue);
+      expect(datos.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('la parte tocable del inicio y "Entendido" miden al menos '
+        '48 x 48 dp', (tester) async {
+      configurarPantalla(tester);
+      await abrirConAvisoDeTurno(tester);
+
+      final tarjeta = find.byType(TarjetaTurnoIncompleto);
+      for (final tocable in [
+        find.descendant(of: tarjeta, matching: find.byType(InkWell)).first,
+        find.descendant(of: tarjeta, matching: find.byType(OutlinedButton)),
+      ]) {
+        final tamanio = tester.getSize(tocable);
+        expect(tamanio.width, greaterThanOrEqualTo(48));
+        expect(tamanio.height, greaterThanOrEqualTo(48));
+      }
+    });
+
+    testWidgets('tiene ícono además del color', (tester) async {
+      configurarPantalla(tester);
+      await abrirConAvisoDeTurno(tester);
+
+      final icono = find.descendant(
+        of: find.byType(TarjetaTurnoIncompleto),
+        matching: find.byIcon(Icons.event_busy),
+      );
+      expect(icono, findsOneWidget);
+      // Junto al título: en la misma fila, a su izquierda.
+      final titulo = tester.getRect(find.text(tituloAvisoTurno));
+      final rectIcono = tester.getRect(icono);
+      expect(rectIcono.right, lessThanOrEqualTo(titulo.left));
+      expect(rectIcono.top, lessThan(titulo.bottom));
+    });
+
+    for (final (nombre, abrir) in [
+      ('en el inicio', abrirConAvisoDeTurno),
+      ('en Turnos', abrirTurnosConAviso),
+    ]) {
+      testWidgets('al 200 % se ven el título, el texto, la indicación y '
+          '"Entendido" sin desbordes, $nombre', (tester) async {
+        configurarPantalla(tester, alto: 800, escalaTexto: 2.0);
+        await abrir(tester);
+
+        await mostrar(tester, find.text(tituloAvisoTurno));
+        await mostrar(tester, find.text(textoAvisoTurno));
+        if (nombre == 'en el inicio') {
+          await mostrar(tester, find.text('Tocá para ver tus turnos'));
+        } else {
+          expect(find.text('Tocá para ver tus turnos'), findsNothing);
+        }
+        await mostrar(tester, find.text('Entendido'));
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

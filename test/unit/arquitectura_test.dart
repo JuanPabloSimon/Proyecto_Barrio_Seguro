@@ -90,6 +90,13 @@ void main() {
           'lib/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart',
         ),
       );
+      // aviso_turno_incompleto R39.
+      expect(
+        archivos,
+        contains(
+          'lib/ui/turno_incompleto/view_models/turno_incompleto_view_model.dart',
+        ),
+      );
       final prohibidos = [for (final a in archivos) ...importsVisuales(a)];
       expect(
         prohibidos,
@@ -108,6 +115,20 @@ void main() {
         ),
         isEmpty,
       );
+    });
+
+    // aviso_turno_incompleto R38.
+    test('turno.dart y turno_incompleto.dart no importan Flutter', () {
+      for (final archivo in [
+        'lib/domain/models/turno.dart',
+        'lib/domain/turno_incompleto.dart',
+      ]) {
+        expect(
+          importsVisuales(archivo, permitirFoundation: false),
+          isEmpty,
+          reason: archivo,
+        );
+      }
     });
 
     test('el chequeo encuentra material.dart en presentacion_alerta.dart', () {

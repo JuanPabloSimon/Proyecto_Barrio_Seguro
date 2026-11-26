@@ -265,6 +265,9 @@ class TurnosFalsos implements TurnosRepository {
   final List<Turno> turnos;
   bool falla = false;
 
+  /// Cada pedido de `obtenerTurnos`, con su mes y si pidió refrescar.
+  final List<({DateTime mes, bool refrescar})> pedidos = [];
+
   @override
   bool sinConexion = false;
 
@@ -273,6 +276,7 @@ class TurnosFalsos implements TurnosRepository {
     DateTime mes, {
     bool refrescar = false,
   }) async {
+    pedidos.add((mes: mes, refrescar: refrescar));
     if (falla) throw Exception('sin conexión');
     return List.unmodifiable(turnos);
   }

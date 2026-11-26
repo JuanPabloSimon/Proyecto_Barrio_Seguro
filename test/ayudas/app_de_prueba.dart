@@ -37,6 +37,8 @@ final relojDePrueba = RelojFijo(DateTime(2026, 10, 1, 12));
 ///
 /// Con [llegadas] (id de alerta → hora de llegada del aviso) el teléfono
 /// arranca con esos avisos ya recibidos, para ver alertas tardías.
+///
+/// Con [reloj] la prueba elige la hora (por defecto, [relojDePrueba]).
 BarrioSeguroApp appDePrueba({
   Capacidades capacidades = const CapacidadesFalsas(),
   Politicas politicas = const PoliticasFalsas(),
@@ -47,11 +49,12 @@ BarrioSeguroApp appDePrueba({
   ConexionService? conexion,
   DescargaCsvService? descargaCsv,
   Map<String, DateTime> llegadas = const {},
+  Reloj? reloj,
 }) {
   MapaBarrio.cargarCalles = false;
   return BarrioSeguroApp(
     dependencias: Dependencias.simuladas(
-      reloj: relojDePrueba,
+      reloj: reloj ?? relojDePrueba,
       demora: Duration.zero,
       capacidades: capacidades,
       politicas: politicas,

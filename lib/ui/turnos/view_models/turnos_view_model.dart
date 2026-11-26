@@ -176,6 +176,13 @@ class TurnosViewModel extends ChangeNotifier {
     elegirDia(dia);
   }
 
+  /// Desde el aviso del inicio: si [fecha] es del mes del calendario, pasa
+  /// a "Todos" y elige ese día; si no, no cambia nada (el calendario solo
+  /// muestra [mes]).
+  void mostrarTurno(DateTime fecha) {
+    if (mismoMes(fecha, mes)) verEnCalendario(fecha);
+  }
+
   /// Devuelve el mensaje para mostrarle al vecino, haya salido bien o no.
   Future<String> anotarse(Turno turno) => _accion(
     () => _repositorio.anotarse(usuario!, turno.fecha, turno.franja),

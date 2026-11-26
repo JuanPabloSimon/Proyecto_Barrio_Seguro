@@ -14,6 +14,7 @@ import '../../perfil/view_models/perfil_view_model.dart';
 import '../../perfil/widgets/perfil_screen.dart';
 import '../../sos/view_models/sos_view_model.dart';
 import '../../sos/widgets/sos_screen.dart';
+import '../../turno_incompleto/view_models/turno_incompleto_view_model.dart';
 import '../../turnos/view_models/turnos_view_model.dart';
 import '../../turnos/widgets/turnos_screen.dart';
 import '../pestanias.dart';
@@ -40,6 +41,13 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
   late final TurnosViewModel _turnos;
   late final MapaViewModel _mapa;
   late final PerfilViewModel _perfil;
+
+  /// El aviso de turno incompleto: uno solo para el inicio y Turnos, así
+  /// las dos pestañas muestran siempre lo mismo.
+  late final TurnoIncompletoViewModel _turnoIncompleto;
+
+  /// Detiene el recálculo del aviso en segundo plano y lo retoma al volver.
+  late final AppLifecycleListener _ciclo;
 
   late final VigilanteDeAlertas _vigilante;
   StreamSubscription<String>? _toques;
@@ -82,6 +90,23 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       notificacionesService: d.notificaciones,
       pushService: d.push,
     )..cargar();
+    _turnoIncompleto =
+        TurnoIncompletoViewModel(
+            turnos: d.turnos,
+            sesion: d.sesion,
+            bus: d.bus,
+            reloj: d.reloj,
+            preferencias: d.preferencias,
+          )
+          ..cargar()
+          ..empezarRevision();
+    _ciclo = AppLifecycleListener(
+      onPause: _turnoIncompleto.detenerRevision,
+      onResume: () {
+        _turnoIncompleto.revisar();
+        _turnoIncompleto.empezarRevision();
+      },
+    );
 
     _vigilante = VigilanteDeAlertas(
       alertas: d.alertas,
@@ -139,10 +164,19 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
     _turnos.dispose();
     _mapa.dispose();
     _perfil.dispose();
+    _ciclo.dispose();
+    _turnoIncompleto.dispose();
     super.dispose();
   }
 
   void _irA(Pestania pestania) => setState(() => _actual = pestania);
+
+  /// Desde el aviso del inicio: Turnos, en el día del turno si es del mes
+  /// del calendario.
+  void _verTurno(DateTime fecha) {
+    _turnos.mostrarTurno(fecha);
+    _irA(Pestania.turnos);
+  }
 
   void _abrirSos() {
     final d = widget.dependencias;
@@ -175,8 +209,14 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       body: IndexedStack(
         index: _actual.index,
         children: [
-          InicioScreen(viewModel: _inicio, dependencias: d, onIrA: _irA),
-          TurnosScreen(viewModel: _turnos),
+          InicioScreen(
+            viewModel: _inicio,
+            dependencias: d,
+            onIrA: _irA,
+            turnoIncompleto: _turnoIncompleto,
+            onVerTurno: _verTurno,
+          ),
+          TurnosScreen(viewModel: _turnos, turnoIncompleto: _turnoIncompleto),
           MapaScreen(viewModel: _mapa, dependencias: d),
           PerfilScreen(viewModel: _perfil, dependencias: d, onIrA: _irA),
         ],
