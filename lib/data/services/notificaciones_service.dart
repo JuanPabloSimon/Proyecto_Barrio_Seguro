@@ -22,6 +22,20 @@ abstract class NotificacionesService {
   /// misma alerta, se reemplaza.
   Future<void> avisarAlertaTardia(Alerta alerta);
 
+  /// Muestra el aviso de una alerta resuelta que se volvió a abrir
+  /// (estado_alerta R46). Mismo id y payload que [avisarAlerta].
+  Future<void> avisarReapertura(Alerta alerta);
+
+  /// Muestra el aviso de una reapertura que llegó con demora, con la hora
+  /// de [reabiertaEn] (estado_alerta R47). Mismo id y payload que
+  /// [avisarAlerta].
+  Future<void> avisarReaperturaTardia(Alerta alerta, DateTime reabiertaEn);
+
+  /// Reapertura que el vigilante encontró después de más de 2 h sin
+  /// revisar (estado_alerta R60): título de R46 sin hora y cuerpo de
+  /// demora. Mismo id y payload que avisarAlerta.
+  Future<void> avisarReaperturaTardiaSinHora(Alerta alerta);
+
   /// El id de la alerta de cada aviso que el vecino toca con la app abierta
   /// o en segundo plano.
   Stream<String> get alertasTocadas;
@@ -116,6 +130,28 @@ class NotificacionesServiceLocales implements NotificacionesService {
     cuerpo: cuerpoAvisoTardio,
   );
 
+  @override
+  Future<void> avisarReapertura(Alerta alerta) => _mostrar(
+    alerta,
+    titulo: tituloAvisoReapertura(alerta),
+    cuerpo: cuerpoAvisoReapertura(alerta),
+  );
+
+  @override
+  Future<void> avisarReaperturaTardia(Alerta alerta, DateTime reabiertaEn) =>
+      _mostrar(
+        alerta,
+        titulo: tituloAvisoReaperturaTardia(alerta, reabiertaEn),
+        cuerpo: cuerpoAvisoTardio,
+      );
+
+  @override
+  Future<void> avisarReaperturaTardiaSinHora(Alerta alerta) => _mostrar(
+    alerta,
+    titulo: tituloAvisoReapertura(alerta),
+    cuerpo: cuerpoAvisoTardio,
+  );
+
   Future<void> _mostrar(
     Alerta alerta, {
     required String titulo,
@@ -162,6 +198,18 @@ class NotificacionesServiceNinguno implements NotificacionesService {
 
   @override
   Future<void> avisarAlertaTardia(Alerta alerta) async {}
+
+  @override
+  Future<void> avisarReapertura(Alerta alerta) async {}
+
+  @override
+  Future<void> avisarReaperturaTardia(
+    Alerta alerta,
+    DateTime reabiertaEn,
+  ) async {}
+
+  @override
+  Future<void> avisarReaperturaTardiaSinHora(Alerta alerta) async {}
 
   @override
   Stream<String> get alertasTocadas => const Stream.empty();

@@ -22,7 +22,9 @@
 
 - [ ] Las dependencias entre capas siguen `docs/architecture.md`
       (UI → repositorios → servicios; el dominio no importa Flutter).
-- [ ] Ningún ViewModel recibe `BuildContext` ni importa widgets.
+- [ ] Ningún ViewModel recibe `BuildContext` ni llega, ni siquiera de forma
+  indirecta, a `dart:ui` o a `package:flutter/` fuera de `foundation.dart`
+  (`test/unit/arquitectura_test.dart` en verde).
 - [ ] Toda pieza nueva se arma en `lib/dependencias.dart` y llega por
       constructor (nada de instancias globales).
 - [ ] Las decisiones por plataforma pasan por `Capacidades` o `Politicas`

@@ -11,6 +11,7 @@
 // Los tests usan una fuente de prueba con letras cuadradas, más ancha que
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
+import 'dart:async';
 import 'dart:ui' show CheckedState;
 
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
@@ -18,10 +19,15 @@ import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
 import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
+import 'package:barrio_seguro/ui/alerta_detalle/widgets/detalle_alerta_screen.dart';
+import 'package:barrio_seguro/ui/core/presentacion_alerta.dart';
 import 'package:barrio_seguro/ui/core/tema/app_colors.dart';
 import 'package:barrio_seguro/ui/core/tema/app_theme.dart';
 import 'package:barrio_seguro/ui/core/tema/transiciones.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
+import 'package:barrio_seguro/ui/core/widgets/mapa_barrio.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
 import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
@@ -328,6 +334,26 @@ final pantallas = <Pantalla>[
     );
     expect(find.text('Escribí un título para la alerta.'), findsOneWidget);
   }),
+  Pantalla(
+    'Detalle de alerta con error de estado',
+    abrirDetalleConErrorDeEstado,
+  ),
+  Pantalla('Detalle de alerta de un vecino común', (tester) async {
+    await abrirDetalleSuelto(
+      tester,
+      alerta: alertaDePrueba(reportadaPor: 'jorge'),
+    );
+    expect(find.text('Estado de la alerta'), findsNothing);
+    await mostrar(tester, find.text('Llamar al 911'));
+  }),
+  Pantalla('Confirmar marcar como resuelta (diálogo)', (tester) async {
+    await abrirConfirmarResuelta(tester);
+    await mostrar(tester, find.text('Sí, está resuelta'));
+  }),
+  Pantalla('Confirmar volver a abrir (diálogo)', (tester) async {
+    await abrirConfirmarReabrir(tester);
+    await mostrar(tester, find.text('Sí, volver a abrirla'));
+  }),
   Pantalla('Descartar la alerta (diálogo)', (tester) async {
     await abrirReportarAlerta(tester);
     await tocar(tester, find.text('Robo'));
@@ -378,6 +404,81 @@ Future<void> abrirSinConexion(WidgetTester tester) async {
   );
   await tester.pumpAndSettle();
   expect(find.text(tituloSinConexion), findsOneWidget);
+}
+
+/// El detalle de [alerta] solo, con [vecino] en la sesión (por defecto,
+/// Clara como vecina común) y las alertas en [alertas].
+Future<AlertasFalsas> abrirDetalleSuelto(
+  WidgetTester tester, {
+  Alerta? alerta,
+  Vecino? vecino,
+}) async {
+  MapaBarrio.cargarCalles = false;
+  final laAlerta = alerta ?? alertaDePrueba();
+  final alertas = AlertasFalsas([laAlerta]);
+  final vm = DetalleAlertaViewModel(
+    alerta: laAlerta,
+    alertas: alertas,
+    sesion: SesionFalsa(vecino ?? vecinaDePrueba),
+    bus: BusDeEventos(),
+    reloj: relojDePrueba,
+    avisos: AvisosRecibidosFalsos(),
+  );
+  addTearDown(vm.dispose);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light,
+      home: DetalleAlertaScreen(
+        viewModel: vm,
+        capacidades: const CapacidadesFalsas(),
+        telefono: TelefonoFalso(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return alertas;
+}
+
+Finder opcionDeEstado(String etiqueta) =>
+    find.widgetWithText(RadioListTile<EstadoAlerta>, etiqueta);
+
+/// Ingresa y abre el detalle de a1 ("Actividad sospechosa", de Clara).
+Future<void> abrirDetalleDeAlertaPropia(WidgetTester tester) async {
+  await ingresar(tester);
+  await tocar(
+    tester,
+    find.widgetWithText(TarjetaAlerta, 'Actividad sospechosa'),
+  );
+  expect(find.text('Detalle de alerta'), findsOneWidget);
+}
+
+/// Abre el diálogo "¿Marcar la alerta como resuelta?" desde la app.
+Future<void> abrirConfirmarResuelta(WidgetTester tester) async {
+  await abrirDetalleDeAlertaPropia(tester);
+  await tocar(tester, opcionDeEstado('Resuelta'));
+  expect(find.text('¿Marcar la alerta como resuelta?'), findsOneWidget);
+}
+
+/// Abre el diálogo "¿Volver a abrir la alerta?" sobre una alerta resuelta.
+Future<void> abrirConfirmarReabrir(WidgetTester tester) async {
+  await abrirDetalleSuelto(
+    tester,
+    alerta: alertaDePrueba(estado: EstadoAlerta.resuelta),
+  );
+  await tocar(tester, opcionDeEstado('En atención'));
+  expect(find.text('¿Volver a abrir la alerta?'), findsOneWidget);
+}
+
+const errorDeEstadoSinConexion =
+    'No pudimos cambiar el estado. Probá de nuevo.';
+
+/// El detalle con el error de cambio de estado a la vista.
+Future<void> abrirDetalleConErrorDeEstado(WidgetTester tester) async {
+  final alertas = await abrirDetalleSuelto(tester);
+  alertas.falla = true;
+  // Entre Activa y En atención no se pide confirmación.
+  await tocar(tester, opcionDeEstado('En atención'));
+  await mostrar(tester, find.text(errorDeEstadoSinConexion));
 }
 
 // ---------------------------------------------------------------------------
@@ -951,6 +1052,241 @@ void main() {
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);
+      },
+    );
+  });
+
+  group('Estado de la alerta', () {
+    testWidgets(
+      'el control de estado tiene encabezado y cada opción se anuncia con su '
+      'nombre y si está elegida',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+        await abrirDetalleDeAlertaPropia(tester);
+        await mostrar(tester, find.text('Estado de la alerta'));
+
+        expect(
+          tester
+              .getSemantics(find.text('Estado de la alerta'))
+              .getSemanticsData()
+              .flagsCollection
+              .isHeader,
+          isTrue,
+        );
+        for (final etiqueta in ['Activa', 'En atención', 'Resuelta']) {
+          final datos = tester
+              .getSemantics(opcionDeEstado(etiqueta))
+              .getSemanticsData();
+          expect(datos.label, etiqueta);
+          expect(datos.flagsCollection.isInMutuallyExclusiveGroup, isTrue);
+          expect(
+            datos.flagsCollection.isChecked,
+            etiqueta == 'Activa' ? CheckedState.isTrue : CheckedState.isFalse,
+          );
+        }
+        handle.dispose();
+      },
+    );
+
+    testWidgets('cada opción muestra el ícono y el nombre del estado', (
+      tester,
+    ) async {
+      configurarPantalla(tester);
+      await abrirDetalleSuelto(tester);
+
+      for (final estado in EstadoAlerta.values) {
+        final opcion = opcionDeEstado(estado.etiqueta);
+        expect(opcion, findsOneWidget);
+        expect(
+          find.descendant(of: opcion, matching: find.byIcon(estado.icono)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: opcion, matching: find.text(estado.etiqueta)),
+          findsOneWidget,
+        );
+      }
+    });
+
+    testWidgets(
+      'el error de cambio de estado es una región en vivo con ícono',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+        await abrirDetalleConErrorDeEstado(tester);
+
+        final region = find.ancestor(
+          of: find.text(errorDeEstadoSinConexion),
+          matching: find.byWidgetPredicate(
+            (w) => w is Semantics && (w.properties.liveRegion ?? false),
+          ),
+        );
+        expect(region, findsOneWidget);
+        expect(
+          find.descendant(
+            of: region,
+            matching: find.byIcon(Icons.error_outline),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .getSemantics(find.text(errorDeEstadoSinConexion))
+              .getSemanticsData()
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('el indicador se anuncia "Cambiando el estado"', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      final alertas = await abrirDetalleSuelto(tester);
+      alertas.demoraAlCambiar = Completer<void>();
+
+      await mostrar(tester, opcionDeEstado('En atención'));
+      await tester.tap(opcionDeEstado('En atención'));
+      await tester.pump();
+
+      expect(
+        tester
+            .getSemantics(find.byType(CircularProgressIndicator))
+            .getSemanticsData()
+            .label,
+        'Cambiando el estado',
+      );
+
+      alertas.demoraAlCambiar!.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('el detalle se lee en orden', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirDetalleDeAlertaPropia(tester);
+
+      final leidas = <String>[];
+      void recorrer(SemanticsNode nodo) {
+        final datos = nodo.getSemanticsData();
+        leidas.add('${datos.tooltip} ${datos.label}'.trim());
+        for (final hijo in nodo.debugListChildrenInOrder(
+          DebugSemanticsDumpOrder.traversalOrder,
+        )) {
+          recorrer(hijo);
+        }
+      }
+
+      recorrer(
+        tester
+            .binding
+            .renderViews
+            .first
+            .owner!
+            .semanticsOwner!
+            .rootSemanticsNode!,
+      );
+
+      // Cada etiqueta se busca después de la anterior: "Activa" está dos
+      // veces (el estado actual y la opción).
+      var desde = 0;
+      for (final texto in [
+        'Activa',
+        'Actividad sospechosa',
+        'Reportada por',
+        'Llamar al 911',
+        'Estado de la alerta',
+        'Activa',
+        'En atención',
+        'Resuelta',
+        'Fue una falsa alarma',
+      ]) {
+        final i = leidas.indexWhere((l) => l.contains(texto), desde);
+        expect(
+          i,
+          isNot(-1),
+          reason: '"$texto" no se lee después de $desde: $leidas',
+        );
+        desde = i + 1;
+      }
+      handle.dispose();
+    });
+
+    testWidgets(
+      'los diálogos de confirmación anuncian el título y cada botón por su '
+      'texto',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        configurarPantalla(tester);
+
+        Future<void> revisar(String titulo, List<String> botones) async {
+          expect(find.bySemanticsLabel(titulo), findsWidgets);
+          final ruta = find.byWidgetPredicate(
+            (w) =>
+                w is Semantics &&
+                (w.properties.namesRoute ?? false) &&
+                (w.properties.scopesRoute ?? false) &&
+                w.properties.label == titulo,
+          );
+          expect(ruta, findsOneWidget);
+          for (final boton in botones) {
+            final datos = tester
+                .getSemantics(find.text(boton))
+                .getSemanticsData();
+            expect(datos.label, boton);
+            expect(datos.flagsCollection.isButton, isTrue);
+          }
+        }
+
+        await abrirConfirmarResuelta(tester);
+        await revisar('¿Marcar la alerta como resuelta?', [
+          'No, dejarla como está',
+          'Sí, está resuelta',
+        ]);
+
+        await abrirConfirmarReabrir(tester);
+        await revisar('¿Volver a abrir la alerta?', [
+          'No, dejarla resuelta',
+          'Sí, volver a abrirla',
+        ]);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'al 200 % los botones del diálogo se apilan y miden al menos 48 dp de '
+      'alto',
+      (tester) async {
+        configurarPantalla(tester, alto: 800, escalaTexto: 2.0);
+
+        void revisar(String no, String si) {
+          final botonNo = find.widgetWithText(OutlinedButton, no);
+          final botonSi = find.widgetWithText(FilledButton, si);
+          expect(tester.getSize(botonNo).height, greaterThanOrEqualTo(48));
+          expect(tester.getSize(botonSi).height, greaterThanOrEqualTo(48));
+          // Apilados: uno debajo del otro, no en la misma fila.
+          final arribaNo = tester.getTopLeft(botonNo).dy;
+          final arribaSi = tester.getTopLeft(botonSi).dy;
+          expect((arribaNo - arribaSi).abs(), greaterThanOrEqualTo(48));
+          expect(tester.takeException(), isNull);
+        }
+
+        await abrirConfirmarResuelta(tester);
+        await mostrar(tester, find.text('Sí, está resuelta'));
+        await mostrar(tester, find.text('No, dejarla como está'));
+        revisar('No, dejarla como está', 'Sí, está resuelta');
+
+        await abrirConfirmarReabrir(tester);
+        await mostrar(tester, find.text('Sí, volver a abrirla'));
+        await mostrar(tester, find.text('No, dejarla resuelta'));
+        revisar('No, dejarla resuelta', 'Sí, volver a abrirla');
       },
     );
   });

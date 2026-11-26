@@ -336,6 +336,10 @@ vecino que estaba resuelta en la revisión anterior ya no lo está y los
 avisos están activos, el sistema DEBE mostrar la notificación de
 reapertura a tiempo de R46.
 
+> Ampliación (reapertura de la feature): R53 vale cuando pasaron hasta 2
+> horas desde la revisión anterior (R62). Con más de 2 horas, rigen R60 y
+> R61.
+
 ## R54
 CUANDO, con la app abierta, el vigilante encuentra que una alerta que
 estaba resuelta en la revisión anterior ya no lo está, el sistema DEBE
@@ -346,6 +350,105 @@ el vecino tenga que recargar.
 SI el vigilante encuentra reabierta una alerta que reportó el vecino con
 la sesión abierta, o los avisos están apagados, ENTONCES el sistema NO
 DEBE mostrar la notificación de reapertura.
+
+## Ampliación: MVVM estricto en los ViewModels (reapertura de la feature)
+
+> Pedido de la persona al reabrir la feature: "la estructura del proyecto
+> debe respetar al 100% el MVVM". Hoy `DetalleAlertaViewModel` importa
+> `lib/ui/core/presentacion_alerta.dart`, que importa
+> `package:flutter/material.dart`, solo para usar `etiqueta` en
+> `avisoCambioDeEstado`. Los nombres visibles de los estados pasan de
+> `PresentacionEstado` a `TextosEstado` (`lib/ui/core/textos_estado.dart`,
+> ver `design.md`, punto 10); los textos no cambian.
+>
+> "Biblioteca visual de Flutter" es `dart:ui` o cualquier
+> `package:flutter/<biblioteca>.dart` que no sea `foundation.dart`
+> (`material`, `widgets`, `cupertino`, `painting`, `rendering`, `services`,
+> etc.). "A través de otros archivos de `lib/`" quiere decir siguiendo los
+> `import` y `export` de archivos del proyecto, sin entrar a los paquetes de
+> terceros.
+
+## R56
+El sistema NO DEBE tener ningún ViewModel de `lib/ui/*/view_models/` que
+importe una biblioteca visual de Flutter, ni directamente ni a través de
+otros archivos de `lib/`.
+
+## R57
+El sistema DEBE definir los nombres visibles de los estados (`etiqueta` y
+`etiquetaFiltro` de `EstadoAlerta`) en un archivo de `lib/ui/core/` que no
+importe ninguna biblioteca de `package:flutter/` ni `dart:ui`, ni
+directamente ni a través de otros archivos de `lib/`.
+
+## R58
+El sistema DEBE mostrar los nombres de los estados igual que antes de la
+separación: "Activa", "En atención" y "Resuelta" (`etiqueta`) y "Activas",
+"En atención" y "Resueltas" (`etiquetaFiltro`).
+
+## R59
+SI un ViewModel de `lib/ui/*/view_models/` importa una biblioteca visual
+de Flutter, directamente o a través de otros archivos de `lib/`, ENTONCES
+el sistema DEBE hacer fallar `flutter test` (y con eso `./init.sh`) con un
+mensaje que nombre el ViewModel y la cadena de archivos hasta el import
+prohibido.
+
+## Ampliación: reapertura tardía con la app abierta (reapertura de la feature)
+
+> Hoy el vigilante avisa toda reapertura como "a tiempo" porque no conoce
+> `reabierta_en`. Cambio decidido, sin tocar la API: el vigilante recuerda
+> la hora (del `Reloj`) de su última revisión completada (la que obtuvo la
+> lista de alertas). Si en la revisión actual pasaron más de 2 horas desde
+> esa, no sabe cuándo se reabrió la alerta: la trata como tardía. El aviso
+> tardío lleva el cuerpo de siempre de los avisos tardíos y un título
+> **sin hora**, porque la hora de la reapertura no se conoce (ver
+> `design.md`, punto 11). Las exclusiones del push (R49 propia, R50 avisos
+> apagados) y R52 (no tocar la llegada) valen igual. La publicación de
+> `AlertasActualizadas` (R54) no cambia.
+>
+> "Revisión anterior" es la última revisión del vigilante que obtuvo la
+> lista de alertas. "Más de 2 horas" es estrictamente más que
+> `demoraMaximaParaAvisar` (2 h); 2 horas justas no es tardía.
+
+## R60
+CUANDO, con la app abierta, el vigilante encuentra que una alerta de otro
+vecino que estaba resuelta en la revisión anterior ya no lo está, los
+avisos están activos y pasaron más de 2 horas desde la revisión anterior,
+el sistema DEBE mostrar la notificación de reapertura tardía sin hora, con
+el título "Se reabrió una alerta: <tipo>" (por ejemplo "Se reabrió una
+alerta: Robo") y el cuerpo "Llegó con demora por falta de señal. Puede que
+ya no esté pasando.".
+
+## R61
+SI el vigilante encuentra una alerta reabierta y pasaron más de 2 horas
+desde la revisión anterior ENTONCES el sistema NO DEBE mostrar la
+notificación de reapertura a tiempo de R46.
+
+## R62
+CUANDO, con la app abierta, el vigilante encuentra que una alerta de otro
+vecino que estaba resuelta en la revisión anterior ya no lo está, los
+avisos están activos y pasaron 2 horas o menos desde la revisión anterior
+(también si el reloj marca una hora anterior a la de esa revisión), el
+sistema DEBE mostrar la notificación de reapertura a tiempo de R46.
+
+## R63
+SI una revisión del vigilante falla (por ejemplo, sin señal) ENTONCES el
+sistema DEBE medir la revisión siguiente contra la hora de la última
+revisión que sí obtuvo la lista de alertas.
+
+## R64
+SI el vigilante encuentra reabierta, con más de 2 horas desde la revisión
+anterior, una alerta que reportó el vecino con la sesión abierta, o los
+avisos están apagados, ENTONCES el sistema NO DEBE mostrar ninguna
+notificación de reapertura, ni a tiempo ni tardía.
+
+## R65
+CUANDO el vigilante avisa una reapertura tardía, el sistema NO DEBE
+cambiar la llegada guardada del aviso original de esa alerta.
+
+## R66
+CUANDO, con la app abierta, el vigilante encuentra alertas nuevas de
+otros vecinos y pasaron más de 2 horas desde la revisión anterior, el
+sistema DEBE avisarlas con la regla de demora de siempre (por `creada_en`
+y la llegada), sin tener en cuenta el tiempo desde la revisión anterior.
 
 ## Trazabilidad con el `acceptance` de feature_list.json
 
@@ -359,6 +462,9 @@ DEBE mostrar la notificación de reapertura.
 | Pruebas en la app y en el backend para cada rol | R1 a R55 (cada uno con su prueba, ver `tasks.md`; los roles quien la reportó, comisión y vecino común se prueban en el ViewModel, la pantalla, el servidor simulado y el backend) |
 | Decisión P2 de la aprobación (no está en el `acceptance`): confirmar al pasar a Resuelta y al reabrir | R7, R33, R34, R35, R36, R37, R38, R39, R40 |
 | Decisión P3 de la aprobación (no está en el `acceptance`): aviso push al reabrir una alerta resuelta | R41, R42, R43, R44, R45, R46, R47, R48, R49, R50, R51, R52, R53, R54, R55 |
+| Reapertura de la feature, cambio 1 (no está en el `acceptance`): "la estructura del proyecto debe respetar al 100% el MVVM" | R56, R57, R58, R59 |
+| Reapertura de la feature, cambio 2 (no está en el `acceptance`, amplía P3): el vigilante trata como tardías las reaperturas que encuentra después de más de 2 horas sin revisar | R60, R61, R62, R63, R64, R65, R66 (y R54 sin cambios) |
+| Pruebas en la app y en el backend para cada rol (ampliación) | R56 a R66, cada uno con su prueba en `tasks.md` (T35 a T49); no tocan el backend |
 
 > P1 a P4 las respondió la persona en la aprobación del spec (ver
 > "Decisiones de la aprobación" en `design.md`). P1 y P4 no agregan

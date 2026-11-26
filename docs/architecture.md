@@ -23,7 +23,8 @@ lib/
 │       ├── simulados/     servidor simulado en memoria (sin internet)
 │       └── local/         preferencias, almacenamiento seguro, sqflite (DAOs)
 └── ui/
-    ├── core/              tema, widgets compartidos, EstadoCarga, formato
+    ├── core/              tema, widgets compartidos, EstadoCarga, formato,
+    │                      textos_estado (nombres de los estados, puro Dart)
     ├── conexion/          compuerta y pantalla sin conexión (tapa a todas)
     └── <pantalla>/
         ├── view_models/   un ViewModel (ChangeNotifier) por pantalla
@@ -40,7 +41,14 @@ backend/                   proyecto de Dart aparte (shelf), con sus propias prue
    - La pantalla solo habla con su ViewModel.
    - El ViewModel habla con repositorios, el bus de eventos y servicios de
      plataforma (ubicación, teléfono). Nunca recibe `BuildContext` ni
-     importa widgets.
+     llega, directamente ni por la cadena de `import`/`export` de archivos
+     de `lib/`, a `dart:ui` ni a ningún `package:flutter/` que no sea
+     `foundation.dart` (`material`, `widgets`, `painting`, `services`, …).
+     Lo controla `test/unit/arquitectura_test.dart`, que corre en
+     `./init.sh`. Los textos de pantalla que necesite un ViewModel van en
+     archivos puros de `lib/ui/core/` (como `textos_estado.dart`); los
+     íconos y colores, solo en archivos de vista
+     (`presentacion_alerta.dart`).
    - El repositorio convierte el JSON a modelos, guarda caché y copia local.
    - El servicio solo habla con el exterior y devuelve `Map`/`List` crudos.
 
@@ -108,6 +116,8 @@ Pantalla ──toca──▶ ViewModel.comando()
 
 - Llamar a un servicio o hacer cuentas desde un widget.
 - Crear el ViewModel dentro de `build()` (usar `ConViewModel`).
+- Importar en un ViewModel `material.dart`, `widgets.dart` o un archivo que
+  los importe (por ejemplo, `presentacion_alerta.dart`).
 - Crear un `Future` o un `Stream` dentro de `build()`.
 - Dejar suscripciones, listeners u observers sin cancelar en `dispose`.
 - Usar el `context` después de un `await` sin `context.mounted`.

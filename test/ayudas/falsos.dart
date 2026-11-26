@@ -12,6 +12,7 @@ import 'package:barrio_seguro/data/services/local/turnos_dao.dart';
 import 'package:barrio_seguro/data/services/descarga_csv_service.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
+import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/data/services/telefono_service.dart';
 import 'package:barrio_seguro/data/services/ubicacion_service.dart';
 import 'package:barrio_seguro/data/services/error_del_servidor.dart';
@@ -34,6 +35,14 @@ final vecinoMayor = Vecino(
   id: 'rosa',
   nombre: 'Rosa Ibáñez',
   fechaNacimiento: DateTime(1948, 7, 8),
+);
+
+/// Una vecina de la comisión vecinal que no reportó las alertas de prueba.
+final miembroDeLaComision = Vecino(
+  id: 'marta',
+  nombre: 'Marta Gómez',
+  fechaNacimiento: DateTime(1970, 3, 2),
+  rol: RolVecino.comision,
 );
 
 Alerta alertaDePrueba({
@@ -118,6 +127,13 @@ class AlertasFalsas implements AlertasRepository {
   /// Si no es null, [crearAlerta] lo lanza (un rechazo de la API).
   ErrorDelServidor? errorAlCrear;
 
+  /// Si no es null, [cambiarEstado] lo lanza (un rechazo de la API).
+  ErrorDelServidor? errorAlCambiar;
+
+  /// Si no es null, [cambiarEstado] lo espera antes de responder (para
+  /// probar lo que se ve mientras se espera).
+  Completer<void>? demoraAlCambiar;
+
   /// Los datos de cada [crearAlerta] que llegó al "servidor", en orden.
   final List<DatosAlertaCreada> creadas = [];
 
@@ -173,7 +189,11 @@ class AlertasFalsas implements AlertasRepository {
   @override
   Future<Alerta> cambiarEstado(String id, EstadoAlerta estado) async {
     cambiosDeEstado++;
+    final demora = demoraAlCambiar;
+    if (demora != null) await demora.future;
     _quizasFallar();
+    final error = errorAlCambiar;
+    if (error != null) throw error;
     final i = alertas.indexWhere((a) => a.id == id);
     final anterior = alertas[i];
     final actualizada = alertaDePrueba(
@@ -395,11 +415,45 @@ class NotificacionesFalsas implements NotificacionesService {
   @override
   Future<void> avisarAlertaTardia(Alerta alerta) async => tardias.add(alerta);
 
+  /// Las alertas reabiertas que se avisaron a tiempo, en orden.
+  final List<Alerta> reaperturas = [];
+
+  /// Las reaperturas avisadas con demora, con la hora de la reapertura.
+  final List<(Alerta, DateTime)> reaperturasTardias = [];
+
+  @override
+  Future<void> avisarReapertura(Alerta alerta) async => reaperturas.add(alerta);
+
+  @override
+  Future<void> avisarReaperturaTardia(
+    Alerta alerta,
+    DateTime reabiertaEn,
+  ) async => reaperturasTardias.add((alerta, reabiertaEn));
+
+  /// Las reaperturas que el vigilante avisó como tardías sin hora, en orden
+  /// (estado_alerta R60).
+  final List<Alerta> reaperturasTardiasSinHora = [];
+
+  @override
+  Future<void> avisarReaperturaTardiaSinHora(Alerta alerta) async =>
+      reaperturasTardiasSinHora.add(alerta);
+
   @override
   Stream<String> get alertasTocadas => _tocadas.stream;
 
   @override
   Future<String?> alertaQueAbrioLaApp() async => abrioLaApp;
+}
+
+/// Un reloj que la prueba mueve a mano (`reloj.hora = …`), para lo que
+/// guarda estado entre llamadas, como el vigilante de alertas.
+class RelojManual implements Reloj {
+  RelojManual(this.hora);
+
+  DateTime hora;
+
+  @override
+  DateTime ahora() => hora;
 }
 
 /// Simula el servicio de avisos push (FCM) sin red ni Firebase.
@@ -603,4 +657,7 @@ class AvisosRecibidosFalsos implements AvisosRecibidosRepository {
 
   @override
   Future<void> guardarDesfase(Duration desfase) async => this.desfase = desfase;
+
+  @override
+  Future<DateTime> horaDelServidor() async => ahora;
 }

@@ -8,12 +8,18 @@ import '../../data/repositories/sesion_repository.dart';
 import '../../data/services/bus_de_eventos.dart';
 import '../../data/services/local/preferencias.dart';
 import '../../data/services/notificaciones_service.dart';
+import '../../data/services/reloj.dart';
 import '../../domain/avisos_tardios.dart';
 import '../../domain/evento_de_app.dart';
 import '../../domain/models/alerta.dart';
 
 /// Mientras la app está abierta, revisa cada tanto si hay alertas nuevas
-/// de otros vecinos y avisa con una notificación.
+/// de otros vecinos, o alertas resueltas que se volvieron a abrir, y avisa
+/// con una notificación.
+///
+/// Las reaperturas no traen su hora: la demora se estima con el tiempo
+/// desde la revisión anterior que obtuvo la lista (del [Reloj]). Con más
+/// de 2 horas, se avisan como tardías, sin hora (estado_alerta R60).
 ///
 /// Reaccionando a los eventos del ciclo de vida del sistema operativo
 /// ([AppLifecycleListener]):
@@ -29,6 +35,7 @@ class VigilanteDeAlertas {
     required this._preferencias,
     required this._bus,
     required this._avisos,
+    required this._reloj,
     this.cada = const Duration(seconds: 45),
   });
 
@@ -40,15 +47,25 @@ class VigilanteDeAlertas {
   final AvisosRecibidosRepository _avisos;
   final Duration cada;
 
-  Timer? _reloj;
+  final Reloj _reloj;
+
+  Timer? _temporizador;
   AppLifecycleListener? _ciclo;
 
   /// True mientras el reloj periódico está activo (en primer plano).
-  bool get enPrimerPlano => _reloj?.isActive ?? false;
+  bool get enPrimerPlano => _temporizador?.isActive ?? false;
 
   /// Los ids que ya vio el vecino. null hasta la primera revisión: lo que
   /// ya estaba al abrir la app no se avisa.
   Set<String>? _conocidas;
+
+  /// Los ids que estaban resueltos en la revisión anterior: si una deja de
+  /// estarlo, se reabrió (estado_alerta R53).
+  Set<String> _resueltas = {};
+
+  /// La hora de la última revisión que obtuvo la lista: la foto de
+  /// [_resueltas]. null hasta la primera (estado_alerta R60 a R63).
+  DateTime? _ultimaRevision;
 
   void empezar() {
     revisar();
@@ -63,13 +80,13 @@ class VigilanteDeAlertas {
   }
 
   void _iniciarReloj() {
-    _reloj?.cancel();
-    _reloj = Timer.periodic(cada, (_) => revisar());
+    _temporizador?.cancel();
+    _temporizador = Timer.periodic(cada, (_) => revisar());
   }
 
   void _detenerReloj() {
-    _reloj?.cancel();
-    _reloj = null;
+    _temporizador?.cancel();
+    _temporizador = null;
   }
 
   void detener() {
@@ -79,12 +96,23 @@ class VigilanteDeAlertas {
   }
 
   /// Devuelve las alertas nuevas que avisó, a tiempo o tardías; las que
-  /// llegaron demasiado tarde no (sirve para las pruebas).
+  /// llegaron demasiado tarde no (sirve para las pruebas). Las reaperturas
+  /// avisadas no se devuelven: se ven en el servicio de notificaciones.
   Future<List<Alerta>> revisar() async {
     try {
       final todas = await _alertas.obtenerAlertas(refrescar: true);
       final conocidas = _conocidas;
+      final resueltasAntes = _resueltas;
+      // R63: si obtenerAlertas falla, el catch vuelve antes de llegar acá y
+      // la próxima revisión se mide contra la última que funcionó.
+      final ahora = _reloj.ahora();
+      final anterior = _ultimaRevision;
+      _ultimaRevision = ahora;
       _conocidas = {for (final a in todas) a.id};
+      _resueltas = {
+        for (final a in todas)
+          if (a.estado == EstadoAlerta.resuelta) a.id,
+      };
       if (conocidas == null) return const [];
 
       final yo = _sesion.usuario?.id;
@@ -95,7 +123,13 @@ class VigilanteDeAlertas {
               a.estado != EstadoAlerta.resuelta)
             a,
       ];
-      if (nuevas.isEmpty) return const [];
+      final reabiertas = [
+        for (final a in todas)
+          if (resueltasAntes.contains(a.id) &&
+              a.estado != EstadoAlerta.resuelta)
+            a,
+      ];
+      if (nuevas.isEmpty && reabiertas.isEmpty) return const [];
 
       // R5, R7: la llegada se guarda solo si hay aviso. Si el push ya la
       // guardó, cuenta la del push (R6). Se guarda antes de publicar, así
@@ -108,9 +142,30 @@ class VigilanteDeAlertas {
         }
       }
 
-      // Las pantallas abiertas se actualizan solas.
+      // Las pantallas abiertas se actualizan solas (también R54).
       _bus.publicar(const AlertasActualizadas());
       if (!conAvisos) return const [];
+
+      // R53, R55, R60 a R65: la reapertura de una alerta de otro vecino.
+      // El vigilante no conoce `reabierta_en`: la demora se estima con el
+      // tiempo desde la revisión anterior; con más de 2 horas, el aviso es
+      // tardío y sin hora. No se tocan las llegadas: la marca de tardía es
+      // la del aviso original.
+      final reaperturasTardias =
+          anterior != null &&
+          reaperturaDelVigilanteTardia(
+            revisionAnterior: anterior,
+            ahora: ahora,
+          );
+      for (final alerta in reabiertas) {
+        if (alerta.reportadaPor != yo) {
+          if (reaperturasTardias) {
+            await _notificaciones.avisarReaperturaTardiaSinHora(alerta);
+          } else {
+            await _notificaciones.avisarReapertura(alerta);
+          }
+        }
+      }
 
       // R19: la misma regla que el push.
       final avisadas = <Alerta>[];

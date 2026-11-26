@@ -1,3 +1,5 @@
+import 'almacen.dart' show Roles;
+
 /// Reglas de los turnos. Son las mismas que aplica la app
 /// (lib/domain/reglas_turnos.dart), con los mismos mensajes: el servidor
 /// las vuelve a aplicar porque no puede confiar solo en la app.
@@ -97,4 +99,18 @@ class ReglasAlertas {
     if (largo(direccion) > maxDireccion) return mensajeDireccionLarga;
     return null;
   }
+
+  /// El 403 de `PATCH /alertas/<id>` (estado_alerta). Mismo texto que la app.
+  static const mensajeSinPermisoEstado =
+      'Solo quien reportó la alerta o la comisión vecinal pueden cambiar su '
+      'estado.';
+
+  /// Quien reportó la alerta o un miembro de la comisión pueden cambiar su
+  /// estado (RF-05 ampliado). [rol] es el guardado en el almacén
+  /// (`vecino` o `comision`); null si el vecino no existe.
+  static bool puedeCambiarEstado({
+    required String reportadaPor,
+    required String vecinoId,
+    required String? rol,
+  }) => vecinoId == reportadaPor || rol == Roles.comision;
 }

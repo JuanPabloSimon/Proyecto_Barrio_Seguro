@@ -13,6 +13,11 @@ abstract class AvisosRecibidosRepository {
 
   /// Guarda la hora del servidor menos la del teléfono (R3).
   Future<void> guardarDesfase(Duration desfase);
+
+  /// La hora del teléfono más el desfase guardado (hora del servidor). No
+  /// guarda nada: sirve para medir la demora de un aviso sin tocar las
+  /// llegadas (aviso de reapertura, estado_alerta R52).
+  Future<DateTime> horaDelServidor();
 }
 
 /// Guarda las llegadas y el desfase en [Preferencias], que el isolate del
@@ -31,10 +36,18 @@ class AvisosRecibidosRepositoryLocal implements AvisosRecibidosRepository {
   final Reloj _reloj;
 
   @override
-  Future<DateTime> registrarLlegada(String alertaId) async {
+  Future<DateTime> horaDelServidor() async =>
+      DateTime.fromMillisecondsSinceEpoch(await _ahoraDelServidor());
+
+  /// R4: la hora del teléfono corregida a la del servidor, en ms.
+  Future<int> _ahoraDelServidor() async {
     final desfase = await _preferencias.desfaseReloj();
-    // R4: la hora del teléfono corregida a la del servidor.
-    final ahora = _reloj.ahora().millisecondsSinceEpoch + desfase;
+    return _reloj.ahora().millisecondsSinceEpoch + desfase;
+  }
+
+  @override
+  Future<DateTime> registrarLlegada(String alertaId) async {
+    final ahora = await _ahoraDelServidor();
     final guardadas = await _preferencias.avisosRecibidos();
 
     final limite = ahora - conservarDurante.inMilliseconds;

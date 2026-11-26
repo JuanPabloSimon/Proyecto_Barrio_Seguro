@@ -15,8 +15,10 @@ import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/domain/reglas_alertas.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/core/estado_carga.dart';
+import 'package:barrio_seguro/ui/core/textos_estado.dart';
 import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
 import 'package:barrio_seguro/ui/informe_alertas/view_models/informe_alertas_view_model.dart';
 import 'package:barrio_seguro/ui/inicio/view_models/inicio_view_model.dart';
@@ -38,6 +40,21 @@ void main() {
 
   setUp(() => bus = BusDeEventos());
   tearDown(() => bus.cerrar());
+
+  // estado_alerta R58: los nombres no cambian al pasar a textos_estado.dart.
+  group('Textos de los estados', () {
+    test('etiqueta dice "Activa", "En atención" y "Resuelta"', () {
+      expect(EstadoAlerta.activa.etiqueta, 'Activa');
+      expect(EstadoAlerta.enAtencion.etiqueta, 'En atención');
+      expect(EstadoAlerta.resuelta.etiqueta, 'Resuelta');
+    });
+
+    test('etiquetaFiltro dice "Activas", "En atención" y "Resueltas"', () {
+      expect(EstadoAlerta.activa.etiquetaFiltro, 'Activas');
+      expect(EstadoAlerta.enAtencion.etiquetaFiltro, 'En atención');
+      expect(EstadoAlerta.resuelta.etiquetaFiltro, 'Resueltas');
+    });
+  });
 
   group('RegistroViewModel', () {
     RegistroViewModel crear() =>
@@ -278,42 +295,264 @@ void main() {
   });
 
   group('DetalleAlertaViewModel', () {
-    DetalleAlertaViewModel crear(Alerta alerta, AlertasFalsas alertas) =>
-        DetalleAlertaViewModel(
-          alerta: alerta,
-          alertas: alertas,
-          sesion: SesionFalsa(vecinaDePrueba),
-          bus: bus,
-          reloj: reloj,
-          avisos: AvisosRecibidosFalsos(),
-        );
+    DetalleAlertaViewModel crear(
+      Alerta alerta,
+      AlertasFalsas alertas, {
+      Vecino? vecino,
+    }) => DetalleAlertaViewModel(
+      alerta: alerta,
+      alertas: alertas,
+      sesion: SesionFalsa(vecino ?? vecinaDePrueba),
+      bus: bus,
+      reloj: reloj,
+      avisos: AvisosRecibidosFalsos(),
+    );
 
-    test('solo quien la reportó puede cerrarla', () {
+    // Permisos por rol.
+
+    test('quien la reportó puede cambiar el estado', () {
       final mia = alertaDePrueba(reportadaPor: 'clara');
-      final ajena = alertaDePrueba(reportadaPor: 'jorge');
-      expect(crear(mia, AlertasFalsas([mia])).puedeCerrarla, isTrue);
-      expect(crear(ajena, AlertasFalsas([ajena])).puedeCerrarla, isFalse);
+      expect(vecinaDePrueba.esComision, isFalse);
+      expect(crear(mia, AlertasFalsas([mia])).puedeCambiarEstado, isTrue);
     });
 
-    test('marcarla resuelta cambia su estado de verdad', () async {
+    test('la comisión puede cambiar el estado de una alerta ajena', () {
+      final ajena = alertaDePrueba(reportadaPor: 'jorge');
+      final vm = crear(
+        ajena,
+        AlertasFalsas([ajena]),
+        vecino: miembroDeLaComision,
+      );
+      expect(vm.puedeCambiarEstado, isTrue);
+    });
+
+    test('un vecino común no puede cambiar el estado de una alerta ajena', () {
+      final ajena = alertaDePrueba(reportadaPor: 'jorge');
+      expect(crear(ajena, AlertasFalsas([ajena])).puedeCambiarEstado, isFalse);
+    });
+
+    test('una alerta resuelta se puede cambiar', () {
+      final mia = alertaDePrueba(estado: EstadoAlerta.resuelta);
+      final ajena = alertaDePrueba(
+        reportadaPor: 'jorge',
+        estado: EstadoAlerta.resuelta,
+      );
+      expect(crear(mia, AlertasFalsas([mia])).puedeCambiarEstado, isTrue);
+      expect(
+        crear(
+          ajena,
+          AlertasFalsas([ajena]),
+          vecino: miembroDeLaComision,
+        ).puedeCambiarEstado,
+        isTrue,
+      );
+    });
+
+    test('solo quien la reportó ve "Fue una falsa alarma" y solo si no está '
+        'resuelta', () {
+      final mia = alertaDePrueba(reportadaPor: 'clara');
+      final miaResuelta = alertaDePrueba(estado: EstadoAlerta.resuelta);
+      final ajena = alertaDePrueba(reportadaPor: 'jorge');
+      expect(crear(mia, AlertasFalsas([mia])).puedeMarcarFalsaAlarma, isTrue);
+      expect(
+        crear(miaResuelta, AlertasFalsas([miaResuelta])).puedeMarcarFalsaAlarma,
+        isFalse,
+      );
+      expect(
+        crear(ajena, AlertasFalsas([ajena])).puedeMarcarFalsaAlarma,
+        isFalse,
+      );
+      // La comisión cambia el estado, pero la falsa alarma es solo de quien
+      // la reportó.
+      expect(
+        crear(
+          ajena,
+          AlertasFalsas([ajena]),
+          vecino: miembroDeLaComision,
+        ).puedeMarcarFalsaAlarma,
+        isFalse,
+      );
+    });
+
+    test('"Fue una falsa alarma" la deja resuelta como antes', () async {
       final alerta = alertaDePrueba();
       final alertas = AlertasFalsas([alerta]);
       final vm = crear(alerta, alertas);
 
-      expect(await vm.marcarResuelta(), isTrue);
+      expect(await vm.marcarFalsaAlarma(), isTrue);
       expect(vm.alerta.estado, EstadoAlerta.resuelta);
       expect(alertas.alertas.single.estado, EstadoAlerta.resuelta);
-      expect(vm.puedeCerrarla, isFalse);
+      expect(vm.puedeMarcarFalsaAlarma, isFalse);
     });
 
-    test('si falla muestra un mensaje y la alerta sigue abierta', () async {
+    // Cambiar.
+
+    test('cambiar a En atención pide el cambio, actualiza la alerta y '
+        'devuelve true', () async {
+      final alerta = alertaDePrueba();
+      final alertas = AlertasFalsas([alerta]);
+      final vm = crear(alerta, alertas);
+
+      expect(await vm.cambiarEstado(EstadoAlerta.enAtencion), isTrue);
+      expect(alertas.cambiosDeEstado, 1);
+      expect(vm.alerta.estado, EstadoAlerta.enAtencion);
+      expect(alertas.alertas.single.estado, EstadoAlerta.enAtencion);
+      expect(vm.estado, EstadoCarga.exito);
+      expect(vm.error, isNull);
+      expect(vm.cambiandoEstado, isFalse);
+    });
+
+    test('la comisión cambia el estado de una alerta ajena', () async {
+      final ajena = alertaDePrueba(reportadaPor: 'jorge');
+      final alertas = AlertasFalsas([ajena]);
+      final vm = crear(ajena, alertas, vecino: miembroDeLaComision);
+
+      expect(await vm.cambiarEstado(EstadoAlerta.resuelta), isTrue);
+      expect(vm.alerta.estado, EstadoAlerta.resuelta);
+      expect(alertas.alertas.single.estado, EstadoAlerta.resuelta);
+    });
+
+    test('cambiar al estado actual no pide nada', () async {
+      final alerta = alertaDePrueba(estado: EstadoAlerta.enAtencion);
+      final alertas = AlertasFalsas([alerta]);
+      final vm = crear(alerta, alertas);
+
+      expect(await vm.cambiarEstado(EstadoAlerta.enAtencion), isFalse);
+      expect(alertas.cambiosDeEstado, 0);
+      expect(vm.estado, EstadoCarga.inicial);
+    });
+
+    test('un vecino común no pide nada aunque llame a cambiarEstado', () async {
+      final ajena = alertaDePrueba(reportadaPor: 'jorge');
+      final alertas = AlertasFalsas([ajena]);
+      final vm = crear(ajena, alertas);
+
+      expect(await vm.cambiarEstado(EstadoAlerta.resuelta), isFalse);
+      expect(alertas.cambiosDeEstado, 0);
+      expect(vm.alerta.estado, EstadoAlerta.activa);
+    });
+
+    test('al cambiar publica AlertasActualizadas', () async {
+      final eventos = <EventoDeApp>[];
+      bus.eventos.listen(eventos.add);
+      final alerta = alertaDePrueba();
+      final vm = crear(alerta, AlertasFalsas([alerta]));
+
+      await vm.cambiarEstado(EstadoAlerta.enAtencion);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(eventos, [isA<AlertasActualizadas>()]);
+    });
+
+    test('mientras cambia, cambiandoEstado es true', () async {
+      final alerta = alertaDePrueba();
+      final alertas = AlertasFalsas([alerta])
+        ..demoraAlCambiar = Completer<void>();
+      final vm = crear(alerta, alertas);
+
+      final cambio = vm.cambiarEstado(EstadoAlerta.enAtencion);
+      expect(vm.cambiandoEstado, isTrue);
+      expect(vm.estado, EstadoCarga.cargando);
+      // Un segundo toque mientras espera no pide otro cambio.
+      expect(await vm.cambiarEstado(EstadoAlerta.resuelta), isFalse);
+
+      alertas.demoraAlCambiar!.complete();
+      expect(await cambio, isTrue);
+      expect(vm.cambiandoEstado, isFalse);
+      expect(alertas.cambiosDeEstado, 1);
+    });
+
+    test('reabrir una resuelta la deja activa', () async {
+      final alerta = alertaDePrueba(estado: EstadoAlerta.resuelta);
+      final alertas = AlertasFalsas([alerta]);
+      final vm = crear(alerta, alertas);
+
+      expect(await vm.cambiarEstado(EstadoAlerta.activa), isTrue);
+      expect(vm.alerta.estado, EstadoAlerta.activa);
+      expect(alertas.alertas.single.estado, EstadoAlerta.activa);
+    });
+
+    test('avisoCambioDeEstado dice "Cambiaste el estado a En atención."', () {
+      expect(
+        avisoCambioDeEstado(EstadoAlerta.enAtencion),
+        'Cambiaste el estado a En atención.',
+      );
+      expect(
+        avisoCambioDeEstado(EstadoAlerta.resuelta),
+        'Cambiaste el estado a Resuelta.',
+      );
+      expect(
+        avisoCambioDeEstado(EstadoAlerta.activa),
+        'Cambiaste el estado a Activa.',
+      );
+    });
+
+    // Confirmación (decisión P2).
+
+    test('confirmacionParaCambio con los 9 pares de estados', () {
+      const activa = EstadoAlerta.activa;
+      const enAtencion = EstadoAlerta.enAtencion;
+      const resuelta = EstadoAlerta.resuelta;
+      const resolver = ConfirmacionCambioEstado.resolver;
+      const reabrir = ConfirmacionCambioEstado.reabrir;
+
+      expect(confirmacionParaCambio(activa, resuelta), resolver);
+      expect(confirmacionParaCambio(enAtencion, resuelta), resolver);
+      expect(confirmacionParaCambio(resuelta, activa), reabrir);
+      expect(confirmacionParaCambio(resuelta, enAtencion), reabrir);
+      expect(confirmacionParaCambio(activa, enAtencion), isNull);
+      expect(confirmacionParaCambio(enAtencion, activa), isNull);
+      expect(confirmacionParaCambio(activa, activa), isNull);
+      expect(confirmacionParaCambio(enAtencion, enAtencion), isNull);
+      expect(confirmacionParaCambio(resuelta, resuelta), isNull);
+    });
+
+    // Errores.
+
+    test(
+      'si la API rechaza muestra su mensaje tal cual y el estado no cambia',
+      () async {
+        final alerta = alertaDePrueba();
+        final alertas = AlertasFalsas([alerta])
+          ..errorAlCambiar = const ErrorDelServidor(
+            ReglasAlertas.mensajeSinPermisoEstado,
+          );
+        final vm = crear(alerta, alertas);
+
+        expect(await vm.cambiarEstado(EstadoAlerta.enAtencion), isFalse);
+        expect(vm.estado, EstadoCarga.error);
+        expect(
+          vm.error,
+          'Solo quien reportó la alerta o la comisión vecinal pueden cambiar '
+          'su estado.',
+        );
+        expect(vm.alerta.estado, EstadoAlerta.activa);
+        expect(vm.cambiandoEstado, isFalse);
+      },
+    );
+
+    test('sin conexión muestra "No pudimos cambiar el estado. Probá de '
+        'nuevo." y el estado no cambia', () async {
       final alerta = alertaDePrueba();
       final vm = crear(alerta, AlertasFalsas([alerta], true));
 
-      expect(await vm.marcarResuelta(), isFalse);
+      expect(await vm.cambiarEstado(EstadoAlerta.resuelta), isFalse);
       expect(vm.estado, EstadoCarga.error);
-      expect(vm.error, isNotNull);
+      expect(vm.error, 'No pudimos cambiar el estado. Probá de nuevo.');
+      expect(vm.error, mensajeErrorCambioEstado);
       expect(vm.alerta.estado, EstadoAlerta.activa);
+    });
+
+    test('un cambio que sale bien borra el error anterior', () async {
+      final alerta = alertaDePrueba();
+      final alertas = AlertasFalsas([alerta], true);
+      final vm = crear(alerta, alertas);
+      await vm.cambiarEstado(EstadoAlerta.enAtencion);
+      expect(vm.error, isNotNull);
+
+      alertas.falla = false;
+      expect(await vm.cambiarEstado(EstadoAlerta.enAtencion), isTrue);
+      expect(vm.error, isNull);
     });
 
     test('el tiempo transcurrido usa el reloj inyectado', () {

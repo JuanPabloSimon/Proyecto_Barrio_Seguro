@@ -16,13 +16,42 @@ class PushServiceFalso implements PushService {
   bool falla;
   final List<Map<String, dynamic>> enviadas = [];
 
+  /// Cada aviso de reapertura: la alerta y la hora de la reapertura.
+  final List<(Map<String, dynamic>, DateTime)> reaperturas = [];
+
   @override
   Future<void> enviarAlerta(Map<String, dynamic> alerta) async {
     if (falla) throw Exception('fallo de FCM');
     if (alerta['estado'] == 'resuelta') return;
     enviadas.add(Map<String, dynamic>.of(alerta));
   }
+
+  @override
+  Future<void> enviarReapertura(
+    Map<String, dynamic> alerta, {
+    required DateTime reabiertaEn,
+  }) async {
+    if (falla) throw Exception('fallo de FCM');
+    if (alerta['estado'] == 'resuelta') return;
+    reaperturas.add((Map<String, dynamic>.of(alerta), reabiertaEn));
+  }
 }
+
+/// Las claves de una alerta en las respuestas de la API y en los avisos
+/// push.
+const clavesDeUnaAlerta = {
+  'id',
+  'categoria',
+  'tipo',
+  'descripcion',
+  'direccion',
+  'creada_en',
+  'estado',
+  'latitud',
+  'longitud',
+  'reportada_por',
+  'reportada_por_nombre',
+};
 
 const telefonoClara = '261 555-0142';
 const telefonoRosa = '2615550177';
@@ -663,26 +692,113 @@ void main() {
       expect(a4['reportada_por'], 'clara');
     });
 
-    test('solo quien la reportó puede cerrarla (RF-05)', () async {
-      final clara = await ingresar(telefonoClara);
-      final rosa = await ingresar(telefonoRosa);
+    String estadoEnElAlmacen(String id) =>
+        almacen.alertas.firstWhere((a) => a['id'] == id)['estado'] as String;
 
-      // a1 la reportó Clara.
-      final (ajena, _) = await pedir(
-        'PATCH',
-        '/alertas/a1',
+    test('quien la reportó cambia el estado', () async {
+      final rosa = await ingresar(telefonoRosa);
+      final (creada, alerta) = await pedir(
+        'POST',
+        '/alertas',
         token: rosa,
-        cuerpo: {'estado': 'resuelta'},
+        cuerpo: {
+          'categoria': 'robo',
+          'tipo': 'Robo',
+          'latitud': -32.876568,
+          'longitud': -68.870672,
+        },
       );
-      final (propia, alerta) = await pedir(
+      expect(creada, 201);
+      final id = alerta['id'] as String;
+
+      final (codigo, cambiada) = await pedir(
         'PATCH',
-        '/alertas/a1',
+        '/alertas/$id',
+        token: rosa,
+        cuerpo: {'estado': 'en_atencion'},
+      );
+
+      expect(codigo, 200);
+      expect(cambiada['id'], id);
+      expect(cambiada['estado'], 'en_atencion');
+      expect(cambiada['reportada_por_nombre'], 'Rosa');
+      expect(estadoEnElAlmacen(id), 'en_atencion');
+    });
+
+    test('la comisión cambia el estado de una alerta ajena', () async {
+      final clara = await ingresar(telefonoClara);
+
+      // a2 la reportó Martín; Clara es de la comisión.
+      final (codigo, alerta) = await pedir(
+        'PATCH',
+        '/alertas/a2',
+        token: clara,
+        cuerpo: {'estado': 'en_atencion'},
+      );
+      expect(codigo, 200);
+      expect(alerta['estado'], 'en_atencion');
+      expect(alerta['reportada_por'], 'martin');
+      expect(estadoEnElAlmacen('a2'), 'en_atencion');
+
+      final (otro, resuelta) = await pedir(
+        'PATCH',
+        '/alertas/a3',
         token: clara,
         cuerpo: {'estado': 'resuelta'},
       );
-      expect(ajena, 403);
-      expect(propia, 200);
-      expect(alerta['estado'], 'resuelta');
+      expect(otro, 200);
+      expect(resuelta['estado'], 'resuelta');
+      expect(estadoEnElAlmacen('a3'), 'resuelta');
+    });
+
+    test(
+      'un vecino común no puede cambiar el estado de una alerta ajena',
+      () async {
+        final rosa = await ingresar(telefonoRosa);
+
+        // a1 la reportó Clara; Rosa es vecina común.
+        for (final estado in ['resuelta', 'en_atencion']) {
+          final (codigo, cuerpo) = await pedir(
+            'PATCH',
+            '/alertas/a1',
+            token: rosa,
+            cuerpo: {'estado': estado},
+          );
+          expect(codigo, 403);
+          expect(
+            cuerpo['error'],
+            'Solo quien reportó la alerta o la comisión vecinal pueden cambiar '
+            'su estado.',
+          );
+          expect(cuerpo['error'], ReglasAlertas.mensajeSinPermisoEstado);
+        }
+        expect(estadoEnElAlmacen('a1'), 'activa');
+      },
+    );
+
+    test('se puede reabrir una alerta resuelta', () async {
+      final clara = await ingresar(telefonoClara);
+
+      // a4 es de Clara (autora); a5 es de Rosa (Clara entra por comisión).
+      final (codigo, alerta) = await pedir(
+        'PATCH',
+        '/alertas/a4',
+        token: clara,
+        cuerpo: {'estado': 'activa'},
+      );
+      expect(codigo, 200);
+      expect(alerta['estado'], 'activa');
+      expect(estadoEnElAlmacen('a4'), 'activa');
+
+      final (otro, otra) = await pedir(
+        'PATCH',
+        '/alertas/a5',
+        token: clara,
+        cuerpo: {'estado': 'en_atencion'},
+      );
+      expect(otro, 200);
+      expect(otra['estado'], 'en_atencion');
+      expect(estadoEnElAlmacen('a5'), 'en_atencion');
     });
   });
 
@@ -954,6 +1070,200 @@ void main() {
     );
   });
 
+  group('Avisos push: reapertura', () {
+    Future<int> cambiar(String token, String id, String estado) async =>
+        (await pedir(
+          'PATCH',
+          '/alertas/$id',
+          token: token,
+          cuerpo: {'estado': estado},
+        )).$1;
+
+    test(
+      'reabrir una alerta resuelta a activa envía el aviso de reapertura',
+      () async {
+        final clara = await ingresar(telefonoClara);
+
+        expect(await cambiar(clara, 'a4', 'activa'), 200);
+
+        final (alerta, reabiertaEn) = push.reaperturas.single;
+        expect(alerta['id'], 'a4');
+        expect(alerta['estado'], 'activa');
+        expect(alerta['reportada_por_nombre'], 'Clara');
+        expect(reabiertaEn, DateTime(2026, 10, 1, 12));
+        // No es el aviso de una alerta nueva.
+        expect(push.enviadas, isEmpty);
+      },
+    );
+
+    test('reabrir a en_atencion también lo envía', () async {
+      final clara = await ingresar(telefonoClara);
+
+      // a5 es de Rosa: Clara la reabre por ser de la comisión.
+      expect(await cambiar(clara, 'a5', 'en_atencion'), 200);
+
+      final (alerta, _) = push.reaperturas.single;
+      expect(alerta['id'], 'a5');
+      expect(alerta['estado'], 'en_atencion');
+      expect(alerta['reportada_por_nombre'], 'Rosa');
+    });
+
+    test('pasar entre activa y en_atencion no envía nada', () async {
+      final clara = await ingresar(telefonoClara);
+
+      expect(await cambiar(clara, 'a1', 'en_atencion'), 200);
+      expect(await cambiar(clara, 'a1', 'activa'), 200);
+
+      expect(push.reaperturas, isEmpty);
+      expect(push.enviadas, isEmpty);
+    });
+
+    test('pasar a resuelta no envía nada', () async {
+      final clara = await ingresar(telefonoClara);
+
+      expect(await cambiar(clara, 'a1', 'resuelta'), 200);
+      expect(await cambiar(clara, 'a2', 'resuelta'), 200);
+
+      expect(push.reaperturas, isEmpty);
+      expect(push.enviadas, isEmpty);
+    });
+
+    test('elegir el mismo estado no envía nada', () async {
+      final clara = await ingresar(telefonoClara);
+
+      expect(await cambiar(clara, 'a4', 'resuelta'), 200);
+      expect(await cambiar(clara, 'a1', 'activa'), 200);
+
+      expect(push.reaperturas, isEmpty);
+      expect(push.enviadas, isEmpty);
+    });
+
+    test('un pedido rechazado no envía nada', () async {
+      final rosa = await ingresar(telefonoRosa);
+      final clara = await ingresar(telefonoClara);
+
+      // 401 sin token.
+      final (sinToken, _) = await pedir(
+        'PATCH',
+        '/alertas/a4',
+        cuerpo: {'estado': 'activa'},
+      );
+      expect(sinToken, 401);
+      // 403: a4 es de Clara y Rosa es vecina común.
+      expect(await cambiar(rosa, 'a4', 'activa'), 403);
+      // 400: un estado que no existe.
+      expect(await cambiar(clara, 'a4', 'reabierta'), 400);
+      // 404: una alerta que no existe.
+      expect(await cambiar(clara, 'no-existe', 'activa'), 404);
+
+      expect(push.reaperturas, isEmpty);
+      expect(push.enviadas, isEmpty);
+      expect(
+        almacen.alertas.firstWhere((a) => a['id'] == 'a4')['estado'],
+        'resuelta',
+      );
+    });
+
+    test(
+      'si el push falla al reabrir, el estado se guarda y responde 200',
+      () async {
+        push.falla = true;
+        final clara = await ingresar(telefonoClara);
+
+        final (codigo, alerta) = await pedir(
+          'PATCH',
+          '/alertas/a4',
+          token: clara,
+          cuerpo: {'estado': 'activa'},
+        );
+
+        expect(codigo, 200);
+        expect(alerta['estado'], 'activa');
+        expect(
+          almacen.alertas.firstWhere((a) => a['id'] == 'a4')['estado'],
+          'activa',
+        );
+      },
+    );
+
+    test('el aviso de reapertura solo trae las claves de la alerta', () async {
+      final clara = await ingresar(telefonoClara);
+
+      expect(await cambiar(clara, 'a5', 'activa'), 200);
+
+      expect(push.reaperturas.single.$1.keys.toSet(), clavesDeUnaAlerta);
+    });
+
+    test('PushServiceFcm.enviarReapertura manda al tópico alertas con aviso '
+        '"reabierta" y reabierta_en, y descarta las resueltas', () async {
+      final pedidos = <http.Request>[];
+      final servicio = PushServiceFcm.conCliente(
+        projectId: 'barrioseguro-462d3',
+        cliente: MockClient((pedido) async {
+          pedidos.add(pedido);
+          return http.Response(
+            '{"name": "projects/barrioseguro-462d3/messages/1"}',
+            200,
+          );
+        }),
+      );
+      final alerta = {
+        'id': 'a4',
+        'categoria': 'robo',
+        'tipo': 'Robo de celular',
+        'descripcion': 'En la parada',
+        'direccion': 'Parada de colectivo',
+        'creada_en': 1759320000000,
+        'estado': 'activa',
+        'latitud': -32.879792,
+        'longitud': -68.868027,
+        'reportada_por': 'clara',
+        'reportada_por_nombre': 'Clara',
+      };
+      final reabiertaEn = DateTime(2026, 10, 1, 12);
+
+      await servicio.enviarReapertura({
+        ...alerta,
+        'estado': 'resuelta',
+      }, reabiertaEn: reabiertaEn);
+      expect(pedidos, isEmpty);
+
+      await servicio.enviarReapertura(alerta, reabiertaEn: reabiertaEn);
+
+      expect(pedidos, hasLength(1));
+      expect(
+        pedidos.single.url.toString(),
+        'https://fcm.googleapis.com/v1/projects/barrioseguro-462d3/messages:send',
+      );
+      final mensaje =
+          (jsonDecode(pedidos.single.body) as Map<String, dynamic>)['message']
+              as Map<String, dynamic>;
+      expect(mensaje['topic'], 'alertas');
+      expect(mensaje['android'], {'priority': 'HIGH'});
+      final datos = mensaje['data'] as Map<String, dynamic>;
+      expect(datos.keys.toSet(), {
+        ...clavesDeUnaAlerta,
+        'aviso',
+        'reabierta_en',
+      });
+      expect(datos.values, everyElement(isA<String>()));
+      expect(datos['aviso'], 'reabierta');
+      expect(datos['aviso'], PushServiceFcm.avisoReabierta);
+      expect(datos['reabierta_en'], '${reabiertaEn.millisecondsSinceEpoch}');
+      expect(datos['estado'], 'activa');
+      expect(datos['creada_en'], '1759320000000');
+
+      // El aviso de una alerta nueva sigue sin "aviso".
+      await servicio.enviarAlerta(alerta);
+      final nueva =
+          ((jsonDecode(pedidos.last.body) as Map<String, dynamic>)['message']
+                  as Map<String, dynamic>)['data']
+              as Map<String, dynamic>;
+      expect(nueva.keys.toSet(), clavesDeUnaAlerta);
+      expect(nueva, isNot(contains('aviso')));
+    });
+  });
+
   group('Salud', () {
     test('GET /salud devuelve estado ok y la hora del servidor', () async {
       // Sin token, como siempre.
@@ -967,20 +1277,6 @@ void main() {
   });
 
   group('Nombre de quien reportó', () {
-    const clavesDeUnaAlerta = {
-      'id',
-      'categoria',
-      'tipo',
-      'descripcion',
-      'direccion',
-      'creada_en',
-      'estado',
-      'latitud',
-      'longitud',
-      'reportada_por',
-      'reportada_por_nombre',
-    };
-
     Future<Map<String, dynamic>> crear(String token) async {
       final (codigo, alerta) = await pedir(
         'POST',

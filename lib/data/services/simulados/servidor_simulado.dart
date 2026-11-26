@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../../domain/models/alerta.dart';
 import '../../../domain/models/turno.dart';
 import '../../../domain/models/vecino.dart';
 import '../../../domain/reglas_alertas.dart';
@@ -38,6 +39,11 @@ class ServidorSimulado {
   final List<Map<String, dynamic>> _alertas = [];
   int _ultimoId = 0;
 
+  /// Quién tiene la sesión abierta. La API lo saca del token; el simulado
+  /// lo recuerda al ingresar o registrarse. Arranca en la vecina de
+  /// ejemplo, igual que [ingresar].
+  String _vecinoDeLaSesion = idVecinaDeEjemplo;
+
   /// Espera la demora y, a veces, falla como fallaría la red.
   Future<void> responder() async {
     await Future<void>.delayed(demora);
@@ -54,6 +60,7 @@ class ServidorSimulado {
 
   Map<String, dynamic> ingresar(String usuario, String clave) {
     // Prototipo: cualquier usuario entra como la vecina de ejemplo.
+    _vecinoDeLaSesion = idVecinaDeEjemplo;
     return _sesion(idVecinaDeEjemplo);
   }
 
@@ -73,6 +80,7 @@ class ServidorSimulado {
       'rol': RolVecino.vecino.json,
     };
     _vecinos[vecino['id'] as String] = vecino;
+    _vecinoDeLaSesion = vecino['id'] as String;
     return _sesion(vecino['id'] as String);
   }
 
@@ -229,10 +237,23 @@ class ServidorSimulado {
     return _conNombre(alerta);
   }
 
+  /// Mismo orden de chequeo que `PATCH /alertas/<id>`: estado válido,
+  /// alerta existente y permiso (quien la reportó o la comisión).
   Map<String, dynamic> cambiarEstadoDeAlerta(String id, String estado) {
+    if (!_estadosValidos.contains(estado)) {
+      throw const ErrorDelServidor('Ese estado no existe.');
+    }
     final alerta = _alertas.where((a) => a['id'] == id).firstOrNull;
     if (alerta == null) {
       throw const ErrorDelServidor('No encontramos esa alerta.');
+    }
+    final json = _vecinos[_vecinoDeLaSesion];
+    final puede = ReglasAlertas.puedeCambiarEstado(
+      reportadaPor: alerta['reportada_por'] as String,
+      vecino: json == null ? null : Vecino.fromJson(json),
+    );
+    if (!puede) {
+      throw const ErrorDelServidor(ReglasAlertas.mensajeSinPermisoEstado);
     }
     alerta['estado'] = estado;
     return _conNombre(alerta);
@@ -256,6 +277,10 @@ class ServidorSimulado {
   // -------------------------------------------------------------------------
 
   static const idVecinaDeEjemplo = 'clara';
+
+  static final _estadosValidos = {
+    for (final estado in EstadoAlerta.values) estado.valorApi,
+  };
 
   /// El mismo mensaje que la API cuando alguien intenta cambiarse el rol.
   static const mensajeRolFijo = 'El rol no se puede cambiar desde la app.';

@@ -143,4 +143,49 @@ void main() {
       );
     });
   });
+
+  // estado_alerta R60 a R62: el vigilante mide desde su revisión anterior.
+  group('Reapertura vista por el vigilante', () {
+    final anterior = DateTime.utc(2026, 10, 1, 12);
+
+    test('2 horas justas desde la revisión anterior no es tardía', () {
+      expect(
+        reaperturaDelVigilanteTardia(
+          revisionAnterior: anterior,
+          ahora: anterior.add(const Duration(hours: 2)),
+        ),
+        isFalse,
+      );
+    });
+
+    test('2 horas y 1 segundo es tardía', () {
+      expect(
+        reaperturaDelVigilanteTardia(
+          revisionAnterior: anterior,
+          ahora: anterior.add(const Duration(hours: 2, seconds: 1)),
+        ),
+        isTrue,
+      );
+    });
+
+    test('unos segundos no es tardía', () {
+      expect(
+        reaperturaDelVigilanteTardia(
+          revisionAnterior: anterior,
+          ahora: anterior.add(const Duration(seconds: 45)),
+        ),
+        isFalse,
+      );
+    });
+
+    test('una diferencia negativa no es tardía', () {
+      expect(
+        reaperturaDelVigilanteTardia(
+          revisionAnterior: anterior,
+          ahora: anterior.subtract(const Duration(hours: 3)),
+        ),
+        isFalse,
+      );
+    });
+  });
 }

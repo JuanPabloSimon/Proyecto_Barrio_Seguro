@@ -296,6 +296,99 @@ void main() {
         expect(a4['reportada_por'], 'clara');
       },
     );
+
+    String estadoDe(String id) =>
+        servidor.alertas().firstWhere((a) => a['id'] == id)['estado'] as String;
+
+    Map<String, dynamic> registrarVecinoComun() => servidor.registrar({
+      'nombre': 'Nuevo Vecino',
+      'fecha_nacimiento': '1990-01-01',
+    });
+
+    test(
+      'la comisión cambia el estado de una alerta ajena en el simulado',
+      () async {
+        // La sesión arranca en Clara, que es de la comisión; a2 es de Martín.
+        final alerta = await repositorio.cambiarEstado(
+          'a2',
+          EstadoAlerta.enAtencion,
+        );
+        expect(alerta.estado, EstadoAlerta.enAtencion);
+        expect(alerta.reportadaPor, 'martin');
+        expect(estadoDe('a2'), 'en_atencion');
+
+        final resuelta = await repositorio.cambiarEstado(
+          'a2',
+          EstadoAlerta.resuelta,
+        );
+        expect(resuelta.estado, EstadoAlerta.resuelta);
+        expect(estadoDe('a2'), 'resuelta');
+      },
+    );
+
+    test('quien la reportó cambia el estado en el simulado', () async {
+      final id = (registrarVecinoComun()['vecino'] as Map)['id'] as String;
+      final creada = Alerta.fromJson(
+        servidor.crearAlerta({
+          'categoria': 'robo',
+          'tipo': 'Robo',
+          'descripcion': '',
+          'direccion': '',
+          'latitud': -32.87,
+          'longitud': -68.87,
+          'reportada_por': id,
+        }),
+      );
+
+      final alerta = await repositorio.cambiarEstado(
+        creada.id,
+        EstadoAlerta.resuelta,
+      );
+
+      expect(alerta.estado, EstadoAlerta.resuelta);
+      expect(estadoDe(creada.id), 'resuelta');
+    });
+
+    test('un vecino común no cambia una alerta ajena en el simulado', () async {
+      registrarVecinoComun();
+      await expectLater(
+        () => repositorio.cambiarEstado('a1', EstadoAlerta.resuelta),
+        errorCon(
+          'Solo quien reportó la alerta o la comisión vecinal pueden '
+          'cambiar su estado.',
+        ),
+      );
+      expect(estadoDe('a1'), 'activa');
+    });
+
+    test('el simulado reabre una alerta resuelta', () async {
+      expect(estadoDe('a4'), 'resuelta');
+      final alerta = await repositorio.cambiarEstado('a4', EstadoAlerta.activa);
+      expect(alerta.estado, EstadoAlerta.activa);
+      expect(estadoDe('a4'), 'activa');
+    });
+
+    test('el simulado rechaza un estado que no existe o una alerta que no '
+        'existe', () {
+      expect(
+        () => servidor.cambiarEstadoDeAlerta('a1', 'cerrada'),
+        errorCon('Ese estado no existe.'),
+      );
+      expect(
+        () => servidor.cambiarEstadoDeAlerta('no-existe', 'activa'),
+        errorCon('No encontramos esa alerta.'),
+      );
+      expect(estadoDe('a1'), 'activa');
+    });
+
+    test('al volver a ingresar la sesión vuelve a la vecina de ejemplo', () {
+      registrarVecinoComun();
+      servidor.ingresar('261 555-0142', 'x');
+      expect(
+        servidor.cambiarEstadoDeAlerta('a2', 'activa')['estado'],
+        'activa',
+      );
+    });
   });
 
   group('Rol contra el servidor simulado', () {
@@ -500,6 +593,23 @@ void main() {
 
       expect((await avisos.llegadas()).keys.toSet(), {'reciente', 'nueva'});
     });
+
+    test(
+      'horaDelServidor suma el desfase y no guarda ninguna llegada',
+      () async {
+        final preferencias = preferenciasEnMemoria();
+        final avisos = crear(preferencias);
+        expect(await avisos.horaDelServidor(), ahora);
+
+        await avisos.guardarDesfase(const Duration(minutes: 2));
+        expect(
+          await avisos.horaDelServidor(),
+          ahora.add(const Duration(minutes: 2)),
+        );
+        expect(await avisos.llegadas(), isEmpty);
+        expect(await preferencias.avisosRecibidos(), isEmpty);
+      },
+    );
 
     test('una clave ilegible se lee como sin llegadas', () async {
       final avisos = crear(

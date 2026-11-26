@@ -4,10 +4,18 @@ import 'dart:io';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 
-/// Envía avisos push cuando un vecino reporta una alerta nueva.
+/// Envía avisos push de una alerta nueva o reabierta.
 abstract class PushService {
   /// Envía el aviso de [alerta] si no está resuelta.
   Future<void> enviarAlerta(Map<String, dynamic> alerta);
+
+  /// Aviso de una alerta resuelta que se volvió a abrir. [alerta] ya trae
+  /// el estado nuevo; si está resuelta, no envía nada. [reabiertaEn] es la
+  /// hora del servidor del cambio.
+  Future<void> enviarReapertura(
+    Map<String, dynamic> alerta, {
+    required DateTime reabiertaEn,
+  });
 }
 
 /// No envía nada. Se usa cuando el servidor corre sin credenciales de
@@ -17,6 +25,12 @@ class PushServiceNinguno implements PushService {
 
   @override
   Future<void> enviarAlerta(Map<String, dynamic> alerta) async {}
+
+  @override
+  Future<void> enviarReapertura(
+    Map<String, dynamic> alerta, {
+    required DateTime reabiertaEn,
+  }) async {}
 }
 
 /// Envía mensajes de datos al tópico `alertas` mediante la API HTTP v1 de
@@ -62,10 +76,39 @@ class PushServiceFcm implements PushService {
 
   static const topicoAlertas = 'alertas';
 
+  /// Valor de la clave `aviso` en el aviso de una alerta reabierta. El de
+  /// una alerta nueva no lleva `aviso`.
+  static const avisoReabierta = 'reabierta';
+
   @override
   Future<void> enviarAlerta(Map<String, dynamic> alerta) async {
     if (alerta['estado'] == 'resuelta') return;
+    await _enviar(_comoTexto(alerta));
+  }
 
+  /// Las mismas claves que [enviarAlerta] más `aviso: "reabierta"` y
+  /// `reabierta_en` (ms). No viaja quién la reabrió (R45).
+  @override
+  Future<void> enviarReapertura(
+    Map<String, dynamic> alerta, {
+    required DateTime reabiertaEn,
+  }) async {
+    if (alerta['estado'] == 'resuelta') return;
+    await _enviar({
+      ..._comoTexto(alerta),
+      'aviso': avisoReabierta,
+      'reabierta_en': '${reabiertaEn.millisecondsSinceEpoch}',
+    });
+  }
+
+  /// FCM solo acepta textos en `data`.
+  Map<String, String> _comoTexto(Map<String, dynamic> alerta) => {
+    for (final MapEntry(:key, :value) in alerta.entries)
+      if (value != null) key: '$value',
+  };
+
+  /// Manda un mensaje de datos al tópico de alertas.
+  Future<void> _enviar(Map<String, String> datos) async {
     final cliente = await _obtenerCliente();
     final url = Uri.parse(
       'https://fcm.googleapis.com/v1/projects/$projectId/messages:send',
@@ -76,10 +119,7 @@ class PushServiceFcm implements PushService {
       body: jsonEncode({
         'message': {
           'topic': topicoAlertas,
-          'data': {
-            for (final MapEntry(:key, :value) in alerta.entries)
-              if (value != null) key: '$value',
-          },
+          'data': datos,
           'android': {'priority': 'HIGH'},
         },
       }),

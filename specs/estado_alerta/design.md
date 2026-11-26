@@ -330,7 +330,7 @@ class ReglasAlertas {
 const mensajeErrorCambioEstado = 'No pudimos cambiar el estado. Probá de nuevo.';
 
 /// "Cambiaste el estado a En atención."
-String avisoCambioDeEstado(EstadoAlerta estado); // usa la etiqueta en ui/core
+String avisoCambioDeEstado(EstadoAlerta estado); // usa la etiqueta en ui/core (ampliación, punto 10: de textos_estado.dart)
 
 class DetalleAlertaViewModel extends ChangeNotifier {
   // constructor sin cambios
@@ -421,7 +421,9 @@ abstract class PushService {
 
 `avisoCambioDeEstado` vive en el archivo del ViewModel e importa
 `ui/core/presentacion_alerta.dart` para la etiqueta (el ViewModel ya está
-en `ui/`, no hay import de widgets). `cambiandoEstado` y el
+en `ui/`, no hay import de widgets). **Cambia en la ampliación (punto
+10):** ese import arrastra `material.dart`; el ViewModel pasa a importar
+`ui/core/textos_estado.dart`, sin Flutter. `cambiandoEstado` y el
 `EstadoCarga.cargando` de `marcarFalsaAlarma` comparten el mismo
 `_estado`: mientras uno corre, el otro está deshabilitado.
 
@@ -624,9 +626,18 @@ No quedan preguntas abiertas.
   segundo plano y después el vigilante, al volver a primer plano, ve la
   misma reapertura, se muestra dos veces pero con el mismo id de
   notificación: la segunda reemplaza a la primera, no se apilan.
-- El vigilante, al volver a primer plano después de horas, avisa como "a
+- ~~El vigilante, al volver a primer plano después de horas, avisa como "a
   tiempo" una reapertura vieja (no conoce `reabierta_en`). Es poco
-  probable y el aviso abre el detalle con el estado real. Se acepta.
+  probable y el aviso abre el detalle con el estado real. Se acepta.~~
+  **Cambia en la ampliación (punto 11):** si pasaron más de 2 horas desde
+  la revisión anterior, el vigilante avisa la reapertura como tardía, sin
+  hora (R60, R61). Queda un riesgo menor: entre 5 minutos y 2 horas sin
+  revisar (por ejemplo, la app 1 hora en segundo plano), la reapertura se
+  sigue avisando "a tiempo" aunque pueda tener hasta 2 horas; el vigilante
+  no puede saber si fue hace 1 minuto o hace 1 hora, y la regla decidida
+  solo usa el corte de 2 horas. Con el push disponible, ese aviso ya llegó
+  con su clasificación correcta y el del vigilante lo reemplaza con el
+  mismo id (ver "Push y vigilante a la vez"; punto 11, "Riesgos").
 - Reabrir y volver a resolver muchas veces manda un push por cada
   reapertura. No se limita: lo hace solo quien la reportó o la comisión,
   y cada reapertura pide confirmación.
@@ -635,3 +646,386 @@ No quedan preguntas abiertas.
 - `PATCH` espera a que FCM responda antes de contestar (igual que
   `POST /alertas`); si FCM tarda, el indicador "Cambiando el estado" dura
   más.
+
+---
+
+## Ampliación (reapertura de la feature)
+
+La feature se reabrió con la implementación de R1 a R55 ya aprobada (ver
+`progress/impl_estado_alerta.md` y `progress/review_estado_alerta.md`) y
+sin commitear en `feature/estado_alerta`. Esta sección **no cambia** nada
+de lo anterior salvo lo marcado en la tabla. Requisitos nuevos: R56 a
+R66; tasks nuevas: T35 a T49.
+
+### Qué cambia respecto de lo ya implementado
+
+| Archivo | Hoy (implementado y aprobado) | Con la ampliación |
+|---|---|---|
+| `lib/ui/core/presentacion_alerta.dart` | `PresentacionEstado` con `etiqueta`, `etiquetaFiltro`, `icono`, `color`, `colorSuave`; importa `material.dart` | `PresentacionEstado` queda solo con `icono`, `color` y `colorSuave`; agrega `export 'textos_estado.dart';` (las vistas siguen importando solo este archivo) |
+| `lib/ui/core/textos_estado.dart` | No existe | Nuevo: `extension TextosEstado on EstadoAlerta` con `etiqueta` y `etiquetaFiltro` (mismos textos); importa solo `../../domain/models/alerta.dart` |
+| `lib/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart` | Importa `../../core/presentacion_alerta.dart` (arrastra `material.dart`) | Importa `../../core/textos_estado.dart`; nada más cambia |
+| `lib/domain/avisos_tardios.dart` | — | Nueva función pura `reaperturaDelVigilanteTardia` |
+| `lib/data/services/notificaciones_service.dart` | `avisarReapertura`, `avisarReaperturaTardia(alerta, reabiertaEn)` | Suma `avisarReaperturaTardiaSinHora(alerta)` en la interfaz, `NotificacionesServiceLocales` y `NotificacionesServiceNinguno` |
+| `lib/ui/principal/vigilante_de_alertas.dart` | Toda reapertura → `avisarReapertura` (a tiempo) | Recibe `Reloj`; guarda `_ultimaRevision`; con más de 2 h desde la anterior, `avisarReaperturaTardiaSinHora` |
+| `lib/ui/principal/widgets/principal_screen.dart` | Crea el vigilante con `d.alertas`, `d.sesion`, … | Le pasa además `reloj: d.reloj` |
+| `test/ayudas/falsos.dart` | `NotificacionesFalsas.reaperturas` y `reaperturasTardias` | Suma `reaperturasTardiasSinHora`; nuevo `RelojManual` |
+| `test/unit/arquitectura_test.dart` | No existe | Nuevo: chequeo automático de imports de los ViewModels |
+| `test/unit/notificaciones_test.dart` | `crear()` del vigilante sin reloj | `crear()` le pasa un `RelojManual`; pruebas nuevas del corte de 2 h |
+| `test/unit/avisos_tardios_test.dart` | — | Pruebas de `reaperturaDelVigilanteTardia` |
+| `test/unit/view_models_test.dart` | — | Grupo `Textos de los estados` |
+| `docs/architecture.md`, `CHECKPOINTS.md` | "Nunca recibe `BuildContext` ni importa widgets" | Regla explícita (ver punto 10) |
+
+Sin cambios: backend, API, JSON, sqflite, `lib/dependencias.dart` (ya
+expone `reloj`), el push (`procesarAvisoPush`), la pantalla del detalle y
+los diálogos.
+
+### 10. MVVM estricto: textos sin Flutter para los ViewModels
+
+**El problema.** `avisoCambioDeEstado` (en el archivo del ViewModel)
+necesita "En atención"; hoy lo saca de `PresentacionEstado.etiqueta`, en
+un archivo que importa `material.dart` por `IconData`, `Icons` y `Color`.
+Así el ViewModel depende, aunque sea de forma indirecta, de la capa
+visual de Flutter.
+
+**La separación.**
+
+```dart
+// lib/ui/core/textos_estado.dart  (nuevo; sin imports de Flutter)
+import '../../domain/models/alerta.dart';
+
+/// Nombres visibles de cada estado. Puro Dart: lo usan las vistas y los
+/// ViewModels. Los íconos y colores están en presentacion_alerta.dart,
+/// solo para las vistas.
+extension TextosEstado on EstadoAlerta {
+  String get etiqueta;        // 'Activa' | 'En atención' | 'Resuelta'
+  String get etiquetaFiltro;  // 'Activas' | 'En atención' | 'Resueltas'
+}
+
+// lib/ui/core/presentacion_alerta.dart  (cambia)
+import 'package:flutter/material.dart';
+import '../../domain/models/alerta.dart';
+import 'tema/app_colors.dart';
+export 'textos_estado.dart';
+
+/// Íconos y colores de cada estado: solo para las vistas.
+extension PresentacionEstado on EstadoAlerta {
+  IconData get icono;
+  Color get color;
+  Color get colorSuave;
+}
+extension PresentacionCategoria on CategoriaAlerta { IconData get icono; } // sin cambios
+```
+
+Vive en `lib/ui/core/` y no en `lib/domain/`: son textos de pantalla, no
+reglas de negocio ("Activas" del filtro del mapa es puramente de la UI).
+`lib/ui/core/` ya tiene archivos puros que usan los ViewModels
+(`formato.dart`, `estado_carga.dart`, `marca_dia.dart`).
+
+El `export` hace que las vistas que hoy importan `presentacion_alerta.dart`
+(`chip_estado`, `mapa_barrio`, `pin_alerta`, `tarjeta_alerta`,
+`mapa_screen`, `detalle_alerta_screen`, `confirmar_cambio_estado`,
+`reportar_alerta_screen` y `test/accesibilidad_test.dart`) sigan
+compilando sin tocarlas. `etiqueta` y `etiquetaFiltro` quedan en una sola
+extensión, así que no hay ambigüedad de nombres.
+
+**Revisión de todos los ViewModels** (los 13 de `lib/ui/*/view_models/`,
+siguiendo sus imports de `lib/`): solo `DetalleAlertaViewModel` llega a
+una biblioteca visual (por `presentacion_alerta.dart`). Los demás importan
+`package:flutter/foundation.dart` (`ChangeNotifier`), `dart:async`,
+`data/`, `domain/`, `plataforma/` (que solo usa `foundation.dart`) y
+archivos puros de `ui/core/` (`estado_carga`, `formato`, `marca_dia`,
+`ubicacion_de_alerta`, que trae `latlong2`). `VigilanteDeAlertas` importa
+`widgets.dart` por `AppLifecycleListener`, pero no es un ViewModel (vive
+en `lib/ui/principal/`, lo crea la pantalla principal) y queda fuera de la
+regla.
+
+**La regla** (R56): un ViewModel puede importar `dart:` (menos
+`dart:ui`), `package:flutter/foundation.dart`, paquetes de terceros y
+archivos de `lib/` que cumplan lo mismo. No puede llegar, directamente ni
+por la cadena de `import`/`export` de archivos de `lib/`, a `dart:ui` ni a
+ningún `package:flutter/<x>.dart` distinto de `foundation.dart`. Los
+paquetes de terceros no se recorren (por ejemplo,
+`flutter_local_notifications` usa Flutter por dentro, pero se usa desde un
+servicio de datos, no desde la vista).
+
+**El chequeo automático** (R59): `test/unit/arquitectura_test.dart`, que
+corre con `flutter test` y por lo tanto en `./init.sh`.
+
+```dart
+// test/unit/arquitectura_test.dart
+/// Recorre [archivo] (ruta desde la raíz, p. ej. 'lib/ui/x.dart') y los
+/// archivos de lib/ que importa o exporta (rutas relativas o
+/// 'package:barrio_seguro/…'), sin entrar a paquetes externos ni repetir
+/// archivos. Devuelve una entrada por cada import prohibido encontrado,
+/// con la cadena desde [archivo]:
+/// 'lib/ui/a/view_models/a_view_model.dart -> lib/ui/core/presentacion_alerta.dart -> package:flutter/material.dart'.
+/// Prohibido: dart:ui y package:flutter/ salvo foundation.dart; con
+/// [permitirFoundation] en false, también foundation.dart.
+List<String> importsVisuales(String archivo, {bool permitirFoundation = true});
+```
+
+- Lee las directivas con una expresión regular sobre el texto del archivo
+  (multilínea: `^\s*(import|export)\s+['"]([^'"]+)['"]`; `\s+` admite el
+  salto de línea entre `import` y la ruta). No usa el analizador ni un
+  paquete nuevo.
+- Resuelve rutas relativas con `Uri.parse(archivo).resolve(ruta).path`
+  (puro `dart:core`) y `package:barrio_seguro/x` como `lib/x`.
+- Pruebas:
+  1. Por cada `*.dart` de `lib/ui/*/view_models/` (lista con
+     `Directory('lib/ui')`), `importsVisuales` vacío; la falla muestra las
+     cadenas (R56, R59). Además, la lista de ViewModels no está vacía y
+     contiene `detalle_alerta_view_model.dart`, para que el chequeo no pase
+     en falso si cambia la carpeta.
+  2. `importsVisuales('lib/ui/core/textos_estado.dart',
+     permitirFoundation: false)` vacío (R57).
+  3. Control del chequeo: `importsVisuales(
+     'lib/ui/core/presentacion_alerta.dart')` encuentra
+     `package:flutter/material.dart`, y para
+     `lib/ui/core/widgets/chip_estado.dart` (que importa
+     `../presentacion_alerta.dart`) la cadena pasa por
+     `lib/ui/core/presentacion_alerta.dart` (R59: el chequeo ve los imports
+     indirectos y nombra la cadena).
+
+`flutter test` corre con la raíz del proyecto como directorio actual, así
+que las rutas `lib/...` funcionan como en las pruebas que ya usan
+`dart:io` (`test/unit/persistencia_test.dart`).
+
+**Documentación.** En `docs/architecture.md`, principio 1, el punto "El
+ViewModel … Nunca recibe `BuildContext` ni importa widgets" pasa a decir
+la regla de R56 y que la controla `test/unit/arquitectura_test.dart`; los
+textos de pantalla que necesite un ViewModel van en archivos puros de
+`lib/ui/core/` (como `textos_estado.dart`), y los íconos y colores solo en
+archivos de vista. En el árbol de "Las piezas", `ui/core/` menciona
+`textos_estado`. En "Qué NO hacer": "Importar en un ViewModel
+`material.dart`, `widgets.dart` o un archivo que los importe (por ejemplo,
+`presentacion_alerta.dart`)". En `CHECKPOINTS.md`, C3, la casilla
+"Ningún ViewModel recibe `BuildContext` ni importa widgets" pasa a
+"Ningún ViewModel recibe `BuildContext` ni llega, ni siquiera de forma
+indirecta, a `dart:ui` o a `package:flutter/` fuera de `foundation.dart`
+(`test/unit/arquitectura_test.dart` en verde)".
+
+**Accesibilidad.** Sin cambios: los textos y su lectura en pantalla son
+los mismos (R58).
+
+### 11. Reapertura tardía con la app abierta
+
+**Qué recuerda el vigilante.** `DateTime? _ultimaRevision`: la hora del
+`Reloj` en la última revisión que obtuvo la lista. En `revisar()`,
+**después** de que `obtenerAlertas` responde, junto con `_conocidas` y
+`_resueltas`:
+
+```dart
+final ahora = _reloj.ahora();
+final anterior = _ultimaRevision;
+_ultimaRevision = ahora;
+```
+
+Si `obtenerAlertas` falla, el `catch` vuelve antes de tocar nada:
+`_conocidas`, `_resueltas` y `_ultimaRevision` siguen siendo los de la
+última revisión buena, así que la siguiente se compara contra esa (R63).
+Los dos (`_resueltas` y la hora) describen la misma foto, que es lo que
+hace falta para decir "estaba resuelta hace más de 2 horas".
+
+**La regla** (pura, en `lib/domain/avisos_tardios.dart`):
+
+```dart
+/// estado_alerta R60 a R62. El vigilante no conoce `reabierta_en`: solo
+/// sabe que la reapertura pasó entre [revisionAnterior] y [ahora]. Con
+/// más de [demoraMaximaParaAvisar] entre las dos, la trata como tardía.
+/// Una diferencia negativa (cambió la hora del teléfono) no es tardía.
+bool reaperturaDelVigilanteTardia({
+  required DateTime revisionAnterior,
+  required DateTime ahora,
+}) => ahora.difference(revisionAnterior) > demoraMaximaParaAvisar;
+```
+
+Se usa la misma constante de 2 h que el push (`demoraMaximaParaAvisar`)
+para que el corte cambie en un solo lugar.
+
+**Qué se muestra** (R60, R61). Con más de 2 horas, por cada reabierta de
+otro vecino y con los avisos activos,
+`notificaciones.avisarReaperturaTardiaSinHora(alerta)`:
+
+- Título: `tituloAvisoReapertura(alerta)` → "Se reabrió una alerta:
+  <tipoParaAviso>" (el mismo de R46, **sin** hora).
+- Cuerpo: `cuerpoAvisoTardio` → "Llegó con demora por falta de señal.
+  Puede que ya no esté pasando." (el mismo de R47 y de las alertas nuevas
+  tardías).
+- Mismo `_mostrar`: canal "Alertas del barrio", id por alerta y payload
+  `alerta:<id>` (tocarlo abre el detalle).
+
+Por qué así, coherente con lo que ya existe:
+
+- **Alertas nuevas tardías** (feature de avisos tardíos): llevan el cuerpo
+  de demora y, en el título, la hora del hecho (`creada_en`), que se
+  conoce. Acá el hecho es la reapertura y su hora **no** se conoce: poner
+  la de la revisión anterior o la actual sería mostrar un dato que la app
+  no puede confirmar (`docs/architecture.md`, "Qué NO hacer"). Se muestra
+  el título sin hora y el cuerpo de demora, que es lo que sí se sabe.
+- **R48 (push con más de 2 h → nada)**: en el push se sabe que la
+  reapertura tiene más de 2 h. En el vigilante, más de 2 h **sin
+  revisar** no quiere decir que la reapertura tenga más de 2 h (pudo ser
+  hace 1 minuto); descartarla dejaría sin aviso a quien no recibe push
+  (web, `PushServiceNinguno`). Por eso se avisa, marcada como tardía.
+- **R49 / R55 (propia)** y **R50 / R55 (avisos apagados)**: no se avisa,
+  ni a tiempo ni tardía (R64). Es el mismo filtro de hoy, antes de elegir
+  el tipo de aviso.
+- **R51 (datos incompletos o resuelta)**: el vigilante solo toma como
+  reabiertas las que ahora no están resueltas y trabaja con `Alerta` ya
+  armadas por el repositorio; no hay datos incompletos que filtrar. La
+  falta de `reabierta_en` no es un mensaje roto (lo que descarta R51) sino
+  algo que el vigilante nunca tiene; para eso es el aviso sin hora.
+- **R52 / R65**: no se llama a `registrarLlegada` ni a nada de
+  `AvisosRecibidosRepository`, como hoy (la marca de "tardía" de la lista
+  y el detalle sigue siendo la del aviso original).
+- **R54**: `AlertasActualizadas` se publica igual, en el mismo lugar que
+  hoy.
+- **Alertas nuevas en la misma revisión** (R66): siguen con
+  `clasificarAviso(creadaEn, llegada)`; el tiempo desde la revisión
+  anterior no se usa para ellas, porque ya conocen su hora.
+- **Primera revisión**: `anterior` es null y, como hoy, no se avisa nada
+  (`conocidas == null`).
+
+**El vigilante** (`lib/ui/principal/vigilante_de_alertas.dart`):
+
+```dart
+VigilanteDeAlertas({
+  required this._alertas,
+  required this._sesion,
+  required this._notificaciones,
+  required this._preferencias,
+  required this._bus,
+  required this._avisos,
+  required this._reloj,                // nuevo
+  this.cada = const Duration(seconds: 45),
+});
+
+final Reloj _reloj;                    // nuevo
+DateTime? _ultimaRevision;             // nuevo
+```
+
+En el bucle de reabiertas (que ya filtra `alerta.reportadaPor != yo` y
+corre solo con `conAvisos`):
+
+```dart
+final tardias = anterior != null &&
+    reaperturaDelVigilanteTardia(revisionAnterior: anterior, ahora: ahora);
+// tardias ? avisarReaperturaTardiaSinHora(alerta) : avisarReapertura(alerta)
+```
+
+`revisar()` sigue devolviendo solo las alertas nuevas avisadas. El
+comentario de la clase y el de R53/R55 en `revisar()` se actualizan
+("la demora se estima con el tiempo desde la revisión anterior").
+
+**Armado.** El vigilante no se crea en `lib/dependencias.dart` sino en
+`PrincipalScreen` con los campos de `Dependencias` (`d`); se le pasa
+`reloj: d.reloj` (`Dependencias.reloj` ya existe: `RelojDelSistema` en la
+app, `relojDePrueba` en `appDePrueba`). `lib/dependencias.dart` no cambia.
+
+**Servicio de notificaciones**:
+
+```dart
+abstract class NotificacionesService {
+  // … lo de hoy sin cambios.
+
+  /// Reapertura que el vigilante encontró después de más de 2 h sin
+  /// revisar (estado_alerta R60): título de R46 sin hora y cuerpo de
+  /// demora. Mismo id y payload que avisarAlerta.
+  Future<void> avisarReaperturaTardiaSinHora(Alerta alerta);
+}
+```
+
+`NotificacionesServiceLocales`: `_mostrar(alerta, titulo:
+tituloAvisoReapertura(alerta), cuerpo: cuerpoAvisoTardio)`.
+`NotificacionesServiceNinguno`: no hace nada. `NotificacionesFalsas`:
+`final List<Alerta> reaperturasTardiasSinHora`.
+
+**Pruebas.** `test/ayudas/falsos.dart` suma `RelojManual implements
+Reloj` (`DateTime hora` mutable; `ahora() => hora`), porque `RelojFijo` es
+inmutable y el vigilante guarda estado entre revisiones. Las pruebas que
+ya existen del vigilante usan un `RelojManual` que no avanza: la
+diferencia es 0 y todo sigue "a tiempo", así que no cambian sus
+expectativas (solo `crear()` pasa `reloj:`). Las pruebas de widgets y de
+accesibilidad usan `appDePrueba` con `relojDePrueba` (fijo): sin cambios.
+
+**Plataforma y accesibilidad.** Sin cambios: el aviso es texto del sistema
+(título y cuerpo), en el mismo canal "Alertas del barrio".
+
+**API y datos.** Sin cambios (decisión de la persona: no tocar la API).
+JSON y sqflite sin cambios.
+
+### Paquetes nuevos (ampliación)
+
+Ninguno.
+
+### Alternativas descartadas (ampliación)
+
+**Mover `etiqueta` al dominio (`lib/domain/models/alerta.dart`).** Se
+descarta: "Activas" del filtro y los nombres de pantalla son de la UI; el
+dominio queda para reglas y modelos.
+
+**Duplicar el texto en el ViewModel (un `switch` propio en
+`avisoCambioDeEstado`).** Se descarta: dos fuentes para "En atención"
+pueden separarse; con `TextosEstado` hay una sola.
+
+**Cambiar los imports de todas las vistas en vez de usar `export`.** Se
+descarta: toca nueve archivos sin cambiar comportamiento; con el
+`export`, la vista sigue con un solo import y el ViewModel importa solo el
+archivo puro.
+
+**Controlar los imports con un paquete de lint (`custom_lint`,
+`import_lint`, `dependency_validator`) o con `analysis_options.yaml`.** Se
+descarta: es un paquete nuevo (principio 10), y el analizador de Dart no
+trae una regla para prohibir imports por carpeta. Una prueba con
+`dart:io` alcanza y corre en `./init.sh`.
+
+**Chequear solo los imports directos del ViewModel.** Se descarta: el
+problema de hoy es justamente indirecto (ViewModel →
+`presentacion_alerta` → `material`).
+
+**Con más de 2 h, no mostrar nada (como R48).** Se descarta: más de 2 h
+sin revisar no implica que la reapertura sea vieja, y sin push (web,
+`PushServiceNinguno`) el vecino no se enteraría nunca; la persona pidió
+tratarlas como tardías.
+
+**Mostrar la hora de la revisión anterior ("… Robo 09:10") o de la
+actual.** Se descarta: no es la hora de la reapertura y la app no puede
+confirmarla.
+
+**Agregar un parámetro opcional a `avisarReaperturaTardia(alerta,
+reabiertaEn)` (null = sin hora).** Se descarta: cambia la firma ya
+implementada y probada del camino del push; un método aparte deja ese
+camino intacto y hace explícito el caso del vigilante.
+
+**Usar también el corte de 5 minutos (entre 5 min y 2 h sin revisar →
+tardía).** Se descarta: no es lo decidido. Con la app en primer plano el
+vigilante revisa cada 45 s, y al volver de segundo plano, donde hay push,
+casi siempre ya llegó el aviso con la clasificación correcta. Queda en
+"Riesgos".
+
+**Guardar `reabierta_en` en la alerta para que el vigilante lo lea.** Se
+descarta, como antes: cambia la API y el JSON, y la persona pidió no tocar
+la API.
+
+### Riesgos (ampliación)
+
+- **Entre 5 min y 2 h sin revisar** la reapertura se avisa "a tiempo"
+  (riesgo actualizado en "Riesgos y notas").
+- **Push y vigilante, con más de 2 h.** Si el push ya mostró la
+  reapertura (a tiempo o tardía con hora) mientras la app estaba en
+  segundo plano, al volver el vigilante la reemplaza (mismo id) por la
+  tardía sin hora; si el push la descartó por más de 2 h (R48), el
+  vigilante igual muestra la tardía sin hora. En los dos casos el aviso
+  abre el detalle con el estado real. Se acepta: evitarlo requeriría que
+  el vigilante sepa qué mostró el push.
+- **El cuerpo dice "por falta de señal"** aunque la demora venga de tener
+  la app en segundo plano. Es el mismo texto que ya usan las alertas
+  nuevas tardías del vigilante; se mantiene para no tener dos textos.
+- **Cambio de hora del teléfono**: una diferencia negativa no es tardía
+  (R62); un adelanto manual de más de 2 h marca como tardías las
+  reaperturas de esa revisión. Poco probable; se acepta.
+- **El chequeo de imports lee texto**, no el árbol de sintaxis: un import
+  armado de forma rara (por ejemplo, con imports condicionales `if
+  (dart.library...)`) podría no verse completo. Hoy no hay ninguno en
+  `lib/`; el formato de `dart format` deja la ruta como la lee la
+  expresión regular.

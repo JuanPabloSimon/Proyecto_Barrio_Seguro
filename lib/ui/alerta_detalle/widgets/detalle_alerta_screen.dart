@@ -4,7 +4,7 @@ import '../../../data/services/telefono_service.dart';
 import '../../../dependencias.dart';
 import '../../../domain/models/alerta.dart';
 import '../../../plataforma/capacidades.dart';
-import '../../core/estado_carga.dart';
+import '../../core/presentacion_alerta.dart';
 import '../../core/tema/app_colors.dart';
 import '../../core/widgets/aviso.dart';
 import '../../core/widgets/chip_estado.dart';
@@ -14,6 +14,7 @@ import '../../core/widgets/mapa_barrio.dart';
 import '../../core/widgets/marca_sos.dart';
 import '../../core/widgets/marca_tardia.dart';
 import '../view_models/detalle_alerta_view_model.dart';
+import 'confirmar_cambio_estado.dart';
 
 class DetalleAlertaScreen extends StatelessWidget {
   const DetalleAlertaScreen({
@@ -72,6 +73,28 @@ class DetalleAlertaScreen extends StatelessWidget {
     mostrarAvisoEn(mensajero, mensaje);
   }
 
+  /// El vecino eligió [nuevo] en el control de estado. Pasar a Resuelta o
+  /// reabrir piden confirmación antes (R33, R34); entre Activa y En
+  /// atención, no (R7). El detalle queda abierto (R10).
+  Future<void> _elegirEstado(BuildContext context, EstadoAlerta? nuevo) async {
+    // Se obtiene antes de cualquier await.
+    final mensajero = ScaffoldMessenger.of(context);
+    final actual = viewModel.alerta.estado;
+    if (nuevo == null || nuevo == actual || viewModel.cambiandoEstado) return;
+    final confirmacion = confirmacionParaCambio(actual, nuevo);
+    if (confirmacion != null) {
+      final confirmo = await confirmarCambioDeEstado(
+        context,
+        confirmacion: confirmacion,
+        nuevo: nuevo,
+      );
+      // R36, R37: sin confirmar no se pide nada ni se avisa nada.
+      if (!confirmo || !context.mounted) return;
+    }
+    final ok = await viewModel.cambiarEstado(nuevo);
+    if (ok) mostrarAvisoEn(mensajero, avisoCambioDeEstado(nuevo));
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -80,11 +103,7 @@ class DetalleAlertaScreen extends StatelessWidget {
         viewModel: viewModel,
         capacidades: capacidades,
         telefono: telefono,
-        onMarcarResuelta: () => _cerrarCon(
-          context,
-          viewModel.marcarResuelta,
-          'Marcaste la alerta como resuelta',
-        ),
+        onElegirEstado: (nuevo) => _elegirEstado(context, nuevo),
         onMarcarFalsaAlarma: () => _cerrarCon(
           context,
           viewModel.marcarFalsaAlarma,
@@ -100,23 +119,21 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
     required this.viewModel,
     required this.capacidades,
     required this.telefono,
-    required this.onMarcarResuelta,
+    required this.onElegirEstado,
     required this.onMarcarFalsaAlarma,
   });
 
   final DetalleAlertaViewModel viewModel;
   final Capacidades capacidades;
   final TelefonoService telefono;
-  final VoidCallback onMarcarResuelta;
+  final ValueChanged<EstadoAlerta?> onElegirEstado;
   final VoidCallback onMarcarFalsaAlarma;
 
   @override
   Widget build(BuildContext context) {
     final alerta = viewModel.alerta;
     final tardia = viewModel.tardia;
-    final puedeCerrarla = viewModel.puedeCerrarla;
-    final cargando = viewModel.estado == EstadoCarga.cargando;
-    final error = viewModel.error;
+    final cambiando = viewModel.cambiandoEstado;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Detalle de alerta')),
@@ -198,32 +215,150 @@ class _CuerpoDetalleAlerta extends StatelessWidget {
               side: const BorderSide(color: AppColors.emergencia, width: 1.5),
             ),
           ),
-          if (puedeCerrarla) ...[
-            const SizedBox(height: 12),
-            if (error != null) ...[
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  error,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.emergencia),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            FilledButton(
-              onPressed: cargando ? null : onMarcarResuelta,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.resuelta,
-              ),
-              child: const Text('Marcar como resuelta'),
+          // R1, R2, R3: solo quien la reportó o la comisión.
+          if (viewModel.puedeCambiarEstado) ...[
+            const SizedBox(height: 24),
+            _ControlDeEstado(
+              estado: alerta.estado,
+              cambiando: cambiando,
+              error: viewModel.error,
+              onElegir: onElegirEstado,
             ),
+          ],
+          // R20: "Fue una falsa alarma", como antes.
+          if (viewModel.puedeMarcarFalsaAlarma) ...[
             const SizedBox(height: 12),
             TextButton(
-              onPressed: cargando ? null : onMarcarFalsaAlarma,
+              onPressed: cambiando ? null : onMarcarFalsaAlarma,
               child: const Text('Fue una falsa alarma'),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Estado de la alerta": un [RadioListTile] por estado (Activa, En
+/// atención, Resuelta), cada uno con ícono y nombre además del color (R29).
+/// La opción elegida es siempre el estado actual de la alerta (R5): si un
+/// cambio no se confirma o falla, vuelve sola a la anterior (R18, R37).
+class _ControlDeEstado extends StatelessWidget {
+  const _ControlDeEstado({
+    required this.estado,
+    required this.cambiando,
+    required this.error,
+    required this.onElegir,
+  });
+
+  final EstadoAlerta estado;
+  final bool cambiando;
+  final String? error;
+  final ValueChanged<EstadoAlerta?> onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    final error = this.error;
+    // Todo el control es un solo elemento de la lista: cada parte lleva su
+    // propio nodo (container) para que el encabezado, el indicador y el
+    // error no se lean pegados.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          header: true,
+          child: const Text(
+            'Estado de la alerta',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 8),
+        RadioGroup<EstadoAlerta>(
+          groupValue: estado,
+          onChanged: onElegir,
+          child: Column(
+            children: [
+              for (final opcion in EstadoAlerta.values)
+                RadioListTile<EstadoAlerta>(
+                  value: opcion,
+                  // R9: mientras se espera la respuesta, nada se toca.
+                  enabled: !cambiando,
+                  contentPadding: const EdgeInsets.only(right: 8),
+                  title: Text(opcion.etiqueta),
+                  // El nombre ya lo dice el título: el ícono no se anuncia.
+                  secondary: ExcludeSemantics(
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: opcion.colorSuave,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(opcion.icono, color: opcion.color),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (cambiando) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            container: true,
+            child: const Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    semanticsLabel: 'Cambiando el estado',
+                  ),
+                ),
+                SizedBox(width: 12),
+                // El indicador ya lo anuncia: el texto no se lee dos veces.
+                Expanded(
+                  child: ExcludeSemantics(child: Text('Cambiando el estado')),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (error != null) ...[
+          const SizedBox(height: 8),
+          _ErrorDeEstado(error),
+        ],
+      ],
+    );
+  }
+}
+
+/// Error al cambiar el estado: ícono y texto, anunciado al aparecer (R30).
+class _ErrorDeEstado extends StatelessWidget {
+  const _ErrorDeEstado(this.mensaje);
+
+  final String mensaje;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.emergencia),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              mensaje,
+              style: const TextStyle(
+                color: AppColors.emergencia,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );

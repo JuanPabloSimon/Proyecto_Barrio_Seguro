@@ -1,4 +1,5 @@
 import 'models/alerta.dart';
+import 'models/vecino.dart';
 
 /// Reglas para crear una alerta nueva. Son las mismas que aplica el
 /// servidor (backend/lib/src/reglas.dart), con los mismos mensajes: el
@@ -56,5 +57,21 @@ class ReglasAlertas {
     return errorTitulo(tipo) ??
         errorDescripcion(descripcion) ??
         errorDireccion(direccion);
+  }
+
+  /// El mismo que responde el servidor (403) a quien no puede cambiar el
+  /// estado de una alerta.
+  static const mensajeSinPermisoEstado =
+      'Solo quien reportó la alerta o la comisión vecinal pueden cambiar su '
+      'estado.';
+
+  /// Quien reportó la alerta o un miembro de la comisión pueden cambiar su
+  /// estado (RF-05 ampliado). Sin sesión, false.
+  static bool puedeCambiarEstado({
+    required String reportadaPor,
+    required Vecino? vecino,
+  }) {
+    if (vecino == null) return false;
+    return vecino.id == reportadaPor || vecino.esComision;
   }
 }
