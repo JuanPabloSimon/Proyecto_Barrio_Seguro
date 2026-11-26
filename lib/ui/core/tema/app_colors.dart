@@ -219,6 +219,18 @@ class AppColors {
       superficie,
       ParContraste.componente,
     ),
+    ParContraste(
+      'Texto sobre rojo suave (marca SOS)',
+      texto,
+      emergenciaSuave,
+      ParContraste.textoNormal,
+    ),
+    ParContraste(
+      'Rojo de emergencia sobre rojo suave (marca SOS)',
+      emergencia,
+      emergenciaSuave,
+      ParContraste.componente,
+    ),
   ];
 }
 

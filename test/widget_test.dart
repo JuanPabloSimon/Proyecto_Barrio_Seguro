@@ -8,12 +8,14 @@ import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/dependencias.dart';
+import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/main.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/widgets/detalle_alerta_screen.dart';
 import 'package:barrio_seguro/ui/core/widgets/con_view_model.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/mapa_barrio.dart';
+import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_tardia.dart';
 import 'package:barrio_seguro/ui/core/widgets/pin_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
@@ -23,6 +25,7 @@ import 'package:barrio_seguro/ui/perfil/widgets/perfil_screen.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:barrio_seguro/ui/sos/widgets/sos_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ayudas/app_de_prueba.dart';
@@ -736,6 +739,453 @@ void main() {
         ),
         findsNothing,
       );
+    });
+  });
+
+  group('SOS enviado', () {
+    const avisoSigueActiva =
+        'Tu alerta sigue activa. La encontrás en Perfil, en '
+        '"Mis alertas reportadas".';
+
+    late AlertasFalsas alertas;
+    late SosViewModel vm;
+
+    /// Una pantalla base con un botón que empuja el SOS, como hace el
+    /// inicio: así se ve si el SOS se cierra y qué aviso queda. Deja el SOS
+    /// ya enviado.
+    Future<void> abrirSosEnviado(WidgetTester tester) async {
+      alertas = AlertasFalsas();
+      vm = SosViewModel(
+        alertas: alertas,
+        sesion: SesionFalsa(vecinaDePrueba),
+        bus: BusDeEventos(),
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        capacidades: const CapacidadesFalsas(),
+      );
+      addTearDown(vm.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => SosScreen(
+                        viewModel: vm,
+                        capacidades: const CapacidadesFalsas(),
+                        telefono: TelefonoFalso(),
+                      ),
+                    ),
+                  ),
+                  child: const Text('Pantalla base'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Pantalla base'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sí, enviar alerta'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alerta enviada'), findsOneWidget);
+    }
+
+    void sigueAbiertoYActivo() {
+      expect(find.text('Alerta enviada'), findsOneWidget);
+      expect(alertas.alertas.single.estado, EstadoAlerta.activa);
+      expect(alertas.cambiosDeEstado, 0);
+    }
+
+    void cerradoConAviso(String aviso) {
+      expect(find.text('Alerta enviada'), findsNothing);
+      expect(find.text('Pantalla base'), findsOneWidget);
+      expect(find.text(aviso), findsOneWidget);
+    }
+
+    testWidgets('la pantalla del SOS enviado muestra "Volver"', (tester) async {
+      await abrirSosEnviado(tester);
+
+      final volver = find.widgetWithText(OutlinedButton, 'Volver');
+      expect(volver, findsOneWidget);
+      // Debajo de "Fue una falsa alarma".
+      final falsaAlarma = find.widgetWithText(
+        OutlinedButton,
+        'Fue una falsa alarma',
+      );
+      expect(
+        tester.getTopLeft(volver).dy,
+        greaterThan(tester.getTopLeft(falsaAlarma).dy),
+      );
+    });
+
+    testWidgets(
+      '"Volver" cierra el SOS, deja la alerta activa y avisa dónde encontrarla',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Volver'));
+
+        cerradoConAviso(avisoSigueActiva);
+        expect(alertas.alertas.single.estado, EstadoAlerta.activa);
+        expect(alertas.cambiosDeEstado, 0);
+      },
+    );
+
+    testWidgets('el botón Atrás en el SOS enviado hace lo mismo que "Volver"', (
+      tester,
+    ) async {
+      await abrirSosEnviado(tester);
+
+      final atendido = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(atendido, isTrue);
+      cerradoConAviso(avisoSigueActiva);
+      expect(alertas.alertas.single.estado, EstadoAlerta.activa);
+      expect(alertas.cambiosDeEstado, 0);
+    });
+
+    testWidgets(
+      '"Ya estoy a salvo" pide confirmación con los textos acordados',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Ya estoy a salvo'));
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('¿Ya estás a salvo?'), findsOneWidget);
+        expect(
+          find.text(
+            'Tu alerta va a quedar como resuelta. Si todavía necesitás '
+            'ayuda, tocá "Seguir con la alerta".',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(OutlinedButton, 'Seguir con la alerta'),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(FilledButton, 'Sí, estoy a salvo'),
+          findsOneWidget,
+        );
+        expect(alertas.cambiosDeEstado, 0);
+      },
+    );
+
+    testWidgets(
+      'confirmar "Sí, estoy a salvo" resuelve la alerta y cierra con aviso',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Ya estoy a salvo'));
+        await _tocar(tester, find.text('Sí, estoy a salvo'));
+
+        expect(alertas.alertas.single.estado, EstadoAlerta.resuelta);
+        cerradoConAviso('Marcaste la alerta como resuelta');
+        expect(find.text(avisoSigueActiva), findsNothing);
+      },
+    );
+
+    testWidgets('"Seguir con la alerta" en "Ya estoy a salvo" no cambia nada', (
+      tester,
+    ) async {
+      await abrirSosEnviado(tester);
+
+      await _tocar(tester, find.text('Ya estoy a salvo'));
+      await _tocar(tester, find.text('Seguir con la alerta'));
+
+      expect(find.byType(AlertDialog), findsNothing);
+      sigueAbiertoYActivo();
+    });
+
+    testWidgets('Atrás en el diálogo de "Ya estoy a salvo" no cambia nada', (
+      tester,
+    ) async {
+      await abrirSosEnviado(tester);
+
+      await _tocar(tester, find.text('Ya estoy a salvo'));
+      final atendido = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(atendido, isTrue);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text(avisoSigueActiva), findsNothing);
+      sigueAbiertoYActivo();
+    });
+
+    testWidgets(
+      '"Fue una falsa alarma" pide confirmación con los textos acordados',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Fue una falsa alarma'));
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('¿Fue una falsa alarma?'), findsOneWidget);
+        expect(
+          find.text(
+            'Tu alerta se va a cancelar y va a quedar como resuelta. Si de '
+            'verdad necesitás ayuda, tocá "Seguir con la alerta".',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(OutlinedButton, 'Seguir con la alerta'),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(FilledButton, 'Sí, fue una falsa alarma'),
+          findsOneWidget,
+        );
+        expect(alertas.cambiosDeEstado, 0);
+      },
+    );
+
+    testWidgets(
+      'confirmar "Sí, fue una falsa alarma" resuelve la alerta y cierra con aviso',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Fue una falsa alarma'));
+        await _tocar(tester, find.text('Sí, fue una falsa alarma'));
+
+        expect(alertas.alertas.single.estado, EstadoAlerta.resuelta);
+        cerradoConAviso('Cancelaste la alerta: fue una falsa alarma');
+        expect(find.text(avisoSigueActiva), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '"Seguir con la alerta" en "Fue una falsa alarma" no cambia nada',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Fue una falsa alarma'));
+        await _tocar(tester, find.text('Seguir con la alerta'));
+
+        expect(find.byType(AlertDialog), findsNothing);
+        sigueAbiertoYActivo();
+      },
+    );
+
+    testWidgets(
+      'tocar fuera del diálogo de "Fue una falsa alarma" no cambia nada',
+      (tester) async {
+        await abrirSosEnviado(tester);
+
+        await _tocar(tester, find.text('Fue una falsa alarma'));
+        // Una esquina de la pantalla, fuera del diálogo.
+        await tester.tapAt(const Offset(4, 4));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        sigueAbiertoYActivo();
+      },
+    );
+
+    testWidgets('si falla el cierre se avisa que se haga desde "Mis alertas"', (
+      tester,
+    ) async {
+      await abrirSosEnviado(tester);
+      alertas.falla = true;
+
+      await _tocar(tester, find.text('Ya estoy a salvo'));
+      await _tocar(tester, find.text('Sí, estoy a salvo'));
+
+      expect(alertas.cambiosDeEstado, 1);
+      expect(alertas.alertas.single.estado, EstadoAlerta.activa);
+      cerradoConAviso(
+        'No pudimos cerrar la alerta. Hacelo desde "Mis alertas".',
+      );
+    });
+  });
+
+  group('SOS y robo con el mismo título', () {
+    // Se envía un SOS ("Intento de robo") y se vuelve con "Volver". En los
+    // datos de ejemplo, a3 es un robo con el mismo título, en la Calle Gran
+    // Cap. Sur.
+    Finder tarjetaSos() => find.bySemanticsLabel(RegExp('^Alerta SOS: '));
+    Finder tarjetaRobo() => find.bySemanticsLabel(RegExp('^Alerta de intento'));
+    Finder pinSos() => find.bySemanticsLabel(RegExp('^Alerta SOS: Intento'));
+    Finder pinRobo() => find.bySemanticsLabel(RegExp('^Alerta: Intento'));
+    const direccionSos = 'Barrio Soberanía (zona aproximada)';
+
+    Future<void> enviarSosYVolver(WidgetTester tester) async {
+      await tester.pumpWidget(appDePrueba());
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+      await tester.tap(find.byType(BotonSos));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sí, enviar alerta'));
+      await tester.pumpAndSettle();
+      await _tocar(tester, find.text('Volver'));
+      expect(find.text('Hola, Clara'), findsOneWidget);
+    }
+
+    Future<void> irA(WidgetTester tester, String pestania) => _tocar(
+      tester,
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text(pestania),
+      ),
+    );
+
+    /// Toca el pin como un lector de pantalla: los pines pueden quedar
+    /// juntos y un toque en el centro caer en otro.
+    Future<void> activarPin(WidgetTester tester, Finder pin) async {
+      final nodo = tester.getSemantics(pin);
+      nodo.owner!.performAction(nodo.id, SemanticsAction.tap);
+      await tester.pumpAndSettle();
+    }
+
+    Finder marcaDentroDe(Finder lugar) =>
+        find.descendant(of: lugar, matching: find.byType(MarcaSos));
+
+    testWidgets('la tarjeta del SOS lleva la marca SOS y la de robo no', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await enviarSosYVolver(tester);
+
+      await tester.scrollUntilVisible(tarjetaSos(), 200);
+      expect(marcaDentroDe(tarjetaSos()), findsOneWidget);
+      await tester.scrollUntilVisible(tarjetaRobo(), 200);
+      expect(marcaDentroDe(tarjetaRobo()), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'la tarjeta del SOS se anuncia "Alerta SOS: intento de robo, …" y la de robo como antes',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await enviarSosYVolver(tester);
+
+        await tester.scrollUntilVisible(tarjetaSos(), 200);
+        expect(
+          tester.getSemantics(tarjetaSos()).label,
+          'Alerta SOS: intento de robo, recién, activa. '
+          '$direccionSos. Ver detalle',
+        );
+        await tester.scrollUntilVisible(tarjetaRobo(), 200);
+        expect(
+          tester.getSemantics(tarjetaRobo()).label,
+          'Alerta de intento de robo, hace 1 hora, activa. '
+          'Calle Gran Cap. Sur. Ver detalle',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'el pin del SOS se anuncia "Alerta SOS: Intento de robo, …" y su resumen muestra la marca y lee "SOS: Intento de robo"',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await enviarSosYVolver(tester);
+        await irA(tester, 'Mapa');
+
+        expect(
+          tester.getSemantics(pinSos()).label,
+          'Alerta SOS: Intento de robo, activa, $direccionSos. Ver resumen',
+        );
+        expect(
+          tester.getSemantics(pinRobo()).label,
+          'Alerta: Intento de robo, activa, Calle Gran Cap. Sur. Ver resumen',
+        );
+
+        await activarPin(tester, pinSos());
+        expect(marcaDentroDe(find.byType(BottomSheet)), findsOneWidget);
+        expect(find.bySemanticsLabel('SOS: Intento de robo'), findsOneWidget);
+        Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+        await tester.pumpAndSettle();
+
+        await activarPin(tester, pinRobo());
+        expect(marcaDentroDe(find.byType(BottomSheet)), findsNothing);
+        expect(find.bySemanticsLabel('SOS: Intento de robo'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.bySemanticsLabel('Intento de robo'),
+          ),
+          findsOneWidget,
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'el detalle del SOS muestra la marca y lee "SOS: Intento de robo"',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await enviarSosYVolver(tester);
+
+        await tester.scrollUntilVisible(tarjetaSos(), 200);
+        await _tocar(tester, tarjetaSos());
+        expect(find.text('Detalle de alerta'), findsOneWidget);
+        expect(find.byType(MarcaSos), findsOneWidget);
+        expect(find.bySemanticsLabel('SOS: Intento de robo'), findsOneWidget);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(tarjetaRobo(), 200);
+        await _tocar(tester, tarjetaRobo());
+        expect(find.text('Detalle de alerta'), findsOneWidget);
+        expect(find.byType(MarcaSos), findsNothing);
+        expect(find.bySemanticsLabel('SOS: Intento de robo'), findsNothing);
+        expect(find.bySemanticsLabel('Intento de robo'), findsOneWidget);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      '"Mis alertas reportadas" muestra la marca SOS en la alerta enviada',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await enviarSosYVolver(tester);
+        await irA(tester, 'Perfil');
+        // El perfil es una lista: la opción puede no estar construida todavía.
+        await tester.scrollUntilVisible(
+          find.text('Mis alertas reportadas'),
+          200,
+          scrollable: find
+              .byWidgetPredicate(
+                (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+              )
+              .hitTestable()
+              .first,
+        );
+        await _tocar(tester, find.text('Mis alertas reportadas'));
+
+        expect(tarjetaSos(), findsOneWidget);
+        expect(marcaDentroDe(tarjetaSos()), findsOneWidget);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('la marca SOS no se anuncia aparte', (tester) async {
+      final handle = tester.ensureSemantics();
+      await enviarSosYVolver(tester);
+
+      await tester.scrollUntilVisible(tarjetaSos(), 200);
+      expect(find.byType(MarcaSos), findsWidgets);
+      expect(find.bySemanticsLabel('SOS'), findsNothing);
+
+      await _tocar(tester, tarjetaSos());
+      expect(find.byType(MarcaSos), findsOneWidget);
+      expect(find.bySemanticsLabel('SOS'), findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      await irA(tester, 'Mapa');
+      await activarPin(tester, pinSos());
+      expect(marcaDentroDe(find.byType(BottomSheet)), findsOneWidget);
+      expect(find.bySemanticsLabel('SOS'), findsNothing);
+      handle.dispose();
     });
   });
 }

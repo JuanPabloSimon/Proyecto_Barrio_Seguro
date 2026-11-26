@@ -4,6 +4,7 @@ import '../../../domain/models/alerta.dart';
 import '../presentacion_alerta.dart';
 import '../tema/app_colors.dart';
 import 'chip_estado.dart';
+import 'marca_sos.dart';
 import 'marca_tardia.dart';
 import 'tarjeta_tocable.dart';
 
@@ -25,12 +26,17 @@ class TarjetaAlerta extends StatelessWidget {
   /// Texto de la marca si el aviso llegó con demora; null si no (R20).
   final String? tardia;
 
-  /// Lo que lee el lector de pantalla: tipo, cuándo, estado, la marca de
-  /// tardía si la hay (R28) y dónde.
-  static String descripcion(Alerta alerta, String hace, {String? tardia}) =>
-      'Alerta de ${alerta.tipo.toLowerCase()}, ${hace.toLowerCase()}, '
-      '${alerta.estado.etiqueta.toLowerCase()}. '
-      '${tardia == null ? '' : '$tardia. '}${alerta.direccion}';
+  /// Lo que lee el lector de pantalla: tipo (con "SOS" si la alerta es de
+  /// esa categoría), cuándo, estado, la marca de tardía si la hay (R28) y
+  /// dónde.
+  static String descripcion(Alerta alerta, String hace, {String? tardia}) {
+    final titulo = alerta.categoria == CategoriaAlerta.sos
+        ? 'Alerta SOS: ${alerta.tipo.toLowerCase()}'
+        : 'Alerta de ${alerta.tipo.toLowerCase()}';
+    return '$titulo, ${hace.toLowerCase()}, '
+        '${alerta.estado.etiqueta.toLowerCase()}. '
+        '${tardia == null ? '' : '$tardia. '}${alerta.direccion}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +77,16 @@ class TarjetaAlerta extends StatelessWidget {
                   MarcaTardia(texto: tardia),
                 ],
                 const SizedBox(height: 8),
-                ChipEstado(estado: alerta.estado),
+                // Con texto grande la marca o el estado bajan de renglón.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (alerta.categoria == CategoriaAlerta.sos)
+                      const MarcaSos(),
+                    ChipEstado(estado: alerta.estado),
+                  ],
+                ),
               ],
             ),
           ),

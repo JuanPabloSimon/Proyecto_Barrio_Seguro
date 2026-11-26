@@ -470,7 +470,8 @@ void main() {
         token: token,
         cuerpo: {
           'categoria': 'sos',
-          'tipo': 'Pedido de ayuda (SOS)',
+          // El título que manda el botón SOS desde la feature 17.
+          'tipo': 'Intento de robo',
           'latitud': -32.876568,
           'longitud': -68.870672,
           // Aunque la app mande otro, cuenta el de la sesión.
@@ -480,6 +481,8 @@ void main() {
       expect(codigo, 201);
       expect(alerta['reportada_por'], 'rosa');
       expect(alerta['estado'], 'activa');
+      expect(alerta['categoria'], 'sos');
+      expect(alerta['tipo'], 'Intento de robo');
       expect(
         alerta['creada_en'],
         DateTime(2026, 10, 1, 12).millisecondsSinceEpoch,

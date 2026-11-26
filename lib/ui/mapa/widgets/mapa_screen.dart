@@ -13,6 +13,7 @@ import '../../core/widgets/boton_sos.dart';
 import '../../core/widgets/chip_estado.dart';
 import '../../core/widgets/estado_de_carga.dart';
 import '../../core/widgets/mapa_barrio.dart';
+import '../../core/widgets/marca_sos.dart';
 import '../../core/widgets/marca_tardia.dart';
 import '../../core/widgets/objetivo_tactil.dart';
 import '../../core/widgets/pin_alerta.dart';
@@ -100,6 +101,7 @@ class _MapaScreenState extends State<MapaScreen> {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                if (alerta.categoria == CategoriaAlerta.sos) const MarcaSos(),
                 ChipEstado(estado: alerta.estado),
                 Text(
                   _vm.hace(alerta),
@@ -112,6 +114,8 @@ class _MapaScreenState extends State<MapaScreen> {
             const SizedBox(height: 12),
             Text(
               alerta.tipo,
+              // El lector dice "SOS: Intento de robo" para un SOS.
+              semanticsLabel: alerta.tituloConCategoria,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),

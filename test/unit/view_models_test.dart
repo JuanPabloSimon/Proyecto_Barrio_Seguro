@@ -7,6 +7,7 @@ import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
+import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
@@ -218,6 +219,56 @@ void main() {
       expect(await vm.cerrarAlerta(), isTrue);
       expect(alertas.alertas.first.estado, EstadoAlerta.resuelta);
     });
+
+    SosViewModel crearSos(AlertasFalsas alertas) => SosViewModel(
+      alertas: alertas,
+      sesion: SesionFalsa(vecinaDePrueba),
+      bus: bus,
+      preferencias: preferenciasEnMemoria(),
+      ubicacion: UbicacionFalsa(),
+      capacidades: const CapacidadesFalsas(),
+    );
+
+    test(
+      'enviar crea una alerta sos con el título "Intento de robo"',
+      () async {
+        final alertas = AlertasFalsas();
+        await crearSos(alertas).enviar();
+
+        final creada = alertas.alertas.single;
+        expect(creada.categoria, CategoriaAlerta.sos);
+        expect(creada.tipo, 'Intento de robo');
+        expect(tipoAlertaSos, 'Intento de robo');
+      },
+    );
+
+    test(
+      'enviar manda la descripción, la dirección y quien reporta como antes',
+      () async {
+        final alertas = AlertasFalsas();
+        await crearSos(alertas).enviar();
+
+        final creada = alertas.alertas.single;
+        expect(creada.descripcion, 'Un vecino pidió ayuda con el botón SOS.');
+        expect(creada.direccion, '${Barrio.nombre} (zona aproximada)');
+        expect(alertas.ubicacionesEnviadas.single, Barrio.centro);
+        expect(creada.reportadaPor, 'clara');
+      },
+    );
+
+    test(
+      'si falla cerrarAlerta devuelve false y la alerta sigue activa',
+      () async {
+        final alertas = AlertasFalsas();
+        final vm = crearSos(alertas);
+        await vm.enviar();
+        alertas.falla = true;
+
+        expect(await vm.cerrarAlerta(), isFalse);
+        expect(alertas.cambiosDeEstado, 1);
+        expect(alertas.alertas.single.estado, EstadoAlerta.activa);
+      },
+    );
   });
 
   group('DetalleAlertaViewModel', () {

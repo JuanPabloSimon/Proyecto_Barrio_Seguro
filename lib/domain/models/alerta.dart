@@ -32,6 +32,10 @@ enum CategoriaAlerta {
       values.firstWhere((c) => c.valorApi == valor, orElse: () => sos);
 }
 
+/// Lo que se antepone al título de una alerta SOS para el lector de
+/// pantalla. El informe no lo usa: cuenta los SOS en una fila "SOS".
+const prefijoSos = 'SOS: ';
+
 class Alerta {
   const Alerta({
     required this.id,
@@ -91,6 +95,11 @@ class Alerta {
   /// Primer nombre de quien la reportó, para el aviso tardío. '' si el
   /// servidor no lo mandó.
   final String reportadaPorNombre;
+
+  /// "SOS: Intento de robo" si la categoría es sos; el tipo tal cual si no.
+  /// Así un SOS y un robo con el mismo título no se escuchan iguales.
+  String get tituloConCategoria =>
+      categoria == CategoriaAlerta.sos ? '$prefijoSos$tipo' : tipo;
 
   Map<String, dynamic> toJson() => {
     'id': id,

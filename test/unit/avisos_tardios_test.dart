@@ -96,6 +96,16 @@ void main() {
       expect(tituloAvisoTardio(_alerta()), 'SOS de Marta 15:10');
     });
 
+    test(
+      'el aviso tardío de un SOS "Intento de robo" dice "SOS de Marta 15:10"',
+      () {
+        expect(
+          tituloAvisoTardio(_alerta(tipo: 'Intento de robo')),
+          'SOS de Marta 15:10',
+        );
+      },
+    );
+
     test('título "Robo de Marta 15:10"', () {
       expect(
         tituloAvisoTardio(
