@@ -162,6 +162,9 @@ class Almacen {
     // duda, vecino común, que tiene menos permisos.
     for (final vecino in vecinos.values) {
       if (!Roles.todos.contains(vecino['rol'])) vecino['rol'] = Roles.vecino;
+      // Un archivo de antes de la guardia normal (o con un valor raro):
+      // desactivada, que es el valor por defecto.
+      if (vecino['guardia_normal'] is! bool) vecino['guardia_normal'] = false;
     }
     _credenciales.addAll(mapas('credenciales'));
     turnos.addAll(mapas('turnos'));

@@ -105,6 +105,33 @@ class SesionFalsa implements SesionRepository {
   @override
   Future<Vecino> actualizarDatos(Vecino datos) async => usuario = datos;
 
+  /// Los valores pedidos en [cambiarGuardiaNormal], en orden (aunque fallen).
+  final List<bool> cambiosDeGuardiaNormal = [];
+
+  /// Si no es null, [cambiarGuardiaNormal] lo espera antes de responder.
+  Completer<void>? demoraAlCambiarGuardia;
+
+  /// Si no es null, [cambiarGuardiaNormal] lo lanza (un rechazo de la API).
+  ErrorDelServidor? errorAlCambiarGuardia;
+
+  /// Si no es null, [cambiarGuardiaNormal] lo lanza (un fallo de red).
+  Object? falloAlCambiarGuardia;
+
+  @override
+  Future<Vecino> cambiarGuardiaNormal({required bool activa}) async {
+    cambiosDeGuardiaNormal.add(activa);
+    final demora = demoraAlCambiarGuardia;
+    if (demora != null) await demora.future;
+    final error = errorAlCambiarGuardia;
+    if (error != null) throw error;
+    final fallo = falloAlCambiarGuardia;
+    if (fallo != null) throw fallo;
+    return usuario = Vecino.fromJson({
+      ...usuario!.toJson(),
+      'guardia_normal': activa,
+    });
+  }
+
   @override
   Future<void> cerrarSesion() async => usuario = null;
 }

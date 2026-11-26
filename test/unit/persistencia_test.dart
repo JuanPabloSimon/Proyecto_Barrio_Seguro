@@ -208,6 +208,31 @@ void main() {
       expect(alAbrir.usuario?.rol, RolVecino.vecino);
       expect(alAbrir.usuario?.esComision, isFalse);
     });
+
+    test('una sesión guardada con guardia normal la recupera y una vieja sin '
+        'el campo queda desactivada', () async {
+      Future<bool?> restaurar(Map<String, dynamic> vecino) async {
+        final alAbrir = SesionRepositoryRemoto(
+          service: VecinosServiceSimulado(servidor),
+          preferencias: preferenciasEnMemoria({
+            Preferencias.claveVecino: jsonEncode(vecino),
+          }),
+          almacen: almacenSeguroEnMemoria({AlmacenSeguro.claveToken: 't'}),
+        );
+        await alAbrir.restaurar();
+        return alAbrir.usuario?.guardiaNormal;
+      }
+
+      // Así quedaba guardada la sesión antes de que existiera la opción.
+      const vieja = {
+        'id': 'rosa',
+        'nombre': 'Rosa Ibáñez',
+        'fecha_nacimiento': '1948-07-08',
+        'rol': 'vecino',
+      };
+      expect(await restaurar({...vieja, 'guardia_normal': true}), isTrue);
+      expect(await restaurar(vieja), isFalse);
+    });
   });
 
   group('AlertasDao', () {

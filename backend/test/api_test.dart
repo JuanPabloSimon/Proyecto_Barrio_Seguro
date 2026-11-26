@@ -404,6 +404,231 @@ void main() {
     });
   });
 
+  group('Guardia normal', () {
+    const mensajeSoloMayores =
+        'Solo los vecinos de 70 años o más pueden elegir la guardia normal.';
+    const mensajeInvalida = 'La opción de guardia normal no es válida.';
+
+    test('ingresar, GET /vecinos/yo y PUT /vecinos/<id> traen '
+        'guardia_normal', () async {
+      for (final (telefono, id) in [
+        (telefonoClara, 'clara'),
+        (telefonoRosa, 'rosa'),
+      ]) {
+        final (codigo, sesion) = await pedir(
+          'POST',
+          '/sesiones',
+          cuerpo: {'usuario': telefono, 'clave': clave},
+        );
+        expect(codigo, 200);
+        expect(sesion['vecino']['guardia_normal'], isFalse, reason: id);
+        final token = sesion['token'] as String;
+
+        final (_, yo) = await pedir('GET', '/vecinos/yo', token: token);
+        expect(yo['guardia_normal'], isFalse, reason: id);
+
+        final (codigoPut, actualizado) = await pedir(
+          'PUT',
+          '/vecinos/$id',
+          token: token,
+          cuerpo: {'cuadra': 'Cuadra 1'},
+        );
+        expect(codigoPut, 200);
+        expect(actualizado['guardia_normal'], isFalse, reason: id);
+      }
+      // Todos los vecinos de ejemplo arrancan con la opción desactivada.
+      for (final vecino in almacen.vecinos.values) {
+        expect(vecino['guardia_normal'], isFalse, reason: '${vecino['id']}');
+      }
+    });
+
+    test('registrarse arranca sin guardia normal aunque el pedido la '
+        'mande', () async {
+      final (codigo, cuerpo) = await pedir(
+        'POST',
+        '/vecinos',
+        cuerpo: {
+          'nombre': 'Nuevo Mayor',
+          'fecha_nacimiento': '1940-01-01',
+          'telefono': '261 555-0888',
+          'codigo_comision': 'SOBERANIA',
+          'clave': 'segura123',
+          'guardia_normal': true,
+        },
+      );
+      expect(codigo, 201);
+      expect(cuerpo['vecino']['guardia_normal'], isFalse);
+      final (_, yo) = await pedir(
+        'GET',
+        '/vecinos/yo',
+        token: cuerpo['token'] as String,
+      );
+      expect(yo['guardia_normal'], isFalse);
+    });
+
+    test('Rosa activa la guardia normal y queda guardada', () async {
+      final token = await ingresar(telefonoRosa);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: token,
+        cuerpo: {'guardia_normal': true},
+      );
+      expect(codigo, 200);
+      expect(cuerpo['guardia_normal'], isTrue);
+
+      final (_, yo) = await pedir('GET', '/vecinos/yo', token: token);
+      expect(yo['guardia_normal'], isTrue);
+
+      final (codigoCalle, conCalle) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: token,
+        cuerpo: {'calle': 'Democracia'},
+      );
+      expect(codigoCalle, 200);
+      expect(conCalle['calle'], 'Democracia');
+      expect(conCalle['guardia_normal'], isTrue);
+
+      final (_, desactivada) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: token,
+        cuerpo: {'guardia_normal': false},
+      );
+      expect(desactivada['guardia_normal'], isFalse);
+    });
+
+    test('un menor no puede activarla: 409', () async {
+      final token = await ingresar(telefonoClara);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/clara',
+        token: token,
+        cuerpo: {'guardia_normal': true},
+      );
+      expect(codigo, 409);
+      expect(cuerpo, {'error': mensajeSoloMayores});
+    });
+
+    test('un menor puede mandar false', () async {
+      final token = await ingresar(telefonoClara);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/clara',
+        token: token,
+        cuerpo: {'guardia_normal': false},
+      );
+      expect(codigo, 200);
+      expect(cuerpo['guardia_normal'], isFalse);
+    });
+
+    test('un valor que no es booleano: 400', () async {
+      final token = await ingresar(telefonoRosa);
+      for (final valor in <Object?>['si', 1, null]) {
+        final (codigo, cuerpo) = await pedir(
+          'PUT',
+          '/vecinos/rosa',
+          token: token,
+          cuerpo: {'guardia_normal': valor},
+        );
+        expect(codigo, 400, reason: '$valor');
+        expect(cuerpo, {'error': mensajeInvalida}, reason: '$valor');
+      }
+    });
+
+    test('la guardia normal rechazada no cambia ningún dato', () async {
+      final tokenClara = await ingresar(telefonoClara);
+      final (_, claraAntes) = await pedir(
+        'GET',
+        '/vecinos/yo',
+        token: tokenClara,
+      );
+      final (codigoClara, _) = await pedir(
+        'PUT',
+        '/vecinos/clara',
+        token: tokenClara,
+        cuerpo: {
+          'nombre': 'Otro Nombre',
+          'telefono': '261 555-0777',
+          'guardia_normal': true,
+        },
+      );
+      expect(codigoClara, 409);
+      final (_, claraDespues) = await pedir(
+        'GET',
+        '/vecinos/yo',
+        token: tokenClara,
+      );
+      expect(claraDespues, claraAntes);
+      // Tampoco cambió el teléfono con el que ingresa.
+      await ingresar(telefonoClara);
+
+      final tokenRosa = await ingresar(telefonoRosa);
+      final (_, rosaAntes) = await pedir(
+        'GET',
+        '/vecinos/yo',
+        token: tokenRosa,
+      );
+      final (codigoRosa, _) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: tokenRosa,
+        cuerpo: {'calle': 'Otra calle', 'guardia_normal': 'si'},
+      );
+      expect(codigoRosa, 400);
+      final (_, rosaDespues) = await pedir(
+        'GET',
+        '/vecinos/yo',
+        token: tokenRosa,
+      );
+      expect(rosaDespues, rosaAntes);
+    });
+
+    test('un archivo de datos viejo sin guardia_normal se lee con false', () {
+      final carpeta = Directory.systemTemp.createTempSync('barrio_seguro');
+      addTearDown(() => carpeta.deleteSync(recursive: true));
+      final archivo = File('${carpeta.path}/barrio.json')
+        ..writeAsStringSync(
+          jsonEncode({
+            'ultimo_id': 0,
+            'vecinos': {
+              'viejo': {
+                'id': 'viejo',
+                'nombre': 'Vecino Viejo',
+                'fecha_nacimiento': '1950-01-01',
+                'rol': 'vecino',
+              },
+              'raro': {
+                'id': 'raro',
+                'nombre': 'Valor Raro',
+                'fecha_nacimiento': '1950-01-01',
+                'rol': 'vecino',
+                'guardia_normal': 'si',
+              },
+              'activa': {
+                'id': 'activa',
+                'nombre': 'Con la Opción',
+                'fecha_nacimiento': '1950-01-01',
+                'rol': 'vecino',
+                'guardia_normal': true,
+              },
+            },
+            'credenciales': <String, dynamic>{},
+            'sesiones': <String, dynamic>{},
+            'turnos': <String, dynamic>{},
+            'alertas': <dynamic>[],
+          }),
+        );
+
+      final leido = Almacen.abrir(archivo: archivo, reloj: reloj);
+
+      expect(leido.vecinos['viejo']!['guardia_normal'], isFalse);
+      expect(leido.vecinos['raro']!['guardia_normal'], isFalse);
+      expect(leido.vecinos['activa']!['guardia_normal'], isTrue);
+    });
+  });
+
   group('Rutas de la comisión', () {
     test(
       'un vecino común recibe 403 en cualquier ruta de la comisión',
@@ -897,6 +1122,137 @@ void main() {
       expect(codigo, 200);
       expect(turno['guardia_ventana']['id'], 'rosa');
       expect(turno['patrulleros'], isEmpty);
+    });
+
+    /// Rosa cambia su guardia normal a [activa] y devuelve su token.
+    Future<String> rosaConGuardiaNormal({
+      required bool activa,
+      String? token,
+    }) async {
+      final propio = token ?? await ingresar(telefonoRosa);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/vecinos/rosa',
+        token: propio,
+        cuerpo: {'guardia_normal': activa},
+      );
+      expect(codigo, 200);
+      expect(cuerpo['guardia_normal'], activa);
+      return propio;
+    }
+
+    List<Object?> idsDe(dynamic vecinos) => [
+      for (final v in vecinos as List) v['id'],
+    ];
+
+    test('un mayor con guardia normal se anota en la patrulla', () async {
+      final token = await rosaConGuardiaNormal(activa: true);
+      final (codigo, turno) = await pedir(
+        'PUT',
+        '/turnos/2026-11-06/noche/vecinos/rosa',
+        token: token,
+      );
+      expect(codigo, 200);
+      expect(idsDe(turno['patrulleros']), ['rosa']);
+      expect(turno['guardia_ventana'], isNull);
+    });
+
+    test('un mayor que desactiva la guardia normal vuelve a ser guardia de '
+        'ventana', () async {
+      final token = await rosaConGuardiaNormal(activa: true);
+      await rosaConGuardiaNormal(activa: false, token: token);
+      final (codigo, turno) = await pedir(
+        'PUT',
+        '/turnos/2026-11-20/noche/vecinos/rosa',
+        token: token,
+      );
+      expect(codigo, 200);
+      expect(turno['guardia_ventana']['id'], 'rosa');
+      expect(turno['patrulleros'], isEmpty);
+    });
+
+    test('con guardia normal, la patrulla completa responde 409 aunque la '
+        'guardia esté libre', () async {
+      for (final (i, telefono) in ['261 555-0811', '261 555-0822'].indexed) {
+        final (codigo, sesion) = await pedir(
+          'POST',
+          '/vecinos',
+          cuerpo: {
+            'nombre': 'Patrullero $i',
+            'fecha_nacimiento': '1990-01-01',
+            'telefono': telefono,
+            'codigo_comision': 'SOBERANIA',
+            'clave': 'segura123',
+          },
+        );
+        expect(codigo, 201);
+        final id = sesion['vecino']['id'];
+        final (codigoTurno, _) = await pedir(
+          'PUT',
+          '/turnos/2026-11-13/noche/vecinos/$id',
+          token: sesion['token'] as String,
+        );
+        expect(codigoTurno, 200);
+      }
+
+      final token = await rosaConGuardiaNormal(activa: true);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/turnos/2026-11-13/noche/vecinos/rosa',
+        token: token,
+      );
+      expect(codigo, 409);
+      expect(cuerpo, {'error': 'La patrulla de este turno ya está completa.'});
+    });
+
+    test('con guardia normal sigue el máximo de 2 por mes', () async {
+      // Rosa ya tiene el 2/10 y el 17/10. El 30/10 tiene lugar en la
+      // patrulla.
+      final token = await rosaConGuardiaNormal(activa: true);
+      final (codigo, cuerpo) = await pedir(
+        'PUT',
+        '/turnos/2026-10-30/noche/vecinos/rosa',
+        token: token,
+      );
+      expect(codigo, 409);
+      expect(cuerpo, {
+        'error': 'Ya tenés 2 turnos este mes, que es el máximo permitido.',
+      });
+    });
+
+    test('cambiar la guardia normal no mueve los turnos ya tomados', () async {
+      Future<Map<String, dynamic>> turnoDe(
+        String token,
+        int mes,
+        String fecha,
+      ) async {
+        final (codigo, turnos) = await pedir(
+          'GET',
+          '/turnos?anio=2026&mes=$mes',
+          token: token,
+        );
+        expect(codigo, 200);
+        return (turnos as List).cast<Map<String, dynamic>>().firstWhere(
+          (t) => t['fecha'] == fecha && t['franja'] == 'noche',
+        );
+      }
+
+      final token = await rosaConGuardiaNormal(activa: true);
+      final octubre = await turnoDe(token, 10, '2026-10-02');
+      expect(octubre['guardia_ventana']['id'], 'rosa');
+      expect(idsDe(octubre['patrulleros']), ['jorge', 'ana']);
+
+      final (codigo, _) = await pedir(
+        'PUT',
+        '/turnos/2026-11-06/noche/vecinos/rosa',
+        token: token,
+      );
+      expect(codigo, 200);
+      await rosaConGuardiaNormal(activa: false, token: token);
+
+      final noviembre = await turnoDe(token, 11, '2026-11-06');
+      expect(idsDe(noviembre['patrulleros']), ['rosa']);
+      expect(noviembre['guardia_ventana'], isNull);
     });
 
     test('la patrulla completa rechaza a un patrullero más', () async {

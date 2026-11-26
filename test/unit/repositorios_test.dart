@@ -21,6 +21,7 @@ import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../ayudas/app_de_prueba.dart';
 import '../ayudas/bases_de_prueba.dart';
 import '../ayudas/falsos.dart';
 
@@ -519,6 +520,121 @@ void main() {
 
       final clara = servidor.ingresar('261 555-0142', 'x')['vecino'];
       expect(clara['rol'], 'comision');
+    });
+  });
+
+  group('Guardia normal contra el servidor simulado', () {
+    late ServidorSimulado servidor;
+
+    setUp(() {
+      servidor = ServidorSimulado(reloj: relojDePrueba, demora: Duration.zero);
+    });
+
+    /// El turno de [fecha] y [franja] como lo devuelve el simulado.
+    Map<String, dynamic> turnoDe(String fecha, String franja) {
+      final dia = DateTime.parse(fecha);
+      return servidor
+          .turnosDelMes(dia.year, dia.month)
+          .firstWhere((t) => t['fecha'] == fecha && t['franja'] == franja);
+    }
+
+    List<String> idsDe(Object? vecinos) => [
+      for (final v in vecinos as List) (v as Map<String, dynamic>)['id'],
+    ];
+
+    test('Rosa activa la guardia normal y queda guardada', () {
+      final activada = servidor.actualizarVecino('rosa', {
+        'guardia_normal': true,
+      });
+      expect(activada['guardia_normal'], isTrue);
+
+      final sinElCampo = servidor.actualizarVecino('rosa', {'calle': 'Otra'});
+      expect(sinElCampo['guardia_normal'], isTrue);
+      expect(sinElCampo['calle'], 'Otra');
+    });
+
+    test('un menor no puede activarla', () {
+      final antes = servidor.actualizarVecino('clara', {});
+      expect(
+        () => servidor.actualizarVecino('clara', {
+          'nombre': 'Otro nombre',
+          'guardia_normal': true,
+        }),
+        throwsA(
+          isA<ErrorDelServidor>().having(
+            (e) => e.mensaje,
+            'mensaje',
+            'Solo los vecinos de 70 años o más pueden elegir la guardia '
+                'normal.',
+          ),
+        ),
+      );
+      expect(servidor.actualizarVecino('clara', {}), antes);
+
+      final conFalse = servidor.actualizarVecino('clara', {
+        'guardia_normal': false,
+      });
+      expect(conFalse['guardia_normal'], isFalse);
+    });
+
+    test('un valor que no es booleano se rechaza', () {
+      final antes = servidor.actualizarVecino('rosa', {});
+      expect(
+        () => servidor.actualizarVecino('rosa', {
+          'calle': 'Otra',
+          'guardia_normal': 'si',
+        }),
+        throwsA(
+          isA<ErrorDelServidor>().having(
+            (e) => e.mensaje,
+            'mensaje',
+            'La opción de guardia normal no es válida.',
+          ),
+        ),
+      );
+      expect(servidor.actualizarVecino('rosa', {}), antes);
+    });
+
+    test('quien se registra arranca sin guardia normal', () {
+      final sesion = servidor.registrar({
+        'nombre': 'Nuevo Mayor',
+        'fecha_nacimiento': '1940-01-01',
+        'guardia_normal': true,
+      });
+      final vecino = sesion['vecino'] as Map<String, dynamic>;
+      expect(vecino['guardia_normal'], isFalse);
+      expect(Vecino.fromJson(vecino).guardiaNormal, isFalse);
+    });
+
+    test('Rosa sin guardia normal se anota como guardia de ventana', () {
+      final turno = servidor.anotarse('2026-11-06', 'noche', 'rosa');
+      expect((turno['guardia_ventana'] as Map<String, dynamic>)['id'], 'rosa');
+      expect(idsDe(turno['patrulleros']), isEmpty);
+    });
+
+    test('Rosa con guardia normal se anota en la patrulla', () {
+      servidor.actualizarVecino('rosa', {'guardia_normal': true});
+      final turno = servidor.anotarse('2026-11-13', 'noche', 'rosa');
+      expect(idsDe(turno['patrulleros']), ['rosa']);
+      expect(turno['guardia_ventana'], isNull);
+    });
+
+    test('cambiar la guardia normal no mueve los turnos ya tomados', () {
+      expect(
+        (turnoDe('2026-10-02', 'noche')['guardia_ventana'] as Map)['id'],
+        'rosa',
+      );
+
+      servidor.actualizarVecino('rosa', {'guardia_normal': true});
+      final octubre = turnoDe('2026-10-02', 'noche');
+      expect((octubre['guardia_ventana'] as Map)['id'], 'rosa');
+      expect(idsDe(octubre['patrulleros']), ['jorge', 'ana']);
+
+      servidor.anotarse('2026-11-06', 'noche', 'rosa');
+      servidor.actualizarVecino('rosa', {'guardia_normal': false});
+      final noviembre = turnoDe('2026-11-06', 'noche');
+      expect(idsDe(noviembre['patrulleros']), ['rosa']);
+      expect(noviembre['guardia_ventana'], isNull);
     });
   });
 

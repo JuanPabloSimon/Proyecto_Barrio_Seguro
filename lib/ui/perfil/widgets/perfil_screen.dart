@@ -68,6 +68,14 @@ class _PerfilScreenState extends State<PerfilScreen> {
     if (problema != null) mostrarAvisoEn(mensajero, problema);
   }
 
+  /// La guardia normal la guarda el servidor: el interruptor cambia recién
+  /// cuando confirma. Si no, se explica por qué.
+  Future<void> _cambiarGuardiaNormal(bool valor) async {
+    final mensajero = ScaffoldMessenger.of(context);
+    final problema = await _vm.cambiarGuardiaNormal(valor);
+    if (problema != null) mostrarAvisoEn(mensajero, problema);
+  }
+
   void _abrirMisAlertas() {
     final d = widget.dependencias;
     Navigator.of(context).push(
@@ -161,6 +169,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         viewModel: _vm,
         onCambiarCompartirUbicacion: _cambiarCompartirUbicacion,
         onCambiarAvisos: _cambiarAvisos,
+        onCambiarGuardiaNormal: _cambiarGuardiaNormal,
         onAbrirMisAlertas: _abrirMisAlertas,
         onAbrirMisTurnos: () => widget.onIrA(Pestania.turnos),
         onAbrirEditarDatos: _abrirEditarDatos,
@@ -176,6 +185,7 @@ class _CuerpoPerfil extends StatelessWidget {
     required this.viewModel,
     required this.onCambiarCompartirUbicacion,
     required this.onCambiarAvisos,
+    required this.onCambiarGuardiaNormal,
     required this.onAbrirMisAlertas,
     required this.onAbrirMisTurnos,
     required this.onAbrirEditarDatos,
@@ -186,6 +196,7 @@ class _CuerpoPerfil extends StatelessWidget {
   final PerfilViewModel viewModel;
   final ValueChanged<bool> onCambiarCompartirUbicacion;
   final ValueChanged<bool> onCambiarAvisos;
+  final ValueChanged<bool> onCambiarGuardiaNormal;
   final VoidCallback onAbrirMisAlertas;
   final VoidCallback onAbrirMisTurnos;
   final VoidCallback onAbrirEditarDatos;
@@ -275,6 +286,15 @@ class _CuerpoPerfil extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
+          // Solo los mayores de 70 eligen entre guardia de ventana y patrulla.
+          if (viewModel.puedeElegirGuardiaNormal) ...[
+            const _TituloSeccion('Turnos'),
+            _OpcionGuardiaNormal(
+              viewModel: viewModel,
+              onCambiar: onCambiarGuardiaNormal,
+            ),
+            const SizedBox(height: 24),
+          ],
           const _TituloSeccion('Privacidad y avisos'),
           Card(
             child: Column(
@@ -376,6 +396,39 @@ class _CuerpoPerfil extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// El interruptor de guardia normal de los mayores de 70.
+class _OpcionGuardiaNormal extends StatelessWidget {
+  const _OpcionGuardiaNormal({
+    required this.viewModel,
+    required this.onCambiar,
+  });
+
+  final PerfilViewModel viewModel;
+  final ValueChanged<bool> onCambiar;
+
+  @override
+  Widget build(BuildContext context) {
+    final cambiando = viewModel.cambiandoGuardiaNormal;
+    return Card(
+      child: SwitchListTile(
+        title: const Text('Hacer guardia normal (patrulla)'),
+        subtitle: Text(
+          cambiando
+              ? 'Guardando el cambio'
+              : viewModel.guardiaNormal
+              ? 'Te anotás en la patrulla, como el resto. Los turnos que ya '
+                    'tomaste no cambian.'
+              : 'Hacés guardia de ventana desde tu casa. Los turnos que ya '
+                    'tomaste no cambian.',
+        ),
+        value: viewModel.guardiaNormal,
+        // null deja el interruptor desactivado mientras espera al servidor.
+        onChanged: cambiando ? null : onCambiar,
       ),
     );
   }

@@ -94,6 +94,116 @@ void main() {
       expect(cumple70.esGuardiaVentanaEn(hoy), isTrue);
       expect(cumple70Manana.esGuardiaVentanaEn(hoy), isFalse);
     });
+
+    final mayorConGuardiaNormal = Vecino.fromJson({
+      ...vecinoMayor.toJson(),
+      'guardia_normal': true,
+    });
+    final menorConGuardiaNormal = Vecino.fromJson({
+      ...vecinaDePrueba.toJson(),
+      'guardia_normal': true,
+    });
+
+    test('un mayor sin guardia normal es guardia de ventana', () {
+      expect(vecinoMayor.guardiaNormal, isFalse);
+      expect(vecinoMayor.esGuardiaVentanaEn(hoy), isTrue);
+      expect(
+        ReglasTurnos.haceGuardiaVentana(edad: 78, guardiaNormal: false),
+        isTrue,
+      );
+    });
+
+    test('un mayor con guardia normal es patrullero', () {
+      expect(mayorConGuardiaNormal.esGuardiaVentanaEn(hoy), isFalse);
+      expect(
+        ReglasTurnos.haceGuardiaVentana(edad: 78, guardiaNormal: true),
+        isFalse,
+      );
+    });
+
+    test('un menor es patrullero con o sin guardia normal', () {
+      expect(vecinaDePrueba.esGuardiaVentanaEn(hoy), isFalse);
+      expect(menorConGuardiaNormal.esGuardiaVentanaEn(hoy), isFalse);
+      for (final guardiaNormal in [true, false]) {
+        expect(
+          ReglasTurnos.haceGuardiaVentana(
+            edad: 45,
+            guardiaNormal: guardiaNormal,
+          ),
+          isFalse,
+        );
+      }
+    });
+
+    test('a los 70 años se puede elegir la guardia normal y a los 69 no', () {
+      final cumple70 = Vecino(
+        id: 'x',
+        nombre: 'X',
+        fechaNacimiento: DateTime(1956, 10, 1),
+      );
+      final cumple70Manana = Vecino(
+        id: 'y',
+        nombre: 'Y',
+        fechaNacimiento: DateTime(1956, 10, 2),
+      );
+      expect(cumple70.puedeElegirGuardiaNormalEn(hoy), isTrue);
+      expect(cumple70Manana.puedeElegirGuardiaNormalEn(hoy), isFalse);
+      expect(ReglasTurnos.puedeElegirGuardiaNormal(70), isTrue);
+      expect(ReglasTurnos.puedeElegirGuardiaNormal(69), isFalse);
+    });
+
+    test('un mayor con guardia normal choca con la patrulla completa aunque '
+        'la guardia esté libre', () {
+      final lleno = Turno(
+        fecha: DateTime(2026, 10, 9),
+        franja: Franja.noche,
+        patrulleros: [
+          Vecino(id: 'a', nombre: 'A', fechaNacimiento: DateTime(1990)),
+          Vecino(id: 'b', nombre: 'B', fechaNacimiento: DateTime(1990)),
+        ],
+      );
+      final motivo = ReglasTurnos.motivoNoDisponible(
+        vecino: mayorConGuardiaNormal,
+        turno: lleno,
+        turnosEnElMes: 0,
+        hoy: hoy,
+      );
+      expect(motivo, 'La patrulla de este turno ya está completa.');
+    });
+
+    test('un mayor con guardia normal puede anotarse en un turno con guardia '
+        'ocupada y lugar en la patrulla', () {
+      final conGuardia = Turno(
+        fecha: DateTime(2026, 10, 9),
+        franja: Franja.noche,
+        patrulleros: [
+          Vecino(id: 'a', nombre: 'A', fechaNacimiento: DateTime(1990)),
+        ],
+        guardiaVentana: Vecino(
+          id: 'g',
+          nombre: 'G',
+          fechaNacimiento: DateTime(1940),
+        ),
+      );
+      final motivo = ReglasTurnos.motivoNoDisponible(
+        vecino: mayorConGuardiaNormal,
+        turno: conGuardia,
+        turnosEnElMes: 0,
+        hoy: hoy,
+      );
+      expect(motivo, isNull);
+    });
+
+    test('un mayor con guardia normal y 2 turnos en el mes choca con el '
+        'máximo', () {
+      final motivo = ReglasTurnos.motivoNoDisponible(
+        vecino: mayorConGuardiaNormal,
+        turno: turnoVacio,
+        turnosEnElMes: 2,
+        hoy: hoy,
+      );
+      expect(motivo, 'Ya tenés 2 turnos este mes, que es el máximo permitido.');
+    });
   });
 
   group('Fechas', () {
@@ -237,6 +347,50 @@ void main() {
         final json = original.toJson();
         expect(json['rol'], rol.json);
         expect(Vecino.fromJson(json).rol, rol);
+      }
+    });
+
+    test('guardia_normal true se lee como activada', () {
+      final vecino = Vecino.fromJson({...jsonDeVecino, 'guardia_normal': true});
+      expect(vecino.guardiaNormal, isTrue);
+    });
+
+    test('sin guardia_normal o con un valor que no es true queda '
+        'desactivada', () {
+      final sinCampo = Vecino.fromJson({...jsonDeVecino});
+      final texto = Vecino.fromJson({...jsonDeVecino, 'guardia_normal': 'si'});
+      final numero = Vecino.fromJson({...jsonDeVecino, 'guardia_normal': 1});
+      final falso = Vecino.fromJson({...jsonDeVecino, 'guardia_normal': false});
+      for (final v in [sinCampo, texto, numero, falso]) {
+        expect(v.guardiaNormal, isFalse);
+      }
+    });
+
+    test('guardia_normal viaja en el JSON, ida y vuelta', () {
+      for (final valor in [true, false]) {
+        final original = Vecino(
+          id: 'v1',
+          nombre: 'Rosa Ibáñez',
+          fechaNacimiento: DateTime(1948, 7, 8),
+          guardiaNormal: valor,
+        );
+        final json = original.toJson();
+        expect(json['guardia_normal'], valor);
+        expect(Vecino.fromJson(json).guardiaNormal, valor);
+      }
+    });
+
+    test('copyWith conserva la guardia normal', () {
+      for (final valor in [true, false]) {
+        final original = Vecino(
+          id: 'v1',
+          nombre: 'Rosa Ibáñez',
+          fechaNacimiento: DateTime(1948, 7, 8),
+          guardiaNormal: valor,
+        );
+        final copia = original.copyWith(nombre: 'Rosa I.', calle: 'Otra');
+        expect(copia.guardiaNormal, valor);
+        expect(copia.toJson()['guardia_normal'], valor);
       }
     });
 

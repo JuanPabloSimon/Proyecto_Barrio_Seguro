@@ -43,7 +43,7 @@ Sin `--dart-define`, la app usa el servidor simulado y no necesita la API. En Wi
 | Vecino | Teléfono | Contraseña | Turnos | Rol en la app |
 |---|---|---|---|---|
 | Clara Medina, 45 años | 261 555-0142 | barrio1234 | patrullaje | `comision` (miembro de la comisión) |
-| Rosa Ibáñez, 78 años | 261 555-0177 | barrio1234 | guardia de ventana | `vecino` (vecina común) |
+| Rosa Ibáñez, 78 años | 261 555-0177 | barrio1234 | guardia de ventana (arranca con `guardia_normal: false`; puede activarla desde el perfil) | `vecino` (vecina común) |
 
 ### Asignar el rol de la comisión
 
@@ -76,6 +76,8 @@ Cuando `PATCH /alertas/<id>` pasa una alerta de `resuelta` a `activa` o `en_aten
 
 El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae el campo `rol`: `"vecino"` o `"comision"`. Los vecinos que aparecen dentro de un turno (`patrulleros` y `guardia_ventana`) **no** traen `rol`.
 
+El vecino también trae `guardia_normal` (booleano, `false` por defecto): si un vecino de 70 años o más eligió hacer guardia normal (patrulla) en lugar de guardia de ventana. Quien se registra arranca con `false`, mande lo que mande, y un archivo de datos viejo sin el campo (o con un valor que no es booleano) se lee con `false`.
+
 | Método y ruta | Qué hace | Respuesta |
 |---|---|---|
 | `GET /salud` | Comprueba que la API está andando. `ahora` es la hora del servidor en milisegundos: la app la usa para medir el desfase de su reloj (avisos tardíos) | `{"estado": "ok", "ahora": 1759330800000}` |
@@ -83,12 +85,12 @@ El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae e
 | `DELETE /sesiones` | Cerrar la sesión (el token deja de servir) | 204 |
 | `POST /vecinos` | Registrarse: `{nombre, fecha_nacimiento, telefono, calle, cuadra, codigo_comision, clave}` | 201 `{token, vecino}` |
 | `GET /vecinos/yo` | Los datos del vecino de la sesión | vecino |
-| `PUT /vecinos/<id>` | Cambiar nombre, teléfono, calle o cuadra (solo los propios). Si trae un `rol` distinto del actual, 403 | vecino |
+| `PUT /vecinos/<id>` | Cambiar nombre, teléfono, calle, cuadra o `guardia_normal` (solo los propios). Si trae un `rol` distinto del actual, 403. Si `guardia_normal` no es booleano, 400 "La opción de guardia normal no es válida."; si es `true` y el vecino tiene menos de 70, 409 "Solo los vecinos de 70 años o más pueden elegir la guardia normal.". En los dos casos no se cambia ningún dato. Si no trae `guardia_normal`, queda la que estaba | vecino |
 | `GET /alertas` | Todas, de la más nueva a la más vieja | lista de alertas |
 | `POST /alertas` | Crear: `{categoria, tipo, descripcion, direccion, latitud, longitud}`. `categoria`: `sos`, `actividad_sospechosa`, `vehiculo`, `robo` o `ruidos` (`arrebato` ya no se crea: 400 "Elegí qué tipo de alerta es."; las viejas se siguen leyendo). `tipo` (el título) es obligatorio, hasta 60 letras; `descripcion` hasta 500 y `direccion` hasta 120, las dos opcionales. Las letras se cuentan sin los espacios de los extremos. Mismas reglas y mensajes que la app | 201 alerta |
 | `PATCH /alertas/<id>` | Cambiar el estado: `{estado}` (quien la reportó o la comisión). Si reabre una alerta resuelta (a `activa` o `en_atencion`), manda un aviso push | alerta |
 | `GET /turnos?anio=2026&mes=10` | Turnos del mes, con los vecinos adentro (sin `rol`) | lista de turnos |
-| `PUT /turnos/<fecha>/<franja>/vecinos/<id>` | Anotarse (solo uno mismo) | turno |
+| `PUT /turnos/<fecha>/<franja>/vecinos/<id>` | Anotarse (solo uno mismo). Un vecino de 70 o más va a `guardia_ventana`; con `guardia_normal` en `true` va a `patrulleros`, con las mismas reglas que el resto (cupo de 2 y máximo de 2 turnos por mes). Cambiar `guardia_normal` no mueve los turnos ya tomados | turno |
 | `DELETE /turnos/<fecha>/<franja>/vecinos/<id>` | Salir del turno | turno |
 | `/comision/…` (cualquier método) | Rutas solo para los miembros de la comisión. Todavía no hay ninguna: responden 404 a la comisión, 403 a un vecino común y 401 sin sesión | según la ruta |
 
@@ -100,7 +102,7 @@ Si algo sale mal, la respuesta trae `{"error": "..."}` con un mensaje para mostr
 | 401 | No hay sesión o el token venció |
 | 403 | No está permitido (por ejemplo, cambiar el estado de una alerta ajena sin ser de la comisión, cambiarse el rol o entrar a una ruta de la comisión sin ser de la comisión) |
 | 404 | No existe |
-| 409 | Choca con una regla (por ejemplo, el máximo de 2 turnos por mes) |
+| 409 | Choca con una regla (por ejemplo, el máximo de 2 turnos por mes, o un menor de 70 que pide la guardia normal) |
 
 ## Cómo está hecha
 

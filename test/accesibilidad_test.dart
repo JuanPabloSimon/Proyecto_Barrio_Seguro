@@ -12,11 +12,12 @@
 // la real: si el diseño aguanta acá, en el teléfono aguanta con margen.
 
 import 'dart:async';
-import 'dart:ui' show CheckedState;
+import 'dart:ui' show CheckedState, Tristate;
 
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
+import 'package:barrio_seguro/dependencias.dart';
 import 'package:barrio_seguro/domain/barrio.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
@@ -26,12 +27,15 @@ import 'package:barrio_seguro/ui/core/presentacion_alerta.dart';
 import 'package:barrio_seguro/ui/core/tema/app_colors.dart';
 import 'package:barrio_seguro/ui/core/tema/app_theme.dart';
 import 'package:barrio_seguro/ui/core/tema/transiciones.dart';
+import 'package:barrio_seguro/ui/core/widgets/con_view_model.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/mapa_barrio.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
 import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_tocable.dart';
+import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
+import 'package:barrio_seguro/ui/perfil/widgets/perfil_screen.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/widgets/reportar_alerta_screen.dart';
 import 'package:flutter/material.dart';
@@ -510,6 +514,136 @@ void main() {
         handle.dispose();
       });
     }
+  });
+
+  group('Guardia normal', () {
+    const titulo = 'Hacer guardia normal (patrulla)';
+
+    /// El perfil de Rosa (78 años) con el tema de la app. El login del
+    /// simulado entra siempre como Clara (45), que no ve la opción.
+    Future<SesionFalsa> abrirPerfilDeMayor(
+      WidgetTester tester, {
+      bool guardiaNormal = false,
+      Completer<void>? demora,
+    }) async {
+      final sesion = SesionFalsa(
+        Vecino.fromJson({
+          ...vecinoMayor.toJson(),
+          'guardia_normal': guardiaNormal,
+        }),
+      )..demoraAlCambiarGuardia = demora;
+      final dependencias = Dependencias.simuladas(
+        reloj: relojDePrueba,
+        demora: Duration.zero,
+        capacidades: const CapacidadesFalsas(),
+        politicas: const PoliticasFalsas(),
+        telefono: TelefonoFalso(),
+        ubicacion: UbicacionFalsa(),
+        notificaciones: NotificacionesFalsas(),
+        push: PushFalso(),
+        descargaCsv: DescargaCsvFalsa(),
+        preferencias: preferenciasEnMemoria(),
+        almacenSeguro: almacenSeguroEnMemoria(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          // Clave nueva: cada llamada arma un perfil nuevo con su sesión.
+          key: UniqueKey(),
+          theme: AppTheme.light,
+          home: ConViewModel(
+            crear: () => PerfilViewModel(
+              sesion: sesion,
+              bus: dependencias.bus,
+              reloj: dependencias.reloj,
+              capacidades: dependencias.capacidades,
+              politicas: dependencias.politicas,
+              preferencias: dependencias.preferencias,
+              ubicacion: dependencias.ubicacion,
+              notificacionesService: dependencias.notificaciones,
+              pushService: dependencias.push,
+            )..cargar(),
+            builder: (_, vm) => PerfilScreen(
+              viewModel: vm,
+              dependencias: dependencias,
+              onIrA: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return sesion;
+    }
+
+    final interruptor = find.widgetWithText(SwitchListTile, titulo);
+
+    testWidgets('el perfil de un mayor cumple las guías', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+
+      await abrirPerfilDeMayor(tester);
+      await mostrar(tester, interruptor);
+      await verificarGuias(tester);
+
+      await abrirPerfilDeMayor(tester, guardiaNormal: true);
+      await mostrar(tester, interruptor);
+      await verificarGuias(tester);
+      handle.dispose();
+    });
+
+    testWidgets('el interruptor se anuncia con su título y su estado', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+
+      for (final valor in [false, true]) {
+        await abrirPerfilDeMayor(tester, guardiaNormal: valor);
+        await mostrar(tester, interruptor);
+        final datos = tester.getSemantics(interruptor).getSemanticsData();
+        expect(datos.label, contains(titulo));
+        expect(datos.flagsCollection.isToggled, isNot(Tristate.none));
+        expect(
+          datos.flagsCollection.isToggled,
+          valor ? Tristate.isTrue : Tristate.isFalse,
+        );
+        expect(datos.hasAction(SemanticsAction.tap), isTrue);
+      }
+      handle.dispose();
+    });
+
+    testWidgets('"Turnos" se anuncia como encabezado', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester);
+      await abrirPerfilDeMayor(tester);
+
+      await mostrar(tester, find.text('Turnos'));
+      final datos = tester.getSemantics(find.text('Turnos')).getSemanticsData();
+      expect(datos.flagsCollection.isHeader, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('al 200 % se ve sin desbordes', (tester) async {
+      final handle = tester.ensureSemantics();
+      configurarPantalla(tester, alto: 800, escalaTexto: 2.0);
+
+      await abrirPerfilDeMayor(tester);
+      await mostrar(tester, interruptor);
+      expect(tester.takeException(), isNull);
+
+      await abrirPerfilDeMayor(tester, guardiaNormal: true);
+      await mostrar(tester, interruptor);
+      expect(tester.takeException(), isNull);
+
+      final demora = Completer<void>();
+      await abrirPerfilDeMayor(tester, demora: demora);
+      await tocar(tester, interruptor);
+      expect(find.text('Guardando el cambio'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      demora.complete();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
   });
 
   group('Colores', () {

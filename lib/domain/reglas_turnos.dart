@@ -15,7 +15,28 @@ class ReglasTurnos {
   /// Desde esta edad el vecino no patrulla: hace guardia de ventana.
   static const edadGuardiaVentana = 70;
 
+  /// Si por la edad le toca guardia de ventana (sin mirar la preferencia).
   static bool esGuardiaVentana(int edad) => edad >= edadGuardiaVentana;
+
+  /// Desde [edadGuardiaVentana] el vecino puede elegir hacer guardia normal
+  /// (patrulla) en lugar de guardia de ventana.
+  static bool puedeElegirGuardiaNormal(int edad) => edad >= edadGuardiaVentana;
+
+  /// Si al anotarse va a la guardia de ventana: mayor y sin guardia normal.
+  static bool haceGuardiaVentana({
+    required int edad,
+    required bool guardiaNormal,
+  }) => esGuardiaVentana(edad) && !guardiaNormal;
+
+  /// El mismo mensaje que la API cuando un menor de 70 pide la guardia
+  /// normal.
+  static const mensajeGuardiaNormalSoloMayores =
+      'Solo los vecinos de $edadGuardiaVentana años o más pueden elegir la '
+      'guardia normal.';
+
+  /// El mismo mensaje que la API cuando `guardia_normal` no es booleano.
+  static const mensajeGuardiaNormalInvalida =
+      'La opción de guardia normal no es válida.';
 
   /// Motivo por el que [vecino] no puede anotarse en [turno], o null si
   /// puede. [turnosEnElMes] es cuántos turnos ya tiene ese mes.

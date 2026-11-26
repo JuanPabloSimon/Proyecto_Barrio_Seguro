@@ -27,6 +27,10 @@ class TurnosViewModel extends ChangeNotifier {
        mes = DateTime(mes.year, mes.month),
        _dia = DateTime(mes.year, mes.month) {
     _suscripcion = _bus.de<TurnosActualizados>().listen((_) => cargar());
+    // Si cambia la guardia normal, cambia el botón y el motivo de cada turno.
+    _suscripcionPerfil = _bus.de<PerfilActualizado>().listen(
+      (_) => notifyListeners(),
+    );
   }
 
   final TurnosRepository _repositorio;
@@ -34,6 +38,7 @@ class TurnosViewModel extends ChangeNotifier {
   final BusDeEventos _bus;
   final Reloj _reloj;
   StreamSubscription<TurnosActualizados>? _suscripcion;
+  StreamSubscription<PerfilActualizado>? _suscripcionPerfil;
 
   /// Mes que muestra el calendario.
   final DateTime mes;
@@ -59,8 +64,16 @@ class TurnosViewModel extends ChangeNotifier {
 
   Vecino? get usuario => _sesion.usuario;
 
+  /// Si al anotarse va a la guardia de ventana (la preferencia actual).
   bool get esGuardiaVentana =>
       usuario?.esGuardiaVentanaEn(_reloj.ahora()) ?? false;
+
+  /// Si el vecino es la guardia de ventana de [turno] (no la preferencia):
+  /// cambiar la guardia normal no mueve los turnos ya tomados.
+  bool esGuardiaEn(Turno turno) {
+    final u = usuario;
+    return u != null && turno.guardiaVentana?.id == u.id;
+  }
 
   /// Turnos del vecino en el mes, por fecha y horario.
   List<Turno> get misTurnos {
@@ -131,7 +144,7 @@ class TurnosViewModel extends ChangeNotifier {
     if (u == null) return const [];
     final companieros = turno.companierosDe(u).map((v) => v.nombre).join(', ');
     final guardia = turno.guardiaVentana;
-    if (esGuardiaVentana) {
+    if (esGuardiaEn(turno)) {
       return [
         'Guardia de ventana desde tu casa',
         companieros.isEmpty
@@ -199,6 +212,7 @@ class TurnosViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _suscripcion?.cancel();
+    _suscripcionPerfil?.cancel();
     super.dispose();
   }
 }

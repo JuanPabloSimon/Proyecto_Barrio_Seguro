@@ -644,6 +644,181 @@ void main() {
       expect(vm.soloMios, isFalse);
       expect(vm.dia, DateTime(2026, 10, 9));
     });
+
+    final rosaConGuardiaNormal = Vecino.fromJson({
+      ...vecinoMayor.toJson(),
+      'guardia_normal': true,
+    });
+    final ana = Vecino(
+      id: 'ana',
+      nombre: 'Ana López',
+      fechaNacimiento: DateTime(1990, 1, 21),
+    );
+    final jorge = Vecino(
+      id: 'jorge',
+      nombre: 'Jorge Ruiz',
+      fechaNacimiento: DateTime(1975, 8, 2),
+    );
+
+    TurnosViewModel crearCon(SesionFalsa sesion, TurnosFalsos turnos) =>
+        TurnosViewModel(
+          turnos: turnos,
+          sesion: sesion,
+          bus: bus,
+          reloj: reloj,
+          mes: octubre,
+        );
+
+    test('al cambiar el perfil se redibuja con el rol nuevo', () async {
+      final sesion = SesionFalsa(vecinoMayor);
+      final vm = crearCon(sesion, TurnosFalsos());
+      var avisos = 0;
+      vm.addListener(() => avisos++);
+      expect(vm.esGuardiaVentana, isTrue);
+
+      sesion.usuario = rosaConGuardiaNormal;
+      bus.publicar(const PerfilActualizado());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(avisos, 1);
+      expect(vm.esGuardiaVentana, isFalse);
+      vm.dispose();
+    });
+
+    test('con guardia normal, un turno donde es guardia se describe como '
+        'guardia de ventana', () async {
+      final turno = Turno(
+        fecha: DateTime(2026, 10, 2),
+        franja: Franja.noche,
+        patrulleros: [jorge, ana],
+        guardiaVentana: vecinoMayor,
+      );
+      final vm = crearCon(
+        SesionFalsa(rosaConGuardiaNormal),
+        TurnosFalsos([turno]),
+      );
+      await vm.cargar();
+
+      expect(vm.esGuardiaVentana, isFalse);
+      expect(vm.esGuardiaEn(turno), isTrue);
+      expect(vm.detalleDe(vm.misTurnos.single), [
+        'Guardia de ventana desde tu casa',
+        'Patrulla: Jorge Ruiz, Ana López',
+      ]);
+    });
+
+    test('sin guardia normal, un turno donde está en la patrulla se describe '
+        'con su compañero', () async {
+      final turno = Turno(
+        fecha: DateTime(2026, 10, 6),
+        franja: Franja.noche,
+        patrulleros: [vecinoMayor, ana],
+      );
+      final vm = crearCon(SesionFalsa(vecinoMayor), TurnosFalsos([turno]));
+      await vm.cargar();
+
+      expect(vm.esGuardiaVentana, isTrue);
+      expect(vm.esGuardiaEn(turno), isFalse);
+      expect(vm.detalleDe(vm.misTurnos.single), ['Con Ana López']);
+
+      final soloElla = Turno(
+        fecha: DateTime(2026, 10, 7),
+        franja: Franja.noche,
+        patrulleros: [vecinoMayor],
+      );
+      expect(vm.detalleDe(soloElla), ['Sin compañero todavía']);
+    });
+
+    test('con guardia normal, la patrulla completa la deja sin anotarse y la '
+        'guardia ocupada no', () async {
+      final completa = Turno(
+        fecha: DateTime(2026, 10, 9),
+        franja: Franja.noche,
+        patrulleros: [jorge, ana],
+      );
+      final conGuardia = Turno(
+        fecha: DateTime(2026, 10, 16),
+        franja: Franja.noche,
+        patrulleros: [ana],
+        guardiaVentana: Vecino(
+          id: 'elena',
+          nombre: 'Elena Quiroga',
+          fechaNacimiento: DateTime(1954, 10, 27),
+        ),
+      );
+      final vm = crearCon(
+        SesionFalsa(rosaConGuardiaNormal),
+        TurnosFalsos([completa, conGuardia]),
+      );
+      await vm.cargar();
+
+      expect(
+        vm.motivoNoDisponible(completa),
+        'La patrulla de este turno ya está completa.',
+      );
+      expect(vm.motivoNoDisponible(conGuardia), isNull);
+    });
+
+    test('dispose cancela la suscripción al perfil', () async {
+      final vm = crearCon(SesionFalsa(vecinoMayor), TurnosFalsos());
+      var avisos = 0;
+      vm.addListener(() => avisos++);
+      vm.dispose();
+
+      bus.publicar(const PerfilActualizado());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(avisos, 0);
+      expect(bus.tieneOyentes, isFalse);
+    });
+  });
+
+  group('InicioViewModel', () {
+    test('el próximo turno se titula por el lugar que ocupa, no por la '
+        'preferencia', () async {
+      final rosaConGuardiaNormal = Vecino.fromJson({
+        ...vecinoMayor.toJson(),
+        'guardia_normal': true,
+      });
+      Future<ResumenTurno?> resumen(Vecino vecino, Turno turno) async {
+        final vm = InicioViewModel(
+          alertas: AlertasFalsas(),
+          turnos: TurnosFalsos([turno]),
+          sesion: SesionFalsa(vecino),
+          bus: bus,
+          reloj: reloj,
+          mesDeTurnos: DateTime(2026, 10),
+          avisos: AvisosRecibidosFalsos(),
+        );
+        await vm.cargar();
+        vm.dispose();
+        return vm.proximoTurno;
+      }
+
+      final comoGuardia = await resumen(
+        rosaConGuardiaNormal,
+        Turno(
+          fecha: DateTime(2026, 10, 2),
+          franja: Franja.noche,
+          guardiaVentana: vecinoMayor,
+        ),
+      );
+      expect(comoGuardia?.titulo, 'Tu próxima guardia de ventana');
+      expect(comoGuardia?.esGuardiaVentana, isTrue);
+      expect(comoGuardia?.lineas.last, 'Sin patrulla anotada todavía');
+
+      final enLaPatrulla = await resumen(
+        vecinoMayor,
+        Turno(
+          fecha: DateTime(2026, 10, 6),
+          franja: Franja.noche,
+          patrulleros: [vecinoMayor],
+        ),
+      );
+      expect(enLaPatrulla?.titulo, 'Tu próximo turno de patrullaje');
+      expect(enLaPatrulla?.esGuardiaVentana, isFalse);
+      expect(enLaPatrulla?.lineas.last, 'Sin compañero todavía');
+    });
   });
 
   group('InformeAlertasViewModel y rol en PerfilViewModel', () {
@@ -733,6 +908,115 @@ void main() {
       descarga.falla = true;
       final fallo = await vm.descargarCsv();
       expect(fallo, 'No pudimos descargar el informe. Probá de nuevo.');
+      vm.dispose();
+    });
+  });
+
+  group('Guardia normal en PerfilViewModel', () {
+    PerfilViewModel crearPerfil(SesionFalsa sesion) => PerfilViewModel(
+      sesion: sesion,
+      bus: bus,
+      reloj: reloj,
+      capacidades: const CapacidadesFalsas(),
+      politicas: const PoliticasFalsas(),
+      preferencias: preferenciasEnMemoria(),
+      ubicacion: UbicacionFalsa(),
+      notificacionesService: NotificacionesFalsas(),
+    );
+
+    test('un mayor puede elegir la guardia normal y un menor no', () {
+      expect(
+        crearPerfil(SesionFalsa(vecinoMayor)).puedeElegirGuardiaNormal,
+        isTrue,
+      );
+      expect(
+        crearPerfil(SesionFalsa(vecinaDePrueba)).puedeElegirGuardiaNormal,
+        isFalse,
+      );
+    });
+
+    test('arranca desactivada y el rol es guardia de ventana', () {
+      final vm = crearPerfil(SesionFalsa(vecinoMayor));
+      expect(vm.guardiaNormal, isFalse);
+      expect(vm.cambiandoGuardiaNormal, isFalse);
+      expect(vm.rol, 'guardia de ventana');
+    });
+
+    test('mientras espera al servidor está cambiando', () async {
+      final sesion = SesionFalsa(vecinoMayor)
+        ..demoraAlCambiarGuardia = Completer<void>();
+      final vm = crearPerfil(sesion);
+
+      final pedido = vm.cambiarGuardiaNormal(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.cambiandoGuardiaNormal, isTrue);
+      expect(vm.guardiaNormal, isFalse);
+
+      sesion.demoraAlCambiarGuardia!.complete();
+      await pedido;
+      expect(vm.cambiandoGuardiaNormal, isFalse);
+      expect(vm.guardiaNormal, isTrue);
+      vm.dispose();
+    });
+
+    test('al confirmar queda activada, el rol es patrullaje y avisa por el '
+        'bus', () async {
+      final sesion = SesionFalsa(vecinoMayor);
+      final vm = crearPerfil(sesion);
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+
+      final resultado = await vm.cambiarGuardiaNormal(true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(resultado, isNull);
+      expect(sesion.cambiosDeGuardiaNormal, [true]);
+      expect(vm.guardiaNormal, isTrue);
+      expect(vm.esGuardiaVentana, isFalse);
+      expect(vm.rol, 'patrullaje');
+      expect(eventos, [isA<PerfilActualizado>()]);
+
+      expect(await vm.cambiarGuardiaNormal(false), isNull);
+      expect(sesion.cambiosDeGuardiaNormal, [true, false]);
+      expect(vm.guardiaNormal, isFalse);
+      expect(vm.rol, 'guardia de ventana');
+      vm.dispose();
+    });
+
+    test('si el servidor la rechaza devuelve su mensaje y queda como '
+        'estaba', () async {
+      const mensaje =
+          'Solo los vecinos de 70 años o más pueden elegir la guardia normal.';
+      final sesion = SesionFalsa(vecinoMayor)
+        ..errorAlCambiarGuardia = const ErrorDelServidor(mensaje);
+      final vm = crearPerfil(sesion);
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+
+      expect(await vm.cambiarGuardiaNormal(true), mensaje);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.guardiaNormal, isFalse);
+      expect(sesion.usuario?.guardiaNormal, isFalse);
+      expect(vm.rol, 'guardia de ventana');
+      expect(vm.cambiandoGuardiaNormal, isFalse);
+      expect(eventos, isEmpty);
+      vm.dispose();
+    });
+
+    test('sin conexión devuelve el mensaje de conexión y queda como '
+        'estaba', () async {
+      final sesion = SesionFalsa(vecinoMayor)
+        ..falloAlCambiarGuardia = const SocketException('sin red');
+      final vm = crearPerfil(sesion);
+
+      expect(
+        await vm.cambiarGuardiaNormal(true),
+        'No pudimos guardar el cambio. Revisá tu conexión y probá de nuevo.',
+      );
+      expect(vm.guardiaNormal, isFalse);
+      expect(sesion.usuario?.guardiaNormal, isFalse);
+      expect(vm.cambiandoGuardiaNormal, isFalse);
       vm.dispose();
     });
   });

@@ -138,3 +138,15 @@
   - Prueba manual sin hacer (sin emulador), tampoco la de la ampliación: el recorrido sugerido está en `progress/impl_estado_alerta.md`.
   - Falta commitear el trabajo de la rama `feature/estado_alerta`.
 - **Próximo:** todas las features de `feature_list.json` (1 a 19) están en `done`.
+
+## 2026-11-26 — Feature 20 (`guardia_normal_mayores`): Guardia normal opcional para mayores de 70
+
+- **Quién:** equipo + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/guardia_normal_mayores/` (T1–T30, R1–R50). `Vecino.guardiaNormal` (por defecto `false`; `fromJson` solo toma `true`, así que las sesiones y los datos viejos quedan desactivados). En el perfil, un vecino de 70 años o más ve la sección "Turnos" con `_OpcionGuardiaNormal` (`SwitchListTile`); los menores no la ven. El cambio espera al servidor (`PerfilViewModel.cambiarGuardiaNormal` → `SesionRepository.cambiarGuardiaNormal`, que manda solo `guardia_normal`); si falla, queda apagada y se avisa. Al confirmarse se publica `PerfilActualizado` y Turnos se redibuja con el rol nuevo sin recargar. Regla compartida `haceGuardiaVentana` (70+ y sin guardia normal) y `puedeElegirGuardiaNormal` en `lib/domain/reglas_turnos.dart`, el servidor simulado y `backend/lib/src/reglas.dart`, con los mismos mensajes. Con guardia normal, el mayor ocupa un lugar de la patrulla con las mismas reglas (patrulla completa, máximo de 2 por mes). Los turnos ya tomados no se mueven al cambiar la preferencia; "Mis turnos" y el inicio los describen por el lugar ocupado. API: `PUT /vecinos/<id>` valida `guardia_normal` (400 si no es booleano, 409 a menores con `true`) antes de cambiar cualquier dato; el registro siempre arranca en `false`; `_anotarse` lee la preferencia del almacén; `Almacen._leer` normaliza los datos viejos a `false`. README del backend actualizado.
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 563 pruebas en la app y 99 en el backend). Review aprobado en `progress/review_guardia_normal_mayores.md`.
+- **Pendientes (no bloquean):**
+  - Prueba manual sin hacer (sin emulador). Conviene recorrerla contra la API con la cuenta de Rosa antes de integrar a `develop`; el recorrido está en `progress/impl_guardia_normal_mayores.md` (con el servidor simulado la opción no aparece porque la sesión es de Clara, 45 años).
+  - `lib/ui/turnos/widgets/turnos_screen.dart`: el ícono propio del calendario y `_ResumenCupo` siguen la preferencia actual y no el lugar ocupado (decisión 4 del design); un mayor con turnos de los dos tipos ve un solo ícono para todos. Candidato a una feature futura.
+  - El commit de esta feature no tiene que incluir el cambio de la feature 21 en `feature_list.json` (`pending → spec_ready`) ni `specs/aviso_turno_incompleto/`, salvo que se decida commitearlos aparte.
+  - Falta commitear el trabajo de la rama `feature/guardia_normal_mayores`.
+- **Próximo:** feature 21 (`aviso_turno_incompleto`), con spec aprobado.

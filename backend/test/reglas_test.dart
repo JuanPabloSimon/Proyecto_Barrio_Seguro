@@ -14,6 +14,7 @@ void main() {
       ReglasTurnos.motivoNoDisponible(
         vecinoId: 'clara',
         nacimiento: DateTime(1981),
+        guardiaNormal: false,
         patrulleros: ['clara', 'sofia'],
         guardiaVentana: null,
         turnosEnElMes: 2,
@@ -28,6 +29,7 @@ void main() {
       ReglasTurnos.motivoNoDisponible(
         vecinoId: 'rosa',
         nacimiento: DateTime(1948),
+        guardiaNormal: false,
         patrulleros: const [],
         guardiaVentana: 'elena',
         turnosEnElMes: 0,
@@ -35,6 +37,122 @@ void main() {
       ),
       'Este turno ya tiene guardia de ventana.',
     );
+  });
+
+  group('Guardia normal', () {
+    final rosa = DateTime(1948, 7, 8);
+    final clara = DateTime(1981, 5, 14);
+
+    String? motivo({
+      required DateTime nacimiento,
+      required bool guardiaNormal,
+      List<String> patrulleros = const [],
+      String? guardiaVentana,
+      int turnosEnElMes = 0,
+    }) => ReglasTurnos.motivoNoDisponible(
+      vecinoId: 'rosa',
+      nacimiento: nacimiento,
+      guardiaNormal: guardiaNormal,
+      patrulleros: patrulleros,
+      guardiaVentana: guardiaVentana,
+      turnosEnElMes: turnosEnElMes,
+      hoy: hoy,
+    );
+
+    test('un mayor sin guardia normal es guardia de ventana', () {
+      expect(
+        ReglasTurnos.haceGuardiaVentana(rosa, hoy, guardiaNormal: false),
+        isTrue,
+      );
+      // Por eso choca con la guardia ocupada y no con la patrulla completa.
+      expect(
+        motivo(nacimiento: rosa, guardiaNormal: false, guardiaVentana: 'elena'),
+        'Este turno ya tiene guardia de ventana.',
+      );
+      expect(
+        motivo(
+          nacimiento: rosa,
+          guardiaNormal: false,
+          patrulleros: ['jorge', 'ana'],
+        ),
+        isNull,
+      );
+    });
+
+    test('un mayor con guardia normal es patrullero', () {
+      expect(
+        ReglasTurnos.haceGuardiaVentana(rosa, hoy, guardiaNormal: true),
+        isFalse,
+      );
+      expect(
+        motivo(nacimiento: rosa, guardiaNormal: true, guardiaVentana: 'elena'),
+        isNull,
+      );
+    });
+
+    test('un menor es patrullero con o sin guardia normal', () {
+      for (final guardiaNormal in [true, false]) {
+        expect(
+          ReglasTurnos.haceGuardiaVentana(
+            clara,
+            hoy,
+            guardiaNormal: guardiaNormal,
+          ),
+          isFalse,
+        );
+        expect(
+          motivo(
+            nacimiento: clara,
+            guardiaNormal: guardiaNormal,
+            patrulleros: ['jorge', 'ana'],
+          ),
+          'La patrulla de este turno ya está completa.',
+        );
+      }
+    });
+
+    test('a los 70 se puede elegir la guardia normal y a los 69 no', () {
+      expect(
+        ReglasTurnos.puedeElegirGuardiaNormal(DateTime(1956, 10, 1), hoy),
+        isTrue,
+      );
+      expect(
+        ReglasTurnos.puedeElegirGuardiaNormal(DateTime(1956, 10, 2), hoy),
+        isFalse,
+      );
+    });
+
+    test('un mayor con guardia normal choca con la patrulla completa aunque '
+        'la guardia esté libre', () {
+      expect(
+        motivo(
+          nacimiento: rosa,
+          guardiaNormal: true,
+          patrulleros: ['jorge', 'ana'],
+        ),
+        'La patrulla de este turno ya está completa.',
+      );
+    });
+
+    test('un mayor con guardia normal y 2 turnos en el mes choca con el '
+        'máximo', () {
+      expect(
+        motivo(nacimiento: rosa, guardiaNormal: true, turnosEnElMes: 2),
+        'Ya tenés 2 turnos este mes, que es el máximo permitido.',
+      );
+    });
+
+    test('los mensajes son los mismos que en la app', () {
+      // Mismos textos que ReglasTurnos de lib/domain/reglas_turnos.dart.
+      expect(
+        ReglasTurnos.mensajeGuardiaNormalSoloMayores,
+        'Solo los vecinos de 70 años o más pueden elegir la guardia normal.',
+      );
+      expect(
+        ReglasTurnos.mensajeGuardiaNormalInvalida,
+        'La opción de guardia normal no es válida.',
+      );
+    });
   });
 
   group('ReglasAlertas', () {

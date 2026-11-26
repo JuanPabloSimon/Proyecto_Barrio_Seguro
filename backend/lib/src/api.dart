@@ -145,6 +145,8 @@ class Api {
       'vecino_desde': _soloFecha(hoy),
       // Quien se registra es siempre vecino común, mande lo que mande.
       'rol': Roles.vecino,
+      // Y arranca haciendo lo que le toca por la edad.
+      'guardia_normal': false,
     };
     _almacen.guardarCredenciales(id, telefono, clave);
     return _json(201, _sesion(id));
@@ -165,11 +167,31 @@ class Api {
         datos['rol'] != _almacen.vecinos[id]!['rol']) {
       throw const ErrorDeApi.noPermitido(mensajeRolFijo);
     }
+    // La guardia normal también se valida antes de tocar nada.
+    final guardiaNormal = datos['guardia_normal'];
+    if (datos.containsKey('guardia_normal')) {
+      if (guardiaNormal is! bool) {
+        throw const ErrorDeApi.datosInvalidos(
+          ReglasTurnos.mensajeGuardiaNormalInvalida,
+        );
+      }
+      final nacimiento = DateTime.parse(
+        _almacen.vecinos[id]!['fecha_nacimiento'] as String,
+      );
+      if (guardiaNormal &&
+          !ReglasTurnos.puedeElegirGuardiaNormal(nacimiento, _reloj.ahora())) {
+        throw const ErrorDeApi.conflicto(
+          ReglasTurnos.mensajeGuardiaNormalSoloMayores,
+        );
+      }
+    }
     // El id, la fecha de nacimiento, la antigüedad y el rol no se cambian.
+    // La guardia normal, si no viene, queda la que estaba.
     final vecino = {
       ..._almacen.vecinos[id]!,
       for (final campo in ['nombre', 'telefono', 'calle', 'cuadra'])
         if (datos[campo] is String) campo: (datos[campo] as String).trim(),
+      if (guardiaNormal is bool) 'guardia_normal': guardiaNormal,
     };
     if ((vecino['nombre'] as String).isEmpty) {
       throw const ErrorDeApi.datosInvalidos('Ingresá tu nombre.');
@@ -366,6 +388,8 @@ class Api {
     final dia = _validarTurno(fecha, franja);
     final vecino = _almacen.vecinos[vecinoId]!;
     final nacimiento = DateTime.parse(vecino['fecha_nacimiento'] as String);
+    // La preferencia sale del almacén, nunca del pedido.
+    final guardiaNormal = vecino['guardia_normal'] == true;
     final hoy = _reloj.ahora();
 
     final clave = Almacen.claveTurno(fecha, franja);
@@ -383,6 +407,7 @@ class Api {
     final motivo = ReglasTurnos.motivoNoDisponible(
       vecinoId: vecinoId,
       nacimiento: nacimiento,
+      guardiaNormal: guardiaNormal,
       patrulleros: patrulleros,
       guardiaVentana: guardia,
       turnosEnElMes: _cantidadEnElMes(vecinoId, dia),
@@ -392,7 +417,11 @@ class Api {
 
     final yaEstaba = patrulleros.contains(vecinoId) || guardia == vecinoId;
     if (!yaEstaba) {
-      if (ReglasTurnos.esGuardiaVentana(nacimiento, hoy)) {
+      if (ReglasTurnos.haceGuardiaVentana(
+        nacimiento,
+        hoy,
+        guardiaNormal: guardiaNormal,
+      )) {
         turno['guardia_ventana'] = vecinoId;
       } else {
         turno['patrulleros'] = [...patrulleros, vecinoId];

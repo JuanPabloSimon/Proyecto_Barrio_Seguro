@@ -26,6 +26,11 @@ abstract class SesionRepository {
 
   Future<Vecino> actualizarDatos(Vecino datos);
 
+  /// Le pide al servidor que guarde la guardia normal del vecino de la
+  /// sesión. Devuelve el vecino que confirmó el servidor y lo guarda con la
+  /// sesión. Lanza `ErrorDelServidor` si el servidor lo rechaza.
+  Future<Vecino> cambiarGuardiaNormal({required bool activa});
+
   Future<void> cerrarSesion();
 }
 
@@ -103,11 +108,25 @@ class SesionRepositoryRemoto implements SesionRepository {
   @override
   Future<Vecino> actualizarDatos(Vecino datos) async {
     // El rol no se manda: no se cambia desde la app y el servidor rechaza
-    // cualquier intento de cambiarlo.
+    // cualquier intento de cambiarlo. La guardia normal tampoco: tiene su
+    // propio pedido, así un vecino viejo en memoria nunca la pisa.
     final json = Map<String, dynamic>.of(datos.toJson())
       ..remove('id')
-      ..remove('rol');
+      ..remove('rol')
+      ..remove('guardia_normal');
     final vecino = Vecino.fromJson(await _service.actualizar(datos.id, json));
+    await _preferencias.guardarVecino(vecino);
+    _usuario = vecino;
+    return vecino;
+  }
+
+  @override
+  Future<Vecino> cambiarGuardiaNormal({required bool activa}) async {
+    // Solo se manda la opción: el resto de los datos queda como está en el
+    // servidor.
+    final vecino = Vecino.fromJson(
+      await _service.actualizar(_usuario!.id, {'guardia_normal': activa}),
+    );
     await _preferencias.guardarVecino(vecino);
     _usuario = vecino;
     return vecino;
