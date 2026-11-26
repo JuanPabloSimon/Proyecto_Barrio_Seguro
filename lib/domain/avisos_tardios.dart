@@ -69,3 +69,31 @@ String tituloAvisoTardio(Alerta alerta) {
 /// R14. Cuerpo del aviso tardío.
 const cuerpoAvisoTardio =
     'Llegó con demora por falta de señal. Puede que ya no esté pasando.';
+
+/// Aviso de una alerta resuelta que se volvió a abrir (feature
+/// estado_alerta, R46): "Se reabrió una alerta: Robo".
+String tituloAvisoReapertura(Alerta alerta) =>
+    'Se reabrió una alerta: ${tipoParaAviso(alerta)}';
+
+/// R47. El título de [tituloAvisoReapertura] con la hora de la reapertura:
+/// "Se reabrió una alerta: Robo 15:10".
+String tituloAvisoReaperturaTardia(Alerta alerta, DateTime reabiertaEn) =>
+    '${tituloAvisoReapertura(alerta)} ${horaYMinutos(reabiertaEn)}';
+
+/// R46. "`<dirección>`. Tocá para ver dónde."; sin dirección, "Tocá para ver
+/// dónde.".
+String cuerpoAvisoReapertura(Alerta alerta) {
+  final direccion = alerta.direccion.trim();
+  return direccion.isEmpty
+      ? 'Tocá para ver dónde.'
+      : '$direccion. Tocá para ver dónde.';
+}
+
+/// estado_alerta R60 a R62. El vigilante no conoce `reabierta_en`: solo
+/// sabe que la reapertura pasó entre [revisionAnterior] y [ahora]. Con
+/// más de [demoraMaximaParaAvisar] entre las dos, la trata como tardía.
+/// Una diferencia negativa (cambió la hora del teléfono) no es tardía.
+bool reaperturaDelVigilanteTardia({
+  required DateTime revisionAnterior,
+  required DateTime ahora,
+}) => ahora.difference(revisionAnterior) > demoraMaximaParaAvisar;

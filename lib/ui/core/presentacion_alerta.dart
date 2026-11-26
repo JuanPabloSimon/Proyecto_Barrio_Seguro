@@ -3,22 +3,13 @@ import 'package:flutter/material.dart';
 import '../../domain/models/alerta.dart';
 import 'tema/app_colors.dart';
 
-/// Cómo se muestra cada estado: texto, ícono y color (nunca solo color).
+export 'textos_estado.dart';
+
+/// Íconos y colores de cada estado (nunca solo color): solo para las
+/// vistas. Los nombres visibles están en textos_estado.dart, que se
+/// exporta desde acá para que las vistas sigan con un solo import.
 /// Vive en la capa de UI porque el modelo de dominio no conoce Flutter.
 extension PresentacionEstado on EstadoAlerta {
-  String get etiqueta => switch (this) {
-    EstadoAlerta.activa => 'Activa',
-    EstadoAlerta.enAtencion => 'En atención',
-    EstadoAlerta.resuelta => 'Resuelta',
-  };
-
-  /// Texto de la pastilla de filtro del mapa.
-  String get etiquetaFiltro => switch (this) {
-    EstadoAlerta.activa => 'Activas',
-    EstadoAlerta.enAtencion => 'En atención',
-    EstadoAlerta.resuelta => 'Resueltas',
-  };
-
   IconData get icono => switch (this) {
     EstadoAlerta.activa => Icons.priority_high,
     EstadoAlerta.enAtencion => Icons.directions_run,

@@ -15,6 +15,11 @@ import 'reloj.dart';
 /// barrio para recibir alertas nuevas con la app cerrada.
 const topicoAlertasPush = 'alertas';
 
+/// Valor de la clave `aviso` de un push que avisa que una alerta resuelta
+/// se volvió a abrir (estado_alerta). Un push sin `aviso` es de una alerta
+/// nueva.
+const avisoPushReabierta = 'reabierta';
+
 /// Callback de nivel superior que Android ejecuta en un isolate propio
 /// cuando llega un mensaje de datos de FCM con la app cerrada o en segundo
 /// plano.
@@ -79,6 +84,13 @@ Alerta? alertaDesdeDatosPush(Map<String, dynamic> datos) {
   });
 }
 
+/// `reabierta_en` del mensaje (entero o texto, en ms desde la época, hora
+/// del servidor) o null si falta o no es válido.
+DateTime? reabiertaEnDesdeDatosPush(Map<String, dynamic> datos) {
+  final ms = _entero(datos['reabierta_en']);
+  return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+}
+
 int? _entero(Object? valor) {
   if (valor is int) return valor;
   if (valor is String) return int.tryParse(valor);
@@ -103,6 +115,14 @@ Future<bool> procesarAvisoPush(
   required NotificacionesService notificaciones,
   required AvisosRecibidosRepository avisos,
 }) async {
+  if (datos['aviso'] == avisoPushReabierta) {
+    return _procesarReapertura(
+      datos,
+      preferencias: preferencias,
+      notificaciones: notificaciones,
+      avisos: avisos,
+    );
+  }
   final alerta = alertaDesdeDatosPush(datos);
   if (alerta == null) return false;
   if (alerta.estado == EstadoAlerta.resuelta) return false;
@@ -119,6 +139,39 @@ Future<bool> procesarAvisoPush(
       return true;
     case PuntualidadAviso.tardio:
       await notificaciones.avisarAlertaTardia(alerta);
+      return true;
+    case PuntualidadAviso.demasiadoTardio:
+      return false;
+  }
+}
+
+/// Aviso de una alerta resuelta que se volvió a abrir (estado_alerta R46 a
+/// R52). Mismas condiciones que una alerta nueva, pero la demora se mide
+/// desde `reabierta_en` y no se guarda la llegada: la guardada es la del
+/// aviso original y decide la marca de "tardía" de la alerta.
+Future<bool> _procesarReapertura(
+  Map<String, dynamic> datos, {
+  required Preferencias preferencias,
+  required NotificacionesService notificaciones,
+  required AvisosRecibidosRepository avisos,
+}) async {
+  final alerta = alertaDesdeDatosPush(datos);
+  final reabiertaEn = reabiertaEnDesdeDatosPush(datos);
+  if (alerta == null || reabiertaEn == null) return false;
+  if (alerta.estado == EstadoAlerta.resuelta) return false;
+
+  if (!await preferencias.notificaciones()) return false;
+
+  final vecino = await preferencias.vecino();
+  if (vecino != null && alerta.reportadaPor == vecino.id) return false;
+
+  final llegada = await avisos.horaDelServidor();
+  switch (clasificarAviso(creadaEn: reabiertaEn, llegada: llegada)) {
+    case PuntualidadAviso.aTiempo:
+      await notificaciones.avisarReapertura(alerta);
+      return true;
+    case PuntualidadAviso.tardio:
+      await notificaciones.avisarReaperturaTardia(alerta, reabiertaEn);
       return true;
     case PuntualidadAviso.demasiadoTardio:
       return false;

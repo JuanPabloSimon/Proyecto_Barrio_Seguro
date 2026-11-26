@@ -3,6 +3,7 @@
 
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
+import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
 import 'package:barrio_seguro/domain/avisos_tardios.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
@@ -28,6 +29,10 @@ void main() {
     late AvisosRecibidosFalsos avisos;
     final creada = DateTime(2026, 10, 1, 11, 55);
 
+    /// El reloj del vigilante (estado_alerta R60 a R63). Empieza en
+    /// [creada] y no avanza salvo que la prueba lo mueva.
+    late RelojManual reloj;
+
     setUp(() async {
       alertas = AlertasFalsas([
         alertaDePrueba(id: 'vieja', reportadaPor: 'jorge'),
@@ -37,6 +42,7 @@ void main() {
       await preferencias.guardarNotificaciones(true);
       bus = BusDeEventos();
       avisos = AvisosRecibidosFalsos();
+      reloj = RelojManual(creada);
     });
 
     VigilanteDeAlertas crear() => VigilanteDeAlertas(
@@ -46,6 +52,7 @@ void main() {
       preferencias: preferencias,
       bus: bus,
       avisos: avisos,
+      reloj: reloj,
     );
 
     /// Arranca el vigilante y agrega una alerta nueva de otro vecino.
@@ -195,6 +202,273 @@ void main() {
         expect(eventos, contains(isA<AlertasActualizadas>()));
       },
     );
+
+    /// Arranca el vigilante con una alerta resuelta y la reabre (como si
+    /// alguien la hubiera vuelto a abrir entre dos revisiones).
+    Future<VigilanteDeAlertas> conUnaReabierta({
+      String reportadaPor = 'jorge',
+      EstadoAlerta estadoNuevo = EstadoAlerta.activa,
+    }) async {
+      alertas.alertas.add(
+        alertaDePrueba(
+          id: 'reabierta',
+          reportadaPor: reportadaPor,
+          estado: EstadoAlerta.resuelta,
+          creadaEn: creada,
+        ),
+      );
+      final vigilante = crear();
+      await vigilante.revisar();
+      await alertas.cambiarEstado('reabierta', estadoNuevo);
+      return vigilante;
+    }
+
+    test(
+      'una alerta ajena que estaba resuelta y se reabrió muestra el aviso de '
+      'reapertura',
+      () async {
+        final vigilante = await conUnaReabierta();
+
+        final avisadas = await vigilante.revisar();
+
+        expect(notificaciones.reaperturas.map((a) => a.id), ['reabierta']);
+        expect(notificaciones.reaperturas.single.estado, EstadoAlerta.activa);
+        // No es una alerta nueva: no se avisa como tal.
+        expect(avisadas, isEmpty);
+        expect(notificaciones.avisadas, isEmpty);
+        expect(notificaciones.tardias, isEmpty);
+
+        // La revisión siguiente no la vuelve a avisar.
+        await vigilante.revisar();
+        expect(notificaciones.reaperturas, hasLength(1));
+      },
+    );
+
+    test('reabrir a en atención también se avisa', () async {
+      final vigilante = await conUnaReabierta(
+        estadoNuevo: EstadoAlerta.enAtencion,
+      );
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturas.map((a) => a.id), ['reabierta']);
+    });
+
+    test('una reapertura publica AlertasActualizadas', () async {
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      final vigilante = await conUnaReabierta();
+
+      await vigilante.revisar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(eventos, [isA<AlertasActualizadas>()]);
+    });
+
+    test('la reapertura de una alerta propia no se avisa', () async {
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      final vigilante = await conUnaReabierta(reportadaPor: 'clara');
+
+      await vigilante.revisar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notificaciones.reaperturas, isEmpty);
+      // Igual se actualizan las pantallas ("Mis alertas").
+      expect(eventos, [isA<AlertasActualizadas>()]);
+    });
+
+    test('con los avisos apagados la reapertura no se avisa pero se publica '
+        'AlertasActualizadas', () async {
+      await preferencias.guardarNotificaciones(false);
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      final vigilante = await conUnaReabierta();
+
+      await vigilante.revisar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(eventos, [isA<AlertasActualizadas>()]);
+    });
+
+    test('una alerta que pasa de activa a en atención no se avisa', () async {
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      final vigilante = crear();
+      await vigilante.revisar();
+      await alertas.cambiarEstado('vieja', EstadoAlerta.enAtencion);
+
+      await vigilante.revisar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(notificaciones.avisadas, isEmpty);
+      expect(eventos, isEmpty);
+    });
+
+    test('una reapertura no guarda llegadas', () async {
+      final vigilante = await conUnaReabierta();
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturas, hasLength(1));
+      expect(avisos.guardadas, isEmpty);
+    });
+
+    test('lo que ya estaba reabierto al abrir la app no se avisa', () async {
+      alertas.alertas.add(
+        alertaDePrueba(id: 'ya-reabierta', reportadaPor: 'jorge'),
+      );
+      final vigilante = crear();
+
+      await vigilante.revisar();
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturas, isEmpty);
+    });
+
+    // Reapertura tardía con la app abierta (estado_alerta R60 a R66).
+
+    test('una reapertura encontrada después de más de 2 horas sin revisar se '
+        'avisa como tardía sin hora', () async {
+      final vigilante = await conUnaReabierta();
+      reloj.hora = creada.add(const Duration(hours: 2, minutes: 1));
+
+      final avisadas = await vigilante.revisar();
+
+      expect(avisadas, isEmpty);
+      expect(notificaciones.reaperturasTardiasSinHora.map((a) => a.id), [
+        'reabierta',
+      ]);
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(notificaciones.reaperturasTardias, isEmpty);
+      // El título y el cuerpo que arma NotificacionesServiceLocales.
+      final alerta = notificaciones.reaperturasTardiasSinHora.single;
+      expect(tituloAvisoReapertura(alerta), 'Se reabrió una alerta: Robo');
+      expect(
+        cuerpoAvisoTardio,
+        'Llegó con demora por falta de señal. Puede que ya no esté pasando.',
+      );
+    });
+
+    test('con 2 horas justas se avisa a tiempo', () async {
+      final vigilante = await conUnaReabierta();
+      reloj.hora = creada.add(const Duration(hours: 2));
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturas.map((a) => a.id), ['reabierta']);
+      expect(notificaciones.reaperturasTardiasSinHora, isEmpty);
+    });
+
+    test('si la revisión del medio falla, la demora se mide desde la última '
+        'que funcionó', () async {
+      final vigilante = await conUnaReabierta();
+      alertas.falla = true;
+      reloj.hora = creada.add(const Duration(hours: 1));
+      await vigilante.revisar();
+      alertas.falla = false;
+      reloj.hora = creada.add(const Duration(hours: 2, minutes: 30));
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturasTardiasSinHora.map((a) => a.id), [
+        'reabierta',
+      ]);
+      expect(notificaciones.reaperturas, isEmpty);
+    });
+
+    test('una revisión que funcionó reinicia la cuenta', () async {
+      alertas.alertas.add(
+        alertaDePrueba(
+          id: 'reabierta',
+          reportadaPor: 'jorge',
+          estado: EstadoAlerta.resuelta,
+          creadaEn: creada,
+        ),
+      );
+      final vigilante = crear();
+      await vigilante.revisar();
+      reloj.hora = creada.add(const Duration(hours: 1, minutes: 30));
+      await vigilante.revisar();
+      await alertas.cambiarEstado('reabierta', EstadoAlerta.activa);
+      reloj.hora = creada.add(const Duration(hours: 3));
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturas.map((a) => a.id), ['reabierta']);
+      expect(notificaciones.reaperturasTardiasSinHora, isEmpty);
+    });
+
+    test('la reapertura tardía de una alerta propia no se avisa', () async {
+      final vigilante = await conUnaReabierta(reportadaPor: 'clara');
+      reloj.hora = creada.add(const Duration(hours: 3));
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturasTardiasSinHora, isEmpty);
+      expect(notificaciones.reaperturas, isEmpty);
+    });
+
+    test('con los avisos apagados la reapertura tardía no se avisa pero se '
+        'publica AlertasActualizadas', () async {
+      await preferencias.guardarNotificaciones(false);
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+      final vigilante = await conUnaReabierta();
+      reloj.hora = creada.add(const Duration(hours: 3));
+
+      await vigilante.revisar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notificaciones.reaperturasTardiasSinHora, isEmpty);
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(eventos, [isA<AlertasActualizadas>()]);
+    });
+
+    test('una reapertura tardía no guarda llegadas', () async {
+      final vigilante = await conUnaReabierta();
+      reloj.hora = creada.add(const Duration(hours: 3));
+
+      await vigilante.revisar();
+
+      expect(notificaciones.reaperturasTardiasSinHora, hasLength(1));
+      expect(avisos.guardadas, isEmpty);
+    });
+
+    test('una alerta nueva encontrada después de más de 2 horas sin revisar '
+        'se clasifica por creada_en', () async {
+      final vigilante = crear();
+      await vigilante.revisar();
+      alertas.alertas.insert(
+        0,
+        alertaDePrueba(
+          id: 'reciente',
+          reportadaPor: 'jorge',
+          creadaEn: avisos.ahora.subtract(const Duration(minutes: 1)),
+        ),
+      );
+      reloj.hora = creada.add(const Duration(hours: 3));
+
+      final avisadas = await vigilante.revisar();
+
+      expect(avisadas.map((a) => a.id), ['reciente']);
+      expect(notificaciones.avisadas.map((a) => a.id), ['reciente']);
+      expect(notificaciones.tardias, isEmpty);
+    });
+
+    test('NotificacionesServiceNinguno.avisarReaperturaTardiaSinHora termina '
+        'sin hacer nada', () async {
+      // Como la app sin notificaciones locales (por ejemplo, en la web).
+      const ninguno = NotificacionesServiceNinguno();
+      await expectLater(
+        ninguno.avisarReaperturaTardiaSinHora(
+          alertaDePrueba(id: 'reabierta', reportadaPor: 'jorge'),
+        ),
+        completes,
+      );
+    });
 
     testWidgets(
       'reacciona a eventos del sistema: pausa el reloj en segundo plano y revisa al volver (onResume)',
@@ -519,4 +793,164 @@ void main() {
       await vmConFalloPush.cerrarSesion();
     });
   });
+
+  group('Aviso push de reapertura', () {
+    late NotificacionesFalsas notificaciones;
+    late Preferencias preferencias;
+    late AvisosRecibidosFalsos avisos;
+
+    /// La alerta se creó un día antes y se reabrió a las 15:10; por
+    /// defecto el aviso llega a las 15:10 (a tiempo).
+    final reabierta = DateTime(2026, 10, 1, 15, 10);
+    final creada = reabierta.subtract(const Duration(days: 1));
+
+    Map<String, dynamic> datosPush({
+      String id = 'reabierta-1',
+      String estado = 'activa',
+      String reportadaPor = 'jorge',
+      Object? reabiertaEn = _sinCambio,
+      String direccion = 'Calle Plantamura',
+    }) => {
+      'id': id,
+      'categoria': 'robo',
+      'tipo': 'Robo de celular',
+      'descripcion': 'En la parada',
+      'direccion': direccion,
+      'creada_en': '${creada.millisecondsSinceEpoch}',
+      'estado': estado,
+      'latitud': '-32.877264',
+      'longitud': '-68.868785',
+      'reportada_por': reportadaPor,
+      'reportada_por_nombre': 'Jorge',
+      'aviso': 'reabierta',
+      'reabierta_en': identical(reabiertaEn, _sinCambio)
+          ? '${reabierta.millisecondsSinceEpoch}'
+          : reabiertaEn,
+    };
+
+    setUp(() async {
+      avisos = AvisosRecibidosFalsos(ahora: reabierta);
+      notificaciones = NotificacionesFalsas();
+      preferencias = preferenciasEnMemoria();
+      await preferencias.guardarNotificaciones(true);
+      await preferencias.guardarVecino(vecinaDePrueba);
+    });
+
+    Future<bool> procesar(Map<String, dynamic> datos) => procesarAvisoPush(
+      datos,
+      preferencias: preferencias,
+      notificaciones: notificaciones,
+      avisos: avisos,
+    );
+
+    void sinNingunAviso() {
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(notificaciones.reaperturasTardias, isEmpty);
+      expect(notificaciones.avisadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
+    }
+
+    test('una reapertura a tiempo muestra el aviso de reapertura', () async {
+      avisos.ahora = reabierta.add(const Duration(minutes: 5));
+
+      expect(await procesar(datosPush()), isTrue);
+
+      final alerta = notificaciones.reaperturas.single;
+      expect(alerta.id, 'reabierta-1');
+      expect(alerta.estado, EstadoAlerta.activa);
+      expect(notificaciones.avisadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
+      expect(notificaciones.reaperturasTardias, isEmpty);
+      expect(tituloAvisoReapertura(alerta), 'Se reabrió una alerta: Robo');
+      expect(
+        cuerpoAvisoReapertura(alerta),
+        'Calle Plantamura. Tocá para ver dónde.',
+      );
+    });
+
+    test('una reapertura con 30 minutos de demora muestra el aviso de '
+        'reapertura tardío', () async {
+      avisos.ahora = reabierta.add(const Duration(minutes: 30));
+
+      expect(await procesar(datosPush(estado: 'en_atencion')), isTrue);
+
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(notificaciones.avisadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
+      final (alerta, reabiertaEn) = notificaciones.reaperturasTardias.single;
+      expect(alerta.id, 'reabierta-1');
+      expect(reabiertaEn, reabierta);
+      expect(
+        tituloAvisoReaperturaTardia(alerta, reabiertaEn),
+        'Se reabrió una alerta: Robo 15:10',
+      );
+    });
+
+    test('una reapertura con 3 horas de demora no muestra nada', () async {
+      avisos.ahora = reabierta.add(const Duration(hours: 3));
+
+      expect(await procesar(datosPush()), isFalse);
+      sinNingunAviso();
+    });
+
+    test('la reapertura de una alerta propia no se avisa', () async {
+      expect(await procesar(datosPush(reportadaPor: 'clara')), isFalse);
+      sinNingunAviso();
+    });
+
+    test('con los avisos apagados no se avisa', () async {
+      await preferencias.guardarNotificaciones(false);
+      expect(await procesar(datosPush()), isFalse);
+      sinNingunAviso();
+    });
+
+    test('sin reabierta_en, con reabierta_en inválido o con estado resuelta no '
+        'se avisa', () async {
+      expect(await procesar(datosPush()..remove('reabierta_en')), isFalse);
+      expect(await procesar(datosPush(reabiertaEn: 'ayer')), isFalse);
+      expect(await procesar(datosPush(estado: 'resuelta')), isFalse);
+      expect(
+        await procesar({'aviso': 'reabierta', 'id': 'incompleta'}),
+        isFalse,
+      );
+      sinNingunAviso();
+    });
+
+    test(
+      'una reapertura no cambia la llegada guardada del aviso original',
+      () async {
+        final original = creada.add(const Duration(minutes: 20));
+        avisos.guardadas['reabierta-1'] = original;
+
+        expect(await procesar(datosPush()), isTrue);
+        expect(avisos.guardadas, {'reabierta-1': original});
+
+        // Sin llegada guardada, tampoco se agrega una.
+        avisos.guardadas.clear();
+        expect(await procesar(datosPush(id: 'reabierta-2')), isTrue);
+        expect(avisos.guardadas, isEmpty);
+      },
+    );
+
+    test('un push sin aviso sigue el camino de siempre', () async {
+      // El mismo push sin "aviso": se clasifica por creada_en (un día
+      // antes), así que es demasiado tardío, y guarda la llegada.
+      final datos = datosPush()..remove('aviso');
+
+      expect(await procesar(datos), isFalse);
+      sinNingunAviso();
+      expect(avisos.guardadas['reabierta-1'], reabierta);
+    });
+
+    test('reabiertaEnDesdeDatosPush lee entero y texto', () {
+      final ms = reabierta.millisecondsSinceEpoch;
+      expect(reabiertaEnDesdeDatosPush({'reabierta_en': ms}), reabierta);
+      expect(reabiertaEnDesdeDatosPush({'reabierta_en': '$ms'}), reabierta);
+      expect(reabiertaEnDesdeDatosPush({'reabierta_en': 'x'}), isNull);
+      expect(reabiertaEnDesdeDatosPush({}), isNull);
+    });
+  });
 }
+
+/// Marca "no me pasaron este parámetro" (distinto de pasar null).
+const _sinCambio = Object();

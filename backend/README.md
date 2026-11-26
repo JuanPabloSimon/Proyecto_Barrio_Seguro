@@ -72,6 +72,8 @@ Todo va y viene en JSON, con los mismos nombres de campo que usa la app (`fecha_
 
 Cada alerta (en `GET /alertas`, `POST /alertas` y `PATCH /alertas/<id>`) trae `reportada_por_nombre`: el primer nombre de quien la reportó (`""` si el vecino ya no existe). No se guarda en `datos/barrio.json`: se calcula al responder. El aviso push de una alerta nueva lleva en sus datos las mismas claves de la alerta, incluido `reportada_por_nombre`; ningún otro dato de quien la reportó.
 
+Cuando `PATCH /alertas/<id>` pasa una alerta de `resuelta` a `activa` o `en_atencion`, el servidor manda otro aviso push al tópico `alertas`: las mismas claves de la alerta (con el estado nuevo) más `aviso: "reabierta"` y `reabierta_en` (la hora del servidor de la reapertura, en milisegundos). No lleva quién la reabrió. Ningún otro cambio de estado manda aviso, y si FCM falla el estado nuevo queda guardado igual.
+
 El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae el campo `rol`: `"vecino"` o `"comision"`. Los vecinos que aparecen dentro de un turno (`patrulleros` y `guardia_ventana`) **no** traen `rol`.
 
 | Método y ruta | Qué hace | Respuesta |
@@ -84,7 +86,7 @@ El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae e
 | `PUT /vecinos/<id>` | Cambiar nombre, teléfono, calle o cuadra (solo los propios). Si trae un `rol` distinto del actual, 403 | vecino |
 | `GET /alertas` | Todas, de la más nueva a la más vieja | lista de alertas |
 | `POST /alertas` | Crear: `{categoria, tipo, descripcion, direccion, latitud, longitud}`. `categoria`: `sos`, `actividad_sospechosa`, `vehiculo`, `robo` o `ruidos` (`arrebato` ya no se crea: 400 "Elegí qué tipo de alerta es."; las viejas se siguen leyendo). `tipo` (el título) es obligatorio, hasta 60 letras; `descripcion` hasta 500 y `direccion` hasta 120, las dos opcionales. Las letras se cuentan sin los espacios de los extremos. Mismas reglas y mensajes que la app | 201 alerta |
-| `PATCH /alertas/<id>` | Cambiar el estado: `{estado}` (solo quien la reportó) | alerta |
+| `PATCH /alertas/<id>` | Cambiar el estado: `{estado}` (quien la reportó o la comisión). Si reabre una alerta resuelta (a `activa` o `en_atencion`), manda un aviso push | alerta |
 | `GET /turnos?anio=2026&mes=10` | Turnos del mes, con los vecinos adentro (sin `rol`) | lista de turnos |
 | `PUT /turnos/<fecha>/<franja>/vecinos/<id>` | Anotarse (solo uno mismo) | turno |
 | `DELETE /turnos/<fecha>/<franja>/vecinos/<id>` | Salir del turno | turno |
@@ -96,7 +98,7 @@ Si algo sale mal, la respuesta trae `{"error": "..."}` con un mensaje para mostr
 |---|---|
 | 400 | Faltan datos o no son válidos |
 | 401 | No hay sesión o el token venció |
-| 403 | No está permitido (por ejemplo, cerrar la alerta de otro vecino, cambiarse el rol o entrar a una ruta de la comisión sin ser de la comisión) |
+| 403 | No está permitido (por ejemplo, cambiar el estado de una alerta ajena sin ser de la comisión, cambiarse el rol o entrar a una ruta de la comisión sin ser de la comisión) |
 | 404 | No existe |
 | 409 | Choca con una regla (por ejemplo, el máximo de 2 turnos por mes) |
 

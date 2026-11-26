@@ -618,4 +618,93 @@ void main() {
       expect(csv, isNot(contains('Por tipo,Intento de robo')));
     });
   });
+
+  group('ReglasAlertas.puedeCambiarEstado', () {
+    test('quien la reportó puede', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'clara',
+          vecino: vecinaDePrueba,
+        ),
+        isTrue,
+      );
+    });
+
+    test('la comisión puede aunque no la haya reportado', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'jorge',
+          vecino: miembroDeLaComision,
+        ),
+        isTrue,
+      );
+    });
+
+    test('un vecino común no puede si no la reportó', () {
+      expect(vecinaDePrueba.rol, RolVecino.vecino);
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'jorge',
+          vecino: vecinaDePrueba,
+        ),
+        isFalse,
+      );
+    });
+
+    test('sin sesión no puede', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(reportadaPor: 'clara', vecino: null),
+        isFalse,
+      );
+    });
+
+    test('el mensaje es el mismo que el del servidor', () {
+      expect(
+        ReglasAlertas.mensajeSinPermisoEstado,
+        'Solo quien reportó la alerta o la comisión vecinal pueden cambiar '
+        'su estado.',
+      );
+    });
+  });
+
+  group('Textos del aviso de reapertura', () {
+    test('el título dice "Se reabrió una alerta: Robo"', () {
+      expect(
+        tituloAvisoReapertura(alertaDePrueba(categoria: CategoriaAlerta.robo)),
+        'Se reabrió una alerta: Robo',
+      );
+    });
+
+    test('en un SOS dice "Se reabrió una alerta: SOS"', () {
+      expect(
+        tituloAvisoReapertura(alertaDePrueba(categoria: CategoriaAlerta.sos)),
+        'Se reabrió una alerta: SOS',
+      );
+    });
+
+    test('el título tardío agrega la hora de la reapertura '
+        '("Se reabrió una alerta: Robo 15:10")', () {
+      expect(
+        tituloAvisoReaperturaTardia(
+          alertaDePrueba(categoria: CategoriaAlerta.robo),
+          DateTime(2026, 10, 1, 15, 10),
+        ),
+        'Se reabrió una alerta: Robo 15:10',
+      );
+    });
+
+    test('el cuerpo dice "<dirección>. Tocá para ver dónde."', () {
+      expect(
+        cuerpoAvisoReapertura(alertaDePrueba(direccion: 'Calle Plantamura')),
+        'Calle Plantamura. Tocá para ver dónde.',
+      );
+    });
+
+    test('sin dirección el cuerpo dice "Tocá para ver dónde."', () {
+      expect(
+        cuerpoAvisoReapertura(alertaDePrueba(direccion: '  ')),
+        'Tocá para ver dónde.',
+      );
+    });
+  });
 }

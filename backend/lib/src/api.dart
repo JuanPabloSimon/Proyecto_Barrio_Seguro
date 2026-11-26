@@ -312,15 +312,34 @@ class Api {
     if (alerta == null) {
       throw const ErrorDeApi.noExiste('No encontramos esa alerta.');
     }
-    // RF-05: solo quien la reportó puede cerrarla.
-    if (alerta['reportada_por'] != vecinoId) {
-      throw const ErrorDeApi.noPermitido(
-        'Solo quien reportó la alerta puede cambiar su estado.',
-      );
+    // RF-05 ampliado: quien la reportó o también la comisión. El rol se lee
+    // del almacén, nunca del pedido.
+    final puede = ReglasAlertas.puedeCambiarEstado(
+      reportadaPor: alerta['reportada_por'] as String,
+      vecinoId: vecinoId,
+      rol: _almacen.vecinos[vecinoId]?['rol'] as String?,
+    );
+    if (!puede) {
+      throw const ErrorDeApi.noPermitido(ReglasAlertas.mensajeSinPermisoEstado);
     }
+    final anterior = alerta['estado'];
     alerta['estado'] = estado;
     _almacen.guardar();
-    return _json(200, _conNombre(alerta));
+    final respuesta = _conNombre(alerta);
+    // Volver a abrir una alerta resuelta avisa al barrio; ningún otro
+    // cambio de estado lo hace (decisión P3).
+    if (anterior == 'resuelta' && estado != 'resuelta') {
+      await _notificarReapertura(respuesta);
+    }
+    return _json(200, respuesta);
+  }
+
+  /// Envía el aviso push de una alerta que se volvió a abrir. Si el
+  /// servicio de push falla, el estado nuevo igual queda guardado (R44).
+  Future<void> _notificarReapertura(Map<String, dynamic> alerta) async {
+    try {
+      await _push.enviarReapertura(alerta, reabiertaEn: _reloj.ahora());
+    } catch (_) {}
   }
 
   // -------------------------------------------------------------------------

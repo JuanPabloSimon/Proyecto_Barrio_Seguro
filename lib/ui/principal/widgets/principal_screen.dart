@@ -90,6 +90,7 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       preferencias: d.preferencias,
       bus: d.bus,
       avisos: d.avisos,
+      reloj: d.reloj,
     )..empezar();
 
     _sincronizarSuscripcionPush();

@@ -122,4 +122,58 @@ void main() {
       );
     });
   });
+
+  group('ReglasAlertas.puedeCambiarEstado', () {
+    test('quien la reportó puede', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'rosa',
+          vecinoId: 'rosa',
+          rol: 'vecino',
+        ),
+        isTrue,
+      );
+    });
+
+    test('la comisión puede aunque no la haya reportado', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'martin',
+          vecinoId: 'clara',
+          rol: 'comision',
+        ),
+        isTrue,
+      );
+    });
+
+    test('un vecino común no puede si no la reportó', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'clara',
+          vecinoId: 'rosa',
+          rol: 'vecino',
+        ),
+        isFalse,
+      );
+    });
+
+    test('sin rol conocido no puede si no la reportó', () {
+      expect(
+        ReglasAlertas.puedeCambiarEstado(
+          reportadaPor: 'clara',
+          vecinoId: 'nadie',
+          rol: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test('el mensaje es el mismo que el de la app', () {
+      expect(
+        ReglasAlertas.mensajeSinPermisoEstado,
+        'Solo quien reportó la alerta o la comisión vecinal pueden cambiar '
+        'su estado.',
+      );
+    });
+  });
 }

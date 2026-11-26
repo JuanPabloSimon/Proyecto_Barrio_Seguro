@@ -12,11 +12,14 @@ import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/dependencias.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/domain/reglas_alertas.dart';
 import 'package:barrio_seguro/main.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/view_models/detalle_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/alerta_detalle/widgets/detalle_alerta_screen.dart';
 import 'package:barrio_seguro/ui/core/widgets/con_view_model.dart';
 import 'package:barrio_seguro/ui/core/widgets/boton_sos.dart';
+import 'package:barrio_seguro/ui/core/widgets/chip_estado.dart';
 import 'package:barrio_seguro/ui/core/widgets/mapa_barrio.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_tardia.dart';
@@ -56,6 +59,14 @@ Future<void> ingresar(WidgetTester tester) async {
   await tester.tap(find.text('Ingresar'));
   await tester.pumpAndSettle();
   expect(find.text('Hola, Clara'), findsOneWidget);
+}
+
+/// Una pantalla de 540 x 1200 dp: el detalle entero (con el control de
+/// estado) entra sin desplazar.
+void pantallaAlta(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2400);
+  tester.view.devicePixelRatio = 2;
+  addTearDown(tester.view.reset);
 }
 
 Future<void> _tocar(WidgetTester tester, Finder finder) async {
@@ -1927,6 +1938,637 @@ void main() {
       expect(find.byIcon(Icons.phone_android), findsOneWidget);
     },
   );
+  group('Detalle: estado de la alerta', () {
+    late AlertasFalsas alertas;
+    late DetalleAlertaViewModel vm;
+
+    /// Abre el detalle de [alerta] encima de una "Pantalla anterior", con
+    /// [vecino] en la sesión (por defecto, Clara como vecina común).
+    Future<void> abrirDetalle(
+      WidgetTester tester, {
+      Alerta? alerta,
+      Vecino? vecino,
+    }) async {
+      pantallaAlta(tester);
+      MapaBarrio.cargarCalles = false;
+      final laAlerta = alerta ?? alertaDePrueba();
+      alertas = AlertasFalsas([laAlerta]);
+      vm = DetalleAlertaViewModel(
+        alerta: laAlerta,
+        alertas: alertas,
+        sesion: SesionFalsa(vecino ?? vecinaDePrueba),
+        bus: BusDeEventos(),
+        reloj: relojDePrueba,
+        avisos: AvisosRecibidosFalsos(),
+      );
+      addTearDown(vm.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(body: Text('Pantalla anterior')),
+        ),
+      );
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => DetalleAlertaScreen(
+                viewModel: vm,
+                capacidades: const CapacidadesFalsas(),
+                telefono: TelefonoFalso(),
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+    }
+
+    Finder opcion(String etiqueta) =>
+        find.widgetWithText(RadioListTile<EstadoAlerta>, etiqueta);
+
+    Finder chip(String etiqueta) => find.descendant(
+      of: find.byType(ChipEstado),
+      matching: find.text(etiqueta),
+    );
+
+    EstadoAlerta? elegida(WidgetTester tester) => tester
+        .widget<RadioGroup<EstadoAlerta>>(find.byType(RadioGroup<EstadoAlerta>))
+        .groupValue;
+
+    bool habilitada(WidgetTester tester, String etiqueta) =>
+        tester.widget<RadioListTile<EstadoAlerta>>(opcion(etiqueta)).enabled ??
+        true;
+
+    /// Sigue el detalle con [estado] arriba y como opción elegida.
+    void muestraEstado(WidgetTester tester, EstadoAlerta estado, String texto) {
+      expect(find.text('Detalle de alerta'), findsOneWidget);
+      expect(chip(texto), findsOneWidget);
+      expect(elegida(tester), estado);
+    }
+
+    const textoResolver =
+        'Va a dejar de aparecer en "Alertas cerca tuyo". Si hace falta, la '
+        'podés volver a abrir desde acá.';
+
+    // Quién ve el control.
+
+    testWidgets(
+      'quien la reportó ve "Estado de la alerta" con Activa, En atención y '
+      'Resuelta en orden',
+      (tester) async {
+        await abrirDetalle(tester);
+
+        expect(find.text('Estado de la alerta'), findsOneWidget);
+        expect(find.byType(RadioListTile<EstadoAlerta>), findsNWidgets(3));
+        final activa = tester.getTopLeft(opcion('Activa')).dy;
+        final enAtencion = tester.getTopLeft(opcion('En atención')).dy;
+        final resuelta = tester.getTopLeft(opcion('Resuelta')).dy;
+        expect(activa, lessThan(enAtencion));
+        expect(enAtencion, lessThan(resuelta));
+      },
+    );
+
+    testWidgets('la comisión ve el control en una alerta ajena', (
+      tester,
+    ) async {
+      await abrirDetalle(
+        tester,
+        alerta: alertaDePrueba(reportadaPor: 'jorge'),
+        vecino: miembroDeLaComision,
+      );
+
+      expect(find.text('Estado de la alerta'), findsOneWidget);
+      expect(find.byType(RadioListTile<EstadoAlerta>), findsNWidgets(3));
+      // La falsa alarma es solo de quien la reportó.
+      expect(find.text('Fue una falsa alarma'), findsNothing);
+    });
+
+    testWidgets('un vecino común ve el estado pero no el control', (
+      tester,
+    ) async {
+      await abrirDetalle(tester, alerta: alertaDePrueba(reportadaPor: 'jorge'));
+
+      expect(chip('Activa'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ChipEstado),
+          matching: find.byIcon(Icons.priority_high),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Estado de la alerta'), findsNothing);
+      expect(find.byType(RadioListTile<EstadoAlerta>), findsNothing);
+      expect(find.text('Fue una falsa alarma'), findsNothing);
+    });
+
+    testWidgets('la opción elegida es el estado actual', (tester) async {
+      await abrirDetalle(
+        tester,
+        alerta: alertaDePrueba(estado: EstadoAlerta.enAtencion),
+      );
+
+      expect(elegida(tester), EstadoAlerta.enAtencion);
+      expect(chip('En atención'), findsOneWidget);
+    });
+
+    testWidgets('no está el botón "Marcar como resuelta"', (tester) async {
+      for (final (alerta, vecino) in [
+        (alertaDePrueba(), vecinaDePrueba),
+        (alertaDePrueba(reportadaPor: 'jorge'), miembroDeLaComision),
+        (alertaDePrueba(reportadaPor: 'jorge'), vecinaDePrueba),
+      ]) {
+        await abrirDetalle(tester, alerta: alerta, vecino: vecino);
+        expect(find.text('Marcar como resuelta'), findsNothing);
+      }
+    });
+
+    testWidgets('en una alerta resuelta las tres opciones están habilitadas', (
+      tester,
+    ) async {
+      for (final (alerta, vecino) in [
+        (alertaDePrueba(estado: EstadoAlerta.resuelta), vecinaDePrueba),
+        (
+          alertaDePrueba(reportadaPor: 'jorge', estado: EstadoAlerta.resuelta),
+          miembroDeLaComision,
+        ),
+      ]) {
+        await abrirDetalle(tester, alerta: alerta, vecino: vecino);
+        expect(elegida(tester), EstadoAlerta.resuelta);
+        for (final etiqueta in ['Activa', 'En atención', 'Resuelta']) {
+          expect(habilitada(tester, etiqueta), isTrue, reason: etiqueta);
+        }
+        // Resuelta: "Fue una falsa alarma" ya no se ofrece.
+        expect(find.text('Fue una falsa alarma'), findsNothing);
+      }
+    });
+
+    // Cambiar.
+
+    testWidgets(
+      'elegir "En atención" no pide confirmación, cambia el estado de arriba '
+      'y la opción, muestra "Cambiaste el estado a En atención." y el '
+      'detalle sigue abierto',
+      (tester) async {
+        await abrirDetalle(tester);
+
+        await _tocar(tester, opcion('En atención'));
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(alertas.cambiosDeEstado, 1);
+        expect(alertas.alertas.single.estado, EstadoAlerta.enAtencion);
+        muestraEstado(tester, EstadoAlerta.enAtencion, 'En atención');
+        expect(chip('Activa'), findsNothing);
+        expect(find.text('Cambiaste el estado a En atención.'), findsOneWidget);
+        expect(find.text('Pantalla anterior'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'mientras cambia, las opciones están deshabilitadas y se ve "Cambiando '
+      'el estado"',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await abrirDetalle(tester);
+        alertas.demoraAlCambiar = Completer<void>();
+
+        await tester.ensureVisible(opcion('En atención'));
+        await tester.pumpAndSettle();
+        await tester.tap(opcion('En atención'));
+        await tester.pump();
+
+        for (final etiqueta in ['Activa', 'En atención', 'Resuelta']) {
+          expect(habilitada(tester, etiqueta), isFalse, reason: etiqueta);
+        }
+        expect(find.text('Cambiando el estado'), findsOneWidget);
+        expect(find.bySemanticsLabel('Cambiando el estado'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextButton>(
+                find.widgetWithText(TextButton, 'Fue una falsa alarma'),
+              )
+              .onPressed,
+          isNull,
+        );
+
+        alertas.demoraAlCambiar!.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Cambiando el estado'), findsNothing);
+        expect(habilitada(tester, 'Activa'), isTrue);
+        muestraEstado(tester, EstadoAlerta.enAtencion, 'En atención');
+        handle.dispose();
+      },
+    );
+
+    testWidgets('tocar la opción actual no pide nada', (tester) async {
+      await abrirDetalle(tester);
+
+      await _tocar(tester, opcion('Activa'));
+
+      expect(alertas.cambiosDeEstado, 0);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+      muestraEstado(tester, EstadoAlerta.activa, 'Activa');
+    });
+
+    testWidgets('si la API rechaza se ve su mensaje y el estado anterior', (
+      tester,
+    ) async {
+      await abrirDetalle(
+        tester,
+        alerta: alertaDePrueba(reportadaPor: 'jorge'),
+        vecino: miembroDeLaComision,
+      );
+      alertas.errorAlCambiar = const ErrorDelServidor(
+        ReglasAlertas.mensajeSinPermisoEstado,
+      );
+
+      await _tocar(tester, opcion('En atención'));
+
+      expect(
+        find.text(
+          'Solo quien reportó la alerta o la comisión vecinal pueden cambiar '
+          'su estado.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      muestraEstado(tester, EstadoAlerta.activa, 'Activa');
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets(
+      'sin conexión se ve "No pudimos cambiar el estado. Probá de nuevo." y '
+      'el estado anterior',
+      (tester) async {
+        await abrirDetalle(tester);
+        alertas.falla = true;
+
+        await _tocar(tester, opcion('En atención'));
+
+        expect(
+          find.text('No pudimos cambiar el estado. Probá de nuevo.'),
+          findsOneWidget,
+        );
+        muestraEstado(tester, EstadoAlerta.activa, 'Activa');
+        expect(find.byType(SnackBar), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '"Fue una falsa alarma" sigue cerrando el detalle con "Cancelaste la '
+      'alerta: falsa alarma" sin diálogo',
+      (tester) async {
+        await abrirDetalle(tester);
+
+        await tester.ensureVisible(find.text('Fue una falsa alarma'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Fue una falsa alarma'));
+        await tester.pump();
+        expect(find.byType(AlertDialog), findsNothing);
+        await tester.pumpAndSettle();
+
+        expect(alertas.alertas.single.estado, EstadoAlerta.resuelta);
+        expect(find.text('Pantalla anterior'), findsOneWidget);
+        expect(find.text('Detalle de alerta'), findsNothing);
+        expect(find.text('Cancelaste la alerta: falsa alarma'), findsOneWidget);
+      },
+    );
+
+    // Confirmación.
+
+    testWidgets(
+      'elegir "Resuelta" muestra "¿Marcar la alerta como resuelta?" con su '
+      'texto y los botones, y no pide nada mientras está abierto',
+      (tester) async {
+        await abrirDetalle(tester);
+
+        await _tocar(tester, opcion('Resuelta'));
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.text('¿Marcar la alerta como resuelta?'), findsOneWidget);
+        expect(find.text(textoResolver), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'No, dejarla como está'),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(FilledButton, 'Sí, está resuelta'),
+          findsOneWidget,
+        );
+        expect(alertas.cambiosDeEstado, 0);
+        // Mientras el diálogo está abierto la opción elegida no se movió.
+        expect(elegida(tester), EstadoAlerta.activa);
+      },
+    );
+
+    testWidgets(
+      '"Sí, está resuelta" cierra el diálogo, pide el cambio y muestra '
+      '"Cambiaste el estado a Resuelta."',
+      (tester) async {
+        await abrirDetalle(tester);
+
+        await _tocar(tester, opcion('Resuelta'));
+        await _tocar(tester, find.text('Sí, está resuelta'));
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(alertas.cambiosDeEstado, 1);
+        expect(alertas.alertas.single.estado, EstadoAlerta.resuelta);
+        muestraEstado(tester, EstadoAlerta.resuelta, 'Resuelta');
+        expect(find.text('Cambiaste el estado a Resuelta.'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'en una alerta resuelta, elegir "En atención" o "Activa" muestra '
+      '"¿Volver a abrir la alerta?" con su texto',
+      (tester) async {
+        for (final (etiqueta, nombre) in [
+          ('En atención', 'En atención'),
+          ('Activa', 'Activa'),
+        ]) {
+          await abrirDetalle(
+            tester,
+            alerta: alertaDePrueba(estado: EstadoAlerta.resuelta),
+          );
+
+          await _tocar(tester, opcion(etiqueta));
+
+          expect(find.text('¿Volver a abrir la alerta?'), findsOneWidget);
+          expect(
+            find.text(
+              'Va a quedar como $nombre y se les va a avisar a los vecinos '
+              'del barrio.',
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.widgetWithText(OutlinedButton, 'No, dejarla resuelta'),
+            findsOneWidget,
+          );
+          expect(
+            find.widgetWithText(FilledButton, 'Sí, volver a abrirla'),
+            findsOneWidget,
+          );
+          expect(alertas.cambiosDeEstado, 0);
+          await _tocar(tester, find.text('No, dejarla resuelta'));
+        }
+      },
+    );
+
+    testWidgets('"Sí, volver a abrirla" pide el cambio y muestra el estado '
+        'nuevo', (tester) async {
+      await abrirDetalle(
+        tester,
+        alerta: alertaDePrueba(
+          reportadaPor: 'jorge',
+          estado: EstadoAlerta.resuelta,
+        ),
+        vecino: miembroDeLaComision,
+      );
+
+      await _tocar(tester, opcion('En atención'));
+      await _tocar(tester, find.text('Sí, volver a abrirla'));
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(alertas.cambiosDeEstado, 1);
+      expect(alertas.alertas.single.estado, EstadoAlerta.enAtencion);
+      muestraEstado(tester, EstadoAlerta.enAtencion, 'En atención');
+      expect(find.text('Cambiaste el estado a En atención.'), findsOneWidget);
+    });
+
+    group('cerrar el diálogo sin confirmar no pide nada', () {
+      /// Abre el diálogo de [elegir] y lo cierra con [cerrar].
+      Future<void> probar(
+        WidgetTester tester, {
+        required EstadoAlerta actual,
+        required String etiquetaActual,
+        required String elegir,
+        required Future<void> Function() cerrar,
+      }) async {
+        await abrirDetalle(tester, alerta: alertaDePrueba(estado: actual));
+        await _tocar(tester, opcion(elegir));
+        expect(find.byType(AlertDialog), findsOneWidget);
+
+        await cerrar();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(alertas.cambiosDeEstado, 0);
+        muestraEstado(tester, actual, etiquetaActual);
+        expect(find.byType(SnackBar), findsNothing);
+        expect(find.byIcon(Icons.error_outline), findsNothing);
+      }
+
+      testWidgets('con "No, dejarla como está"', (tester) async {
+        await probar(
+          tester,
+          actual: EstadoAlerta.activa,
+          etiquetaActual: 'Activa',
+          elegir: 'Resuelta',
+          cerrar: () => tester.tap(find.text('No, dejarla como está')),
+        );
+      });
+
+      testWidgets('con "No, dejarla resuelta"', (tester) async {
+        await probar(
+          tester,
+          actual: EstadoAlerta.resuelta,
+          etiquetaActual: 'Resuelta',
+          elegir: 'Activa',
+          cerrar: () => tester.tap(find.text('No, dejarla resuelta')),
+        );
+      });
+
+      testWidgets('tocando fuera del diálogo', (tester) async {
+        await probar(
+          tester,
+          actual: EstadoAlerta.enAtencion,
+          etiquetaActual: 'En atención',
+          elegir: 'Resuelta',
+          // Una esquina de la pantalla, fuera del diálogo.
+          cerrar: () => tester.tapAt(const Offset(4, 4)),
+        );
+      });
+
+      testWidgets('con el botón Atrás', (tester) async {
+        await probar(
+          tester,
+          actual: EstadoAlerta.resuelta,
+          etiquetaActual: 'Resuelta',
+          elegir: 'En atención',
+          cerrar: () async {
+            expect(await tester.binding.handlePopRoute(), isTrue);
+          },
+        );
+      });
+    });
+  });
+
+  group('Estado: lista y mapa', () {
+    // En el servidor simulado Clara es de la comisión. a1 ("Actividad
+    // sospechosa") es de Clara y a2 ("Moto a alta velocidad", en atención)
+    // de Martín.
+    Finder tarjeta(String tipo) =>
+        find.widgetWithText(TarjetaAlerta, tipo, skipOffstage: false);
+
+    Finder opcion(String etiqueta) =>
+        find.widgetWithText(RadioListTile<EstadoAlerta>, etiqueta);
+
+    Future<void> abrirApp(WidgetTester tester) async {
+      pantallaAlta(tester);
+      await tester.pumpWidget(appDePrueba());
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+    }
+
+    Future<void> irA(WidgetTester tester, String pestania) => _tocar(
+      tester,
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text(pestania),
+      ),
+    );
+
+    Future<void> volver(WidgetTester tester) async {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+
+    /// Abre el detalle desde el inicio, elige [etiqueta] (confirmando si
+    /// hace falta) y vuelve.
+    Future<void> cambiarDesdeElInicio(
+      WidgetTester tester,
+      String tipo,
+      String etiqueta, {
+      String? confirmar,
+    }) async {
+      await tester.scrollUntilVisible(
+        find.widgetWithText(TarjetaAlerta, tipo),
+        200,
+      );
+      await _tocar(tester, find.widgetWithText(TarjetaAlerta, tipo));
+      await _tocar(tester, opcion(etiqueta));
+      if (confirmar != null) await _tocar(tester, find.text(confirmar));
+      expect(find.text('Detalle de alerta'), findsOneWidget);
+      await volver(tester);
+    }
+
+    testWidgets(
+      'poner En atención "Actividad sospechosa" se ve en "Alertas cerca '
+      'tuyo"',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await abrirApp(tester);
+
+        await cambiarDesdeElInicio(
+          tester,
+          'Actividad sospechosa',
+          'En atención',
+        );
+
+        expect(find.text('Hola, Clara'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.widgetWithText(TarjetaAlerta, 'Actividad sospechosa'),
+          200,
+        );
+        expect(
+          find.descendant(
+            of: tarjeta('Actividad sospechosa'),
+            matching: find.descendant(
+              of: find.byType(ChipEstado),
+              matching: find.text('En atención'),
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp('^Alerta de actividad sospechosa, .*, en atención\\.'),
+          ),
+          findsOneWidget,
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'poner Resuelta "Moto a alta velocidad" la quita de "Alertas cerca '
+      'tuyo"',
+      (tester) async {
+        await abrirApp(tester);
+
+        await cambiarDesdeElInicio(
+          tester,
+          'Moto a alta velocidad',
+          'Resuelta',
+          confirmar: 'Sí, está resuelta',
+        );
+
+        expect(find.text('Hola, Clara'), findsOneWidget);
+        expect(tarjeta('Moto a alta velocidad'), findsNothing);
+        // Las otras siguen.
+        expect(tarjeta('Actividad sospechosa'), findsOneWidget);
+      },
+    );
+
+    testWidgets('el pin del mapa dice el estado nuevo', (tester) async {
+      final handle = tester.ensureSemantics();
+      await abrirApp(tester);
+      await cambiarDesdeElInicio(
+        tester,
+        'Moto a alta velocidad',
+        'Resuelta',
+        confirmar: 'Sí, está resuelta',
+      );
+
+      await irA(tester, 'Mapa');
+      await _tocar(tester, find.text('Todas'));
+
+      expect(
+        find.bySemanticsLabel(
+          RegExp('^Alerta: Moto a alta velocidad, resuelta'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          RegExp('^Alerta: Moto a alta velocidad, en atención'),
+        ),
+        findsNothing,
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'una alerta propia cambiada se ve con el estado nuevo en "Mis alertas"',
+      (tester) async {
+        await abrirApp(tester);
+        await irA(tester, 'Perfil');
+        await _tocar(tester, find.text('Mis alertas reportadas'));
+        expect(find.text('Mis alertas'), findsOneWidget);
+
+        await _tocar(
+          tester,
+          find.widgetWithText(TarjetaAlerta, 'Actividad sospechosa'),
+        );
+        await _tocar(tester, opcion('En atención'));
+        await volver(tester);
+
+        expect(find.text('Mis alertas'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.widgetWithText(TarjetaAlerta, 'Actividad sospechosa'),
+            matching: find.descendant(
+              of: find.byType(ChipEstado),
+              matching: find.text('En atención'),
+            ),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  });
+
   group('Botón SOS', () {
     testWidgets('el SOS mide 216 x 104 dp con el texto "SOS" en 32', (
       tester,
