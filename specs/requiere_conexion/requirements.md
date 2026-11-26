@@ -95,14 +95,24 @@ MIENTRAS el texto del sistema está al 200 %, el sistema DEBE mostrar la pantall
 ## R24
 El sistema DEBE mostrar los textos de la pantalla sin conexión con el contraste mínimo de las guías de accesibilidad y sin comunicar el estado solo con color.
 
+## Botón Atrás sin conexión
+
+## R25
+CUANDO el vecino toca el botón Atrás del sistema con la pantalla sin conexión visible, el sistema NO DEBE cerrar ni cambiar ninguna de las rutas de la app que quedaron tapadas por esa pantalla.
+
 ## Trazabilidad con el `acceptance` de feature_list.json
 
 | Criterio de aceptación | Cubierto por |
 |---|---|
 | Sin conexión, la app muestra "Necesitás conexión a internet para usar la app" en lugar de las pantallas normales | R1, R2, R3, R4, R9 |
 | Sin conexión, el botón Llamar al 911 sigue a mano y funciona | R11, R12, R13 |
-| Cuando vuelve la conexión, la app sigue sola sin tener que reiniciarla | R5, R6, R7, R8, R14, R15 |
+| Cuando vuelve la conexión, la app sigue sola sin tener que reiniciarla | R5, R6, R7, R8, R14, R15, R25 |
 | Ya no se puede crear una alerta sin conexión ni queda ninguna guardada para mandar después; se quita el código del envío diferido | R16, R17, R18, R19 |
 | La copia local de alertas y turnos queda solo como caché y no permite usar la app sin conexión | R10, R20 |
 | La pantalla sin conexión cumple las reglas de accesibilidad del proyecto | R21, R22, R23, R24 |
-| Pruebas de la detección de conexión, del ViewModel y de la pantalla sin conexión | R1–R8 (detección y ViewModel), R9–R15 y R21–R24 (pantalla) |
+| Pruebas de la detección de conexión, del ViewModel y de la pantalla sin conexión | R1–R8 (detección y ViewModel), R9–R15, R21–R24 y R25 (pantalla y compuerta) |
+
+> R25 se agregó después de la revisión (nota del reviewer en
+> `progress/review_requiere_conexion.md`): sin él, el botón Atrás de Android
+> cerraba rutas tapadas (por ejemplo, el SOS) sin que el vecino las viera, lo
+> que contradice R14.

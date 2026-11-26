@@ -120,11 +120,12 @@ conexión, la compuerta aparece en ≤ 5 s.
 | ui | `lib/ui/conexion/view_models/conexion_view_model.dart` | **Nuevo.** `ConexionViewModel` + `EstadoConexion`. |
 | ui | `lib/ui/conexion/widgets/compuerta_de_conexion.dart` | **Nuevo.** `CompuertaDeConexion` (Offstage del `child` + `SinConexionScreen`, escucha el ciclo de vida). |
 | ui | `lib/ui/conexion/widgets/sin_conexion_screen.dart` | **Nuevo.** `SinConexionScreen`. |
+| ui | `lib/ui/conexion/widgets/atras_sin_conexion.dart` | **Nuevo (R25).** `AtrasSinConexion`: `WidgetsBindingObserver` por encima de `MaterialApp` que se queda con el botón Atrás mientras no hay conexión. Ver "Botón Atrás sin conexión (R25)". |
 | ui | `lib/ui/principal/vigilante_de_alertas.dart` | Quitar la llamada a `enviarPendientes()` y la mención en el comentario. Los avisos locales siguen igual. |
 | ui | `lib/ui/sos/view_models/sos_view_model.dart` | Quitar `pendiente` / `_pendiente`. Borrar el comentario duplicado de `enviar()`. |
 | ui | `lib/ui/sos/widgets/sos_screen.dart` | `_VistaSosEnviada` sin `pendiente`: se van "Alerta guardada" y "No hay señal. La alerta se va a enviar sola…". |
 | armado | `lib/dependencias.dart` | Ver "Armado". |
-| armado | `lib/main.dart` | Quitar `workmanager`, `PendientesDao`, `TareasService` y `callbackDispatcher`. `BarrioSeguroApp` arma la compuerta en `MaterialApp.builder`. |
+| armado | `lib/main.dart` | Quitar `workmanager`, `PendientesDao`, `TareasService` y `callbackDispatcher`. `BarrioSeguroApp` arma la compuerta en `MaterialApp.builder`. Para R25, el `ConViewModel<ConexionViewModel>` sube por encima de `MaterialApp` y lo envuelve `AtrasSinConexion`. |
 | paquetes | `pubspec.yaml` / `pubspec.lock` | Quitar `workmanager` (ver "Paquetes"). |
 | docs | `docs/architecture.md` | Principio 7 nuevo, sacar `tareas/` del árbol, agregar `ui/conexion/`. |
 | pruebas | `test/ayudas/falsos.dart` | `ConexionFalsa` (servicio) y `ConexionRepositoryFalsa`; quitar `TareasFalsas`, `enviosDePendientes`, `estaPendiente`, `enviarPendientes` y `correTareasEnSegundoPlano`. |
@@ -133,7 +134,7 @@ conexión, la compuerta aparece en ≤ 5 s.
 | pruebas | `test/unit/conexion_test.dart` | **Nuevo.** Servicio HTTP, repositorio y ViewModel de conexión. |
 | pruebas | `test/unit/notificaciones_test.dart` | Borrar los grupos "Alertas sin señal", "Tarea de envío", la prueba de migración a la v2 y "cada revisión intenta mandar las alertas pendientes". El resto (avisos locales y push) queda. |
 | pruebas | `test/unit/persistencia_test.dart` | Migración v2 → v3 y "sin tabla de pendientes" (R18, R19); prueba de `crearAlerta` sin red (R16). |
-| pruebas | `test/widget_test.dart` | Compuerta sobre login, principal y SOS; volver con estado; 911 (R9–R15, R17). |
+| pruebas | `test/widget_test.dart` | Compuerta sobre login, principal y SOS; volver con estado; 911 (R9–R15, R17); botón Atrás sin conexión (R25). |
 | pruebas | `test/accesibilidad_test.dart` | Guías y texto al 200 % de `SinConexionScreen` (R21–R24). |
 | pruebas | `test/unit/plataforma_test.dart`, `test/capacidades_politicas_test.dart` | Quitar lo que use `correTareasEnSegundoPlano`, si hay algo. |
 | backend | — | **Sin cambios.** `GET /salud` ya existe y responde `{"estado": "ok"}`. |
@@ -392,6 +393,141 @@ Pruebas: `meetsGuideline` con `androidTapTargetGuideline`,
 `textContrastGuideline`, más texto al 200 % sin excepciones de desborde,
 como el resto de `test/accesibilidad_test.dart`.
 
+## Botón Atrás sin conexión (R25)
+
+### El problema, con el código real
+
+`CompuertaDeConexion` vive en `MaterialApp.builder`, por encima del
+`Navigator` de la app. Ese `Navigator` sigue montado (está en `Offstage`)
+y es el único que atiende el botón Atrás de Android:
+
+1. Android manda `popRoute` y `WidgetsBinding.handlePopRoute()` recorre los
+   `WidgetsBindingObserver` **en el orden en que se registraron** y corta en
+   el primero que devuelve `true` (`flutter/lib/src/widgets/binding.dart`).
+2. El primero que hace algo es `_WidgetsAppState` (se registra en su
+   `initState`): su `didPopRoute()` llama a `maybePop()` sobre **el
+   `Navigator` de la app** (`app.dart`), no sobre el `Navigator` propio de
+   la compuerta.
+3. `maybePop()` le pregunta a la ruta de arriba de **ese** `Navigator`
+   (por ejemplo, la del SOS). Si nada en esa ruta lo impide, la cierra:
+   el vecino no ve nada y, al volver la conexión, el SOS ya no está.
+
+### Mecanismo elegido: un observador registrado antes que `WidgetsApp`
+
+Widget nuevo `AtrasSinConexion` en
+`lib/ui/conexion/widgets/atras_sin_conexion.dart`:
+
+```dart
+/// Va por ENCIMA de MaterialApp: como su initState corre antes que el de
+/// WidgetsApp, queda primero en la lista de observadores y atiende el
+/// botón Atrás antes que el Navigator de la app.
+class AtrasSinConexion extends StatefulWidget {
+  const AtrasSinConexion({
+    super.key,
+    required this.viewModel,
+    required this.child, // el MaterialApp
+  });
+
+  final ConexionViewModel viewModel;
+  final Widget child;
+
+  @override
+  State<AtrasSinConexion> createState() => _AtrasSinConexionState();
+}
+
+class _AtrasSinConexionState extends State<AtrasSinConexion>
+    with WidgetsBindingObserver {
+  // initState: WidgetsBinding.instance.addObserver(this)
+  // dispose:   WidgetsBinding.instance.removeObserver(this)
+
+  /// Sin conexión se queda con el Atrás y no hace nada: las rutas tapadas
+  /// quedan como estaban. Con conexión devuelve false y sigue el camino
+  /// normal (WidgetsApp -> maybePop del Navigator de la app).
+  @override
+  Future<bool> didPopRoute() async => widget.viewModel.sinConexion;
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+```
+
+Cambio en `BarrioSeguroApp.build` (`lib/main.dart`): el
+`ConViewModel<ConexionViewModel>` sube por encima de `MaterialApp`, para
+que el mismo ViewModel llegue al observador y a la compuerta.
+
+```dart
+return ConViewModel(
+  crear: () => ConexionViewModel(
+    conexion: dependencias.conexion,
+    bus: dependencias.bus,
+  )..empezar(),
+  builder: (_, vm) => AtrasSinConexion(
+    viewModel: vm,
+    child: MaterialApp(
+      // ... title, theme, home: igual que ahora ...
+      builder: (context, child) => CompuertaDeConexion(
+        viewModel: vm,
+        capacidades: dependencias.capacidades,
+        telefono: dependencias.telefono,
+        child: child ?? const SizedBox.shrink(),
+      ),
+    ),
+  ),
+);
+```
+
+`CompuertaDeConexion` y `SinConexionScreen` no cambian. `ConViewModel` no
+escucha al ViewModel, así que `MaterialApp` no se reconstruye en cada
+cambio de conexión (solo se reconstruye el `ListenableBuilder` de la
+compuerta, como ahora). El ViewModel se sigue creando una sola vez y se
+libera al desmontar la app. Armado en `lib/dependencias.dart`: sin cambios.
+
+Por qué el orden queda garantizado: el `initState` de un `State` padre
+corre antes de que se construyan sus hijos, y `addObserver` agrega al
+final de la lista. `AtrasSinConexion` es ancestro de `MaterialApp`, así que
+su observador queda antes que el de `_WidgetsAppState`.
+
+Consecuencias aceptadas:
+
+- **Sin conexión, Atrás no hace nada en ningún caso**, tampoco en la ruta
+  de inicio: no cierra la app (no se llega a `SystemNavigator.pop()`).
+  Cerrar la app destruiría el estado que R14 pide conservar. El vecino
+  puede salir con el botón Inicio del sistema.
+- **Diálogo del 911 abierto sin conexión:** Atrás no lo cierra (vive en el
+  `Navigator` propio de la compuerta, que el sistema nunca atendía). Se
+  cierra con su botón de cancelar o tocando afuera, como ahora. Antes de
+  R25, Atrás en ese momento cerraba la ruta tapada de abajo, no el diálogo.
+- **Gesto de atrás predictivo (Android 14+):** no está activado
+  (`android:enableOnBackInvokedCallback` no figura en
+  `android/app/src/main/AndroidManifest.xml`), así que el único camino es
+  `didPopRoute`. Si algún día se activa, hay que revisar R25.
+- **Accesibilidad:** no cambia nada de lo que ve o anuncia la pantalla; el
+  gesto de "atrás" de TalkBack llega por el mismo `popRoute` y queda
+  igual de cubierto.
+
+### Cómo se prueba
+
+En `test/widget_test.dart`, con la app completa (`appDePrueba`), porque lo
+que se prueba es el armado de `main.dart` (el orden de los observadores):
+
+- `sin conexión el botón Atrás no cierra el SOS tapado y al volver se ve el
+  SOS`: ingresar, abrir el SOS, cortar la conexión
+  (`conexion.conectado = false` + `esperarComprobacion`),
+  `final atendido = await tester.binding.handlePopRoute();` y
+  `await tester.pumpAndSettle();`. Esperar `atendido` en `true` y que siga
+  la pantalla sin conexión. Volver la conexión: se ve
+  `'¿Enviar alerta SOS?'` (el SOS no se cerró). Cubre R25.
+- `sin conexión el botón Atrás en el inicio no cierra la app`: con sesión
+  en la principal, sin conexión, `handlePopRoute()` devuelve `true` (no se
+  llega a `SystemNavigator.pop()`); al volver la conexión se ve la
+  principal. Cubre R25.
+- `con conexión el botón Atrás cierra el SOS como siempre`: control de que
+  el observador no se mete cuando hay conexión; tras `handlePopRoute()` se
+  vuelve a la principal. Protege el comportamiento previo.
+
+`handlePopRoute()` es `@visibleForTesting` en `WidgetsBinding`: simula el
+mensaje `popRoute` de Android sin canal de plataforma.
+
 ## Paquetes
 
 - **Nuevos: ninguno.** La detección usa `package:http`, que ya está.
@@ -425,6 +561,33 @@ compuerta y para abrir más rápido. Se mantiene.
 
 **Mandar las alertas pendientes que hubiera al migrar a la v3.** Serían SOS
 viejos que llegarían tarde y sin contexto; se descartan.
+
+**`PopScope(canPop: false)` en la compuerta o en `SinConexionScreen`
+(para R25).** No funciona con este armado: `PopScope` se registra en la
+`ModalRoute` que lo encierra. En `SinConexionScreen` esa ruta es la del
+`Navigator` propio de la compuerta, que el sistema nunca consulta; en la
+compuerta no hay ninguna `ModalRoute` arriba (está por encima del
+`Navigator` de la app). `WidgetsApp` llama a `maybePop()` del `Navigator`
+de la app y la ruta de arriba (el SOS) se cierra igual.
+
+**`BackButtonListener` en la compuerta (para R25).** Se cuelga del
+`BackButtonDispatcher` de un `Router` ancestro (`Router.of(context)`), y
+`MaterialApp` con `home` (sin `routerConfig`) no tiene `Router`: falla al
+montar. Pasar la app a `MaterialApp.router` es un cambio de navegación
+mucho más grande que esta feature.
+
+**`WidgetsBindingObserver` dentro de `CompuertaDeConexion` (para R25).**
+Es el mecanismo correcto en el lugar equivocado: la compuerta es
+descendiente de `MaterialApp`, su `initState` corre después del de
+`WidgetsApp` y su observador queda detrás; `handlePopRoute()` corta en
+`WidgetsApp`, que ya cerró la ruta. Por eso el observador sube por encima
+de `MaterialApp`.
+
+**Registrar un `PopEntry` (`ModalRoute.registerPopEntry`) en la ruta de
+arriba del `Navigator` de la app (para R25).** Funciona, pero obliga a
+seguir cuál es la ruta de arriba con un `NavigatorObserver` y a mover el
+`PopEntry` si se abre otra ruta sin conexión (por ejemplo, desde un aviso).
+Más piezas para el mismo resultado.
 
 ## Riesgos y notas
 
