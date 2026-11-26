@@ -11,12 +11,22 @@ import '../../core/widgets/aviso_sin_conexion.dart';
 import '../../core/widgets/estado_de_carga.dart';
 import '../../core/widgets/selector_dia.dart';
 import '../../core/widgets/tarjeta_tocable.dart';
+import '../../turno_incompleto/view_models/turno_incompleto_view_model.dart';
+import '../../turno_incompleto/widgets/tarjeta_turno_incompleto.dart';
 import '../view_models/turnos_view_model.dart';
 
 class TurnosScreen extends StatelessWidget {
-  const TurnosScreen({super.key, required this.viewModel});
+  const TurnosScreen({
+    super.key,
+    required this.viewModel,
+    this.turnoIncompleto,
+  });
 
   final TurnosViewModel viewModel;
+
+  /// El aviso de turno incompleto, compartido con el inicio. Opcional: sin
+  /// él, la pantalla no muestra avisos.
+  final TurnoIncompletoViewModel? turnoIncompleto;
 
   Future<void> _anotar(BuildContext context, Turno turno) async {
     final mensaje = await viewModel.anotarse(turno);
@@ -48,6 +58,7 @@ class TurnosScreen extends StatelessWidget {
             EstadoCarga.exito => _ContenidoTurnos(
               viewModel: viewModel,
               usuario: usuario!,
+              turnoIncompleto: turnoIncompleto,
               iconoPropio: _iconoPropio,
               onAnotar: (turno) => _anotar(context, turno),
               onSalir: (turno) => _salir(context, turno),
@@ -63,6 +74,7 @@ class _ContenidoTurnos extends StatelessWidget {
   const _ContenidoTurnos({
     required this.viewModel,
     required this.usuario,
+    required this.turnoIncompleto,
     required this.iconoPropio,
     required this.onAnotar,
     required this.onSalir,
@@ -70,6 +82,7 @@ class _ContenidoTurnos extends StatelessWidget {
 
   final TurnosViewModel viewModel;
   final Vecino usuario;
+  final TurnoIncompletoViewModel? turnoIncompleto;
   final IconData iconoPropio;
   final ValueChanged<Turno> onAnotar;
   final ValueChanged<Turno> onSalir;
@@ -77,11 +90,30 @@ class _ContenidoTurnos extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mios = viewModel.misTurnos;
+    final avisos = turnoIncompleto;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
       children: [
         if (viewModel.sinConexion)
           const AvisoSinConexion(margen: EdgeInsets.only(bottom: 12)),
+        // Fuera de la vista elegida: se ve igual en el calendario y en
+        // "Mis turnos". Sin onTap: acá ya se está en Turnos.
+        if (avisos != null)
+          ListenableBuilder(
+            listenable: avisos,
+            builder: (context, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final aviso in avisos.avisos) ...[
+                  TarjetaTurnoIncompleto(
+                    aviso: aviso,
+                    onCerrar: () => avisos.cerrar(aviso),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            ),
+          ),
         SegmentedButton<bool>(
           segments: const [
             ButtonSegment(value: false, label: Text('Todos')),

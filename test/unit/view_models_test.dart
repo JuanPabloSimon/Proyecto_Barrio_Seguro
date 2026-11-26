@@ -27,6 +27,7 @@ import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/registro/view_models/registro_view_model.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
+import 'package:barrio_seguro/ui/turno_incompleto/view_models/turno_incompleto_view_model.dart';
 import 'package:barrio_seguro/ui/turnos/view_models/turnos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -770,6 +771,31 @@ void main() {
 
       expect(avisos, 0);
       expect(bus.tieneOyentes, isFalse);
+    });
+
+    test('mostrarTurno con una fecha del mes pasa a "Todos" y elige ese '
+        'día', () async {
+      final vm = crear(TurnosFalsos());
+      await vm.cargar();
+      vm.mostrarSoloMios(true);
+
+      vm.mostrarTurno(DateTime(2026, 10, 9));
+
+      expect(vm.soloMios, isFalse);
+      expect(vm.dia, DateTime(2026, 10, 9));
+    });
+
+    test('mostrarTurno con una fecha de otro mes no cambia el día ni la '
+        'vista', () async {
+      final vm = crear(TurnosFalsos());
+      await vm.cargar();
+      vm.elegirDia(DateTime(2026, 10, 20));
+      vm.mostrarSoloMios(true);
+
+      vm.mostrarTurno(DateTime(2026, 11, 1));
+
+      expect(vm.soloMios, isTrue);
+      expect(vm.dia, DateTime(2026, 10, 20));
     });
   });
 
@@ -1552,6 +1578,540 @@ void main() {
       );
       vm.tituloAlElegir(CategoriaAlerta.robo, tituloActual: '');
       expect(vm.hayDatos(titulo: '', descripcion: '', direccion: ''), isTrue);
+    });
+  });
+
+  group('Aviso de turno incompleto', () {
+    late RelojManual hora;
+    late Preferencias preferencias;
+
+    setUp(() {
+      hora = RelojManual(DateTime(2026, 10, 9, 21, 30));
+      preferencias = preferenciasEnMemoria();
+    });
+
+    Turno turno(
+      Franja franja, {
+      List<Vecino> patrulleros = const [],
+      Vecino? guardia,
+      DateTime? fecha,
+    }) => Turno(
+      fecha: fecha ?? DateTime(2026, 10, 9),
+      franja: franja,
+      patrulleros: patrulleros,
+      guardiaVentana: guardia,
+    );
+
+    Turno claraSola([Franja franja = Franja.noche]) =>
+        turno(franja, patrulleros: [vecinaDePrueba]);
+
+    TurnoIncompletoViewModel crearAviso(
+      TurnosFalsos turnos, {
+      Vecino? usuario,
+      bool sinSesion = false,
+    }) {
+      final vm = TurnoIncompletoViewModel(
+        turnos: turnos,
+        sesion: SesionFalsa(sinSesion ? null : usuario ?? vecinaDePrueba),
+        bus: bus,
+        reloj: hora,
+        preferencias: preferencias,
+      );
+      addTearDown(vm.dispose);
+      return vm;
+    }
+
+    /// Deja terminar lo que quedó en curso (guardar los cierres, el
+    /// `cargar()` que dispara el bus).
+    Future<void> esperar() => Future<void>.delayed(Duration.zero);
+
+    // Textos.
+
+    test('patrullera sola en la Noche del 9, a las 21:30 hay un aviso con el '
+        'título y el texto exactos', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+
+      expect(vm.avisos, hasLength(1));
+      expect(vm.avisos.single.titulo, 'Tu guardia no se va a hacer');
+      expect(
+        vm.avisos.single.texto,
+        'Sos la única persona anotada en el turno del viernes 9 de octubre, '
+        '22:00 - 00:00. Con una sola persona, la guardia no se hace: no '
+        'salgas a patrullar.',
+      );
+      expect(vm.avisos.single.fecha, DateTime(2026, 10, 9));
+    });
+
+    test('patrullera sola en la Madrugada del 31/10, a las 00:30 del 1/11, el '
+        'texto dice "(la noche del 31 al 1)"', () async {
+      hora.hora = DateTime(2026, 11, 1, 0, 30);
+      final vm = crearAviso(
+        TurnosFalsos([
+          turno(
+            Franja.madrugada,
+            patrulleros: [vecinaDePrueba],
+            fecha: DateTime(2026, 10, 31),
+          ),
+        ]),
+      );
+      await vm.cargar();
+
+      expect(
+        vm.avisos.single.texto,
+        'Sos la única persona anotada en el turno del sábado 31 de octubre, '
+        '00:00 - 02:00 (la noche del 31 al 1). Con una sola persona, la '
+        'guardia no se hace: no salgas a patrullar.',
+      );
+    });
+
+    test('guardia de ventana sola en la Noche del 9: título y texto de la '
+        'guardia de ventana', () async {
+      final vm = crearAviso(
+        TurnosFalsos([turno(Franja.noche, guardia: vecinoMayor)]),
+        usuario: vecinoMayor,
+      );
+      await vm.cargar();
+
+      expect(vm.avisos.single.titulo, 'Tu guardia de ventana no se va a hacer');
+      expect(
+        vm.avisos.single.texto,
+        'Nadie se anotó para patrullar en el turno del viernes 9 de octubre, '
+        '22:00 - 00:00. Sin patrulla, la guardia no se hace: no hace falta '
+        'que vigiles desde tu ventana.',
+      );
+    });
+
+    test('guardia de ventana sola en la Madrugada del 9: texto con "(la '
+        'noche del 9 al 10)"', () async {
+      hora.hora = DateTime(2026, 10, 9, 23, 30);
+      final vm = crearAviso(
+        TurnosFalsos([turno(Franja.madrugada, guardia: vecinoMayor)]),
+        usuario: vecinoMayor,
+      );
+      await vm.cargar();
+
+      expect(
+        vm.avisos.single.texto,
+        'Nadie se anotó para patrullar en el turno del viernes 9 de octubre, '
+        '00:00 - 02:00 (la noche del 9 al 10). Sin patrulla, la guardia no se '
+        'hace: no hace falta que vigiles desde tu ventana.',
+      );
+    });
+
+    test('una vecina de 75 con guardia normal, sola como patrullera, ve el '
+        'texto de patrullero', () async {
+      final de75 = Vecino(
+        id: 'elsa',
+        nombre: 'Elsa Ríos',
+        fechaNacimiento: DateTime(1951, 3, 1),
+        guardiaNormal: true,
+      );
+      final vm = crearAviso(
+        TurnosFalsos([
+          turno(Franja.noche, patrulleros: [de75]),
+        ]),
+        usuario: de75,
+      );
+      await vm.cargar();
+
+      expect(vm.avisos.single.titulo, 'Tu guardia no se va a hacer');
+      expect(vm.avisos.single.texto, startsWith('Sos la única persona'));
+    });
+
+    test('la etiqueta es "<título>. <texto>"', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+
+      final aviso = vm.avisos.single;
+      expect(aviso.etiqueta, '${aviso.titulo}. ${aviso.texto}');
+    });
+
+    test('a las 21:29 no hay aviso', () async {
+      hora.hora = DateTime(2026, 10, 9, 21, 29);
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('con otro patrullero no hay aviso', () async {
+      final vm = crearAviso(
+        TurnosFalsos([
+          turno(
+            Franja.noche,
+            patrulleros: [vecinaDePrueba, miembroDeLaComision],
+          ),
+        ]),
+      );
+      await vm.cargar();
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('con un guardia de ventana no hay aviso', () async {
+      final vm = crearAviso(
+        TurnosFalsos([
+          turno(
+            Franja.noche,
+            patrulleros: [vecinaDePrueba],
+            guardia: vecinoMayor,
+          ),
+        ]),
+      );
+      await vm.cargar();
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('el turno incompleto de otro vecino no da aviso', () async {
+      final vm = crearAviso(
+        TurnosFalsos([
+          turno(Franja.noche, patrulleros: [miembroDeLaComision]),
+        ]),
+      );
+      await vm.cargar();
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('sin sesión no hay aviso', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]), sinSesion: true);
+      await vm.cargar();
+      await vm.revisar();
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('con dos turnos incompletos en ventana hay dos avisos ordenados por '
+        'inicio', () async {
+      hora.hora = DateTime(2026, 10, 9, 21, 45);
+      final vm = crearAviso(
+        TurnosFalsos([claraSola(Franja.noche), claraSola(Franja.temprano)]),
+      );
+      await vm.cargar();
+
+      expect(vm.avisos.map((a) => a.clave), [
+        'clara|2026-10-09|temprano',
+        'clara|2026-10-09|noche',
+      ]);
+    });
+
+    // Con el paso del tiempo.
+
+    test('revisar a las 21:30 hace aparecer el aviso y notifica', () async {
+      hora.hora = DateTime(2026, 10, 9, 21);
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      expect(vm.avisos, isEmpty);
+      var avisos = 0;
+      vm.addListener(() => avisos++);
+
+      hora.hora = DateTime(2026, 10, 9, 21, 30);
+      await vm.revisar();
+
+      expect(vm.avisos, hasLength(1));
+      expect(avisos, 1);
+    });
+
+    test('a las 00:00 del 10 el aviso se va', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      hora.hora = DateTime(2026, 10, 9, 23, 59);
+      await vm.revisar();
+      expect(vm.avisos, hasLength(1));
+
+      hora.hora = DateTime(2026, 10, 10);
+      await vm.revisar();
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('si se anota otra persona en TurnosFalsos, el siguiente revisar saca '
+        'el aviso', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      expect(vm.avisos, hasLength(1));
+
+      turnos.turnos
+        ..clear()
+        ..add(
+          turno(
+            Franja.noche,
+            patrulleros: [vecinaDePrueba, miembroDeLaComision],
+          ),
+        );
+      await vm.revisar();
+
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('si sale el otro patrullero dentro de la ventana, el siguiente '
+        'revisar muestra el aviso', () async {
+      final turnos = TurnosFalsos([
+        turno(Franja.noche, patrulleros: [vecinaDePrueba, miembroDeLaComision]),
+      ]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      expect(vm.avisos, isEmpty);
+
+      turnos.turnos
+        ..clear()
+        ..add(claraSola());
+      await vm.revisar();
+
+      expect(vm.avisos, hasLength(1));
+    });
+
+    test('si la vecina sale del turno y se publica TurnosActualizados, el '
+        'aviso se va', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      expect(vm.avisos, hasLength(1));
+
+      await turnos.salir(vecinaDePrueba, DateTime(2026, 10, 9), Franja.noche);
+      bus.publicar(const TurnosActualizados());
+      await esperar();
+
+      expect(vm.avisos, isEmpty);
+    });
+
+    test('dentro de la ventana de un turno propio, revisar pide con '
+        'refrescar: true', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      expect(turnos.pedidos.last.refrescar, isFalse);
+
+      await vm.revisar();
+
+      expect(turnos.pedidos.last.refrescar, isTrue);
+    });
+
+    test('sin turnos propios en ventana, revisar pide con refrescar: '
+        'false', () async {
+      hora.hora = DateTime(2026, 10, 9, 12);
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+
+      await vm.revisar();
+
+      expect(turnos.pedidos, isNotEmpty);
+      expect(turnos.pedidos.every((p) => !p.refrescar), isTrue);
+    });
+
+    test('el 1/11 a las 00:30 se piden octubre y noviembre', () async {
+      hora.hora = DateTime(2026, 11, 1, 0, 30);
+      final turnos = TurnosFalsos();
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+
+      expect(turnos.pedidos.map((p) => p.mes), [
+        DateTime(2026, 11),
+        DateTime(2026, 10),
+      ]);
+    });
+
+    test('si falla el pedido de un recálculo se sigue mostrando el aviso con '
+        'los últimos turnos', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+
+      turnos.falla = true;
+      hora.hora = DateTime(2026, 10, 9, 22, 30);
+      await vm.revisar();
+
+      expect(vm.avisos, hasLength(1));
+    });
+
+    test('un recálculo que no cambia nada no notifica', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      var avisos = 0;
+      vm.addListener(() => avisos++);
+
+      await vm.revisar();
+      hora.hora = DateTime(2026, 10, 9, 21, 31);
+      await vm.revisar();
+      await vm.cargar();
+
+      expect(avisos, 0);
+    });
+
+    // "Entendido".
+
+    test('cerrar saca ese aviso y notifica', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      var avisos = 0;
+      vm.addListener(() => avisos++);
+
+      await vm.cerrar(vm.avisos.single);
+
+      expect(vm.avisos, isEmpty);
+      expect(avisos, 1);
+    });
+
+    test('cerrar uno de dos avisos deja el otro', () async {
+      hora.hora = DateTime(2026, 10, 9, 21, 45);
+      final vm = crearAviso(
+        TurnosFalsos([claraSola(Franja.temprano), claraSola(Franja.noche)]),
+      );
+      await vm.cargar();
+
+      await vm.cerrar(vm.avisos.first);
+
+      expect(vm.avisos.map((a) => a.clave), ['clara|2026-10-09|noche']);
+    });
+
+    test('un ViewModel nuevo con las mismas preferencias no muestra el aviso '
+        'cerrado', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final primero = crearAviso(turnos);
+      await primero.cargar();
+      await primero.cerrar(primero.avisos.single);
+
+      final segundo = crearAviso(turnos);
+      await segundo.cargar();
+
+      expect(segundo.avisos, isEmpty);
+    });
+
+    test('el cierre queda guardado con la clave '
+        '"<id>|2026-10-09|noche"', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      await vm.cerrar(vm.avisos.single);
+
+      expect(await preferencias.avisosTurnoCerrados(), {
+        'clara|2026-10-09|noche',
+      });
+    });
+
+    test('si se anota otra persona, el cierre se borra de las preferencias, '
+        'y si después sale, el aviso vuelve', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      await vm.cerrar(vm.avisos.single);
+
+      turnos.turnos
+        ..clear()
+        ..add(
+          turno(
+            Franja.noche,
+            patrulleros: [vecinaDePrueba, miembroDeLaComision],
+          ),
+        );
+      await vm.revisar();
+      await esperar();
+      expect(await preferencias.avisosTurnoCerrados(), isEmpty);
+
+      turnos.turnos
+        ..clear()
+        ..add(claraSola());
+      await vm.revisar();
+      expect(vm.avisos, hasLength(1));
+    });
+
+    test('si la vecina sale del turno, el cierre se borra', () async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      await vm.cerrar(vm.avisos.single);
+
+      turnos.turnos.clear();
+      await vm.revisar();
+      await esperar();
+
+      expect(await preferencias.avisosTurnoCerrados(), isEmpty);
+    });
+
+    test('a las 00:00 del 10 el cierre se borra de las preferencias', () async {
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      await vm.cerrar(vm.avisos.single);
+
+      hora.hora = DateTime(2026, 10, 10);
+      await vm.revisar();
+      await esperar();
+
+      expect(await preferencias.avisosTurnoCerrados(), isEmpty);
+    });
+
+    test('un cierre de otro vecino no oculta el aviso de la vecina', () async {
+      await preferencias.guardarAvisosTurnoCerrados({'marta|2026-10-09|noche'});
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+
+      expect(vm.avisos, hasLength(1));
+    });
+
+    test('si falla la primera carga sin turnos, los cierres guardados '
+        'siguen', () async {
+      await preferencias.guardarAvisosTurnoCerrados({'clara|2026-10-09|noche'});
+      final turnos = TurnosFalsos([claraSola()])..falla = true;
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      await vm.revisar();
+      await esperar();
+
+      expect(vm.avisos, isEmpty);
+      expect(await preferencias.avisosTurnoCerrados(), {
+        'clara|2026-10-09|noche',
+      });
+    });
+
+    // Temporizador (tiempo falso de testWidgets, sin pantalla).
+
+    testWidgets('con empezarRevision, al mover el reloj a 21:30 y pasar 1 '
+        'minuto aparece el aviso', (tester) async {
+      hora.hora = DateTime(2026, 10, 9, 21);
+      final vm = crearAviso(TurnosFalsos([claraSola()]));
+      await vm.cargar();
+      vm.empezarRevision();
+      expect(vm.avisos, isEmpty);
+
+      hora.hora = DateTime(2026, 10, 9, 21, 30);
+      await tester.pump(const Duration(minutes: 1));
+
+      expect(vm.avisos, hasLength(1));
+      vm.detenerRevision();
+    });
+
+    testWidgets('después de detenerRevision, pasar minutos no pide '
+        'turnos', (tester) async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = crearAviso(turnos);
+      await vm.cargar();
+      vm.empezarRevision();
+      await tester.pump(const Duration(minutes: 1));
+      final antes = turnos.pedidos.length;
+      expect(antes, greaterThan(1));
+
+      vm.detenerRevision();
+      await tester.pump(const Duration(minutes: 5));
+
+      expect(turnos.pedidos, hasLength(antes));
+    });
+
+    testWidgets('dispose cancela el temporizador', (tester) async {
+      final turnos = TurnosFalsos([claraSola()]);
+      final vm = TurnoIncompletoViewModel(
+        turnos: turnos,
+        sesion: SesionFalsa(vecinaDePrueba),
+        bus: bus,
+        reloj: hora,
+        preferencias: preferencias,
+      );
+      await vm.cargar();
+      vm.empezarRevision();
+      final antes = turnos.pedidos.length;
+
+      vm.dispose();
+      await tester.pump(const Duration(minutes: 3));
+
+      // Si quedara un Timer pendiente, testWidgets fallaría al terminar.
+      expect(turnos.pedidos, hasLength(antes));
+      expect(bus.tieneOyentes, isFalse);
     });
   });
 }

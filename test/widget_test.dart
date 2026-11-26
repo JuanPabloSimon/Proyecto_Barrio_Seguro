@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
 import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
@@ -13,6 +14,7 @@ import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.
 import 'package:barrio_seguro/dependencias.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
+import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/domain/reglas_alertas.dart';
 import 'package:barrio_seguro/main.dart';
@@ -29,12 +31,14 @@ import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_tocable.dart';
 import 'package:barrio_seguro/ui/core/tema/app_theme.dart';
 import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
+import 'package:barrio_seguro/ui/inicio/widgets/inicio_screen.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/perfil/widgets/perfil_screen.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
 import 'package:barrio_seguro/ui/reportar_alerta/widgets/reportar_alerta_screen.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:barrio_seguro/ui/sos/widgets/sos_screen.dart';
+import 'package:barrio_seguro/ui/turno_incompleto/widgets/tarjeta_turno_incompleto.dart';
 import 'package:barrio_seguro/ui/turnos/view_models/turnos_view_model.dart';
 import 'package:barrio_seguro/ui/turnos/widgets/turnos_screen.dart';
 import 'package:flutter/material.dart';
@@ -2787,6 +2791,409 @@ void main() {
       expect(altos, {1.0: 104, 2.0: 104});
     });
   });
+
+  group('Aviso de turno incompleto', () {
+    const titulo = 'Tu guardia no se va a hacer';
+    final nueve = DateTime(2026, 10, 9);
+    final sofia = Vecino(
+      id: 'sofia',
+      nombre: 'Sofía Díaz',
+      fechaNacimiento: DateTime(1990),
+    );
+    final ernesto = Vecino(
+      id: 'ernesto',
+      nombre: 'Ernesto Funes',
+      fechaNacimiento: DateTime(1950),
+    );
+
+    /// El servidor simulado espera `Future.delayed` aun sin demora: hay que
+    /// dejar pasar el tiempo falso para que responda (un `pump()` sin
+    /// duración no alcanza).
+    Future<T> enElServidor<T>(WidgetTester tester, Future<T> pedido) async {
+      var listo = false;
+      pedido.whenComplete(() => listo = true).ignore();
+      for (var i = 0; i < 100 && !listo; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      return pedido;
+    }
+
+    Finder tarjetaEn(Type pantalla) => find.descendant(
+      of: find.byType(pantalla, skipOffstage: false),
+      matching: find.byType(TarjetaTurnoIncompleto),
+      skipOffstage: false,
+    );
+
+    List<String> clavesEn(WidgetTester tester, Type pantalla) => [
+      for (final t in tester.widgetList<TarjetaTurnoIncompleto>(
+        tarjetaEn(pantalla),
+      ))
+        t.aviso.clave,
+    ];
+
+    Future<void> irA(WidgetTester tester, String pestania) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text(pestania),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// Deja pasar el minuto del recálculo y que se dibuje.
+    Future<void> pasarUnMinuto(WidgetTester tester) async {
+      await tester.pump(const Duration(minutes: 1));
+      await tester.pumpAndSettle();
+    }
+
+    /// Clara queda sola en la Noche del 9/10 (sin Sofía y, salvo
+    /// [conErnesto], sin Ernesto), con el reloj en [hora], e ingresa.
+    Future<(BarrioSeguroApp, RelojManual)> abrir(
+      WidgetTester tester, {
+      DateTime? hora,
+      bool conErnesto = false,
+      NotificacionesFalsas? notificaciones,
+      PushFalso? push,
+    }) async {
+      pantallaAlta(tester);
+      final reloj = RelojManual(hora ?? DateTime(2026, 10, 9, 21, 30));
+      final app = appDePrueba(
+        reloj: reloj,
+        notificaciones: notificaciones,
+        push: push,
+      );
+      final turnos = app.dependencias.turnos;
+      await enElServidor(tester, turnos.salir(sofia, nueve, Franja.noche));
+      if (!conErnesto) {
+        await enElServidor(tester, turnos.salir(ernesto, nueve, Franja.noche));
+      }
+      await tester.pumpWidget(app);
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+      return (app, reloj);
+    }
+
+    testWidgets('a las 21:29 no hay aviso y a las 21:30, sin tocar nada, '
+        'aparece "$titulo" al pasar 1 minuto', (tester) async {
+      final (_, reloj) = await abrir(
+        tester,
+        hora: DateTime(2026, 10, 9, 21, 29),
+      );
+      expect(find.text(titulo), findsNothing);
+
+      reloj.hora = DateTime(2026, 10, 9, 21, 30);
+      await pasarUnMinuto(tester);
+
+      expect(find.text(titulo), findsOneWidget);
+      expect(find.text('Entendido'), findsOneWidget);
+      expect(find.text('Tocá para ver tus turnos'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TarjetaTurnoIncompleto),
+          matching: find.byIcon(Icons.chevron_right),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('con Ernesto de guardia de ventana no hay aviso a las '
+        '21:30', (tester) async {
+      await abrir(tester, conErnesto: true);
+      await pasarUnMinuto(tester);
+      expect(find.byType(TarjetaTurnoIncompleto), findsNothing);
+    });
+
+    testWidgets('si Sofía se vuelve a anotar, el aviso se va al minuto '
+        'siguiente', (tester) async {
+      final (app, _) = await abrir(tester);
+      expect(find.text(titulo), findsOneWidget);
+
+      await enElServidor(
+        tester,
+        app.dependencias.turnos.anotarse(sofia, nueve, Franja.noche),
+      );
+      await pasarUnMinuto(tester);
+
+      expect(find.text(titulo), findsNothing);
+    });
+
+    testWidgets('a las 00:00 del 10 el aviso ya no está', (tester) async {
+      final (_, reloj) = await abrir(tester);
+      expect(find.text(titulo), findsOneWidget);
+
+      reloj.hora = DateTime(2026, 10, 10);
+      await pasarUnMinuto(tester);
+
+      expect(find.text(titulo), findsNothing);
+    });
+
+    testWidgets('en segundo plano no aparece y al volver a primer plano '
+        'aparece sin esperar el minuto', (tester) async {
+      final (_, reloj) = await abrir(
+        tester,
+        hora: DateTime(2026, 10, 9, 21, 29),
+      );
+      expect(find.text(titulo), findsNothing);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      reloj.hora = DateTime(2026, 10, 9, 21, 30);
+      await tester.pump(const Duration(minutes: 3));
+      expect(find.text(titulo), findsNothing);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      // Menos de un minuto: el aviso no espera al temporizador.
+      await tester.pumpAndSettle();
+
+      expect(find.text(titulo), findsOneWidget);
+    });
+
+    testWidgets('el aviso está arriba del banner de alertas activas y de "Tu '
+        'próximo turno"', (tester) async {
+      await abrir(tester);
+
+      final aviso = tester.getTopLeft(find.text(titulo)).dy;
+      final banner = tester.getTopLeft(find.textContaining('en tu zona')).dy;
+      final proximo = tester
+          .getTopLeft(find.text('Tu próximo turno de patrullaje'))
+          .dy;
+      expect(aviso, lessThan(banner));
+      expect(aviso, lessThan(proximo));
+    });
+
+    testWidgets('en la pestaña Turnos el aviso está arriba de "Todos / Mis '
+        'turnos", en el calendario y en "Mis turnos"', (tester) async {
+      await abrir(tester);
+      await irA(tester, 'Turnos');
+
+      double arriba(Finder f) => tester.getTopLeft(f).dy;
+      expect(find.text(titulo), findsOneWidget);
+      expect(arriba(find.text(titulo)), lessThan(arriba(find.text('Todos'))));
+
+      await tester.tap(find.text('Mis turnos').hitTestable());
+      await tester.pumpAndSettle();
+
+      expect(find.text(titulo), findsOneWidget);
+      expect(arriba(find.text(titulo)), lessThan(arriba(find.text('Todos'))));
+    });
+
+    testWidgets('el inicio y Turnos muestran los mismos avisos', (
+      tester,
+    ) async {
+      await abrir(tester);
+      // Cada lista se lee con su pestaña a la vista: la que está oculta en
+      // el IndexedStack no construye sus elementos.
+      final enInicio = clavesEn(tester, InicioScreen);
+      await irA(tester, 'Turnos');
+
+      expect(enInicio, ['clara|2026-10-09|noche']);
+      expect(clavesEn(tester, TurnosScreen), enInicio);
+    });
+
+    testWidgets('tocar el aviso del inicio abre Turnos en "Todos" con el '
+        'viernes 9 de octubre elegido', (tester) async {
+      await abrir(tester);
+      // En Turnos: otro día y "Mis turnos".
+      await irA(tester, 'Turnos');
+      await tester.tap(find.byTooltip('Día siguiente').hitTestable());
+      await tester.pumpAndSettle();
+      expect(find.text('Sábado 10 de octubre'), findsOneWidget);
+      await tester.tap(find.text('Mis turnos').hitTestable());
+      await tester.pumpAndSettle();
+      await irA(tester, 'Inicio');
+
+      await tester.tap(find.text(titulo));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Turnos de patrullaje'), findsOneWidget);
+      final segmentos = tester.widget<SegmentedButton<bool>>(
+        find.byType(SegmentedButton<bool>),
+      );
+      expect(segmentos.selected, {false});
+      expect(find.text('Viernes 9 de octubre'), findsOneWidget);
+    });
+
+    testWidgets('tocar el aviso en Turnos no cambia la vista ni el día', (
+      tester,
+    ) async {
+      await abrir(tester);
+      await irA(tester, 'Turnos');
+      await tester.tap(find.text('Mis turnos').hitTestable());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(titulo));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Turnos de patrullaje'), findsOneWidget);
+      final segmentos = tester.widget<SegmentedButton<bool>>(
+        find.byType(SegmentedButton<bool>),
+      );
+      expect(segmentos.selected, {true});
+    });
+
+    testWidgets('"Entendido" en el inicio saca el aviso del inicio y de '
+        'Turnos', (tester) async {
+      await abrir(tester);
+
+      await tester.tap(find.text('Entendido'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(titulo), findsNothing);
+      expect(tarjetaEn(InicioScreen), findsNothing);
+      await irA(tester, 'Turnos');
+      expect(find.text(titulo), findsNothing);
+    });
+
+    testWidgets('"Entendido" en Turnos saca el aviso de las dos pestañas', (
+      tester,
+    ) async {
+      await abrir(tester);
+      await irA(tester, 'Turnos');
+
+      await tester.tap(find.text('Entendido'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(titulo), findsNothing);
+      expect(tarjetaEn(TurnosScreen), findsNothing);
+      await irA(tester, 'Inicio');
+      expect(find.text(titulo), findsNothing);
+    });
+
+    testWidgets('una guardia de ventana sola ve "Tu guardia de ventana no se '
+        'va a hacer"', (tester) async {
+      // Clara tiene 45 años: el servidor la anota como patrullera. La
+      // guardia de ventana sola es una vecina de 76 que se registra y se
+      // anota en la Temprano del 9/10, que no tiene a nadie.
+      pantallaAlta(tester);
+      final reloj = RelojManual(DateTime(2026, 10, 9, 19, 30));
+      final app = appDePrueba(reloj: reloj);
+      final d = app.dependencias;
+      final mayor = await enElServidor(
+        tester,
+        d.sesion.registrar(
+          nombre: 'Delia Paz',
+          fechaNacimiento: DateTime(1950, 2, 1),
+          telefono: '1122334455',
+          calle: 'Plantamura',
+          cuadra: '100',
+          codigoComision: 'SOBERANIA',
+          clave: 'clave1234',
+        ),
+      );
+      final turno = await enElServidor(
+        tester,
+        d.turnos.anotarse(mayor, nueve, Franja.temprano),
+      );
+      expect(turno.guardiaVentana?.id, mayor.id);
+
+      await tester.pumpWidget(app);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Tu guardia de ventana no se va a hacer'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Nadie se anotó para patrullar en el turno del viernes 9 de '
+          'octubre, 20:00 - 22:00. Sin patrulla, la guardia no se hace: no '
+          'hace falta que vigiles desde tu ventana.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('si fallan los turnos del aviso, el inicio muestra sus alertas '
+        'y Turnos su calendario', (tester) async {
+      pantallaAlta(tester);
+      // El 1/11 a las 00:30 el aviso pide noviembre y octubre; noviembre
+      // falla. El inicio y Turnos piden solo octubre.
+      final reloj = RelojManual(DateTime(2026, 11, 1, 0, 30));
+      final base = appDePrueba(reloj: reloj).dependencias;
+      final turnos = _TurnosSoloDeOctubre(base.turnos);
+      final app = BarrioSeguroApp(
+        dependencias: Dependencias(
+          conexion: base.conexion,
+          alertas: base.alertas,
+          turnos: turnos,
+          sesion: base.sesion,
+          bus: base.bus,
+          reloj: base.reloj,
+          mesDeTurnos: base.mesDeTurnos,
+          capacidades: base.capacidades,
+          politicas: base.politicas,
+          telefono: base.telefono,
+          preferencias: base.preferencias,
+          ubicacion: base.ubicacion,
+          notificaciones: base.notificaciones,
+          avisos: base.avisos,
+          push: base.push,
+          descargaCsv: base.descargaCsv,
+        ),
+      );
+      await tester.pumpWidget(app);
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+      await pasarUnMinuto(tester);
+
+      expect(turnos.fallidos, isNotEmpty);
+      expect(find.byType(TarjetaTurnoIncompleto), findsNothing);
+      expect(find.text('Alertas cerca tuyo'), findsOneWidget);
+      expect(find.text('Tu próximo turno de patrullaje'), findsOneWidget);
+
+      await irA(tester, 'Turnos');
+      expect(find.text('Todos'), findsOneWidget);
+      expect(find.text('Viernes 9 de octubre'), findsOneWidget);
+    });
+
+    testWidgets('con el aviso a la vista no se mostró ninguna notificación ni '
+        'hubo suscripciones push', (tester) async {
+      final notificaciones = NotificacionesFalsas();
+      final push = PushFalso();
+      await abrir(tester, notificaciones: notificaciones, push: push);
+      await pasarUnMinuto(tester);
+      expect(find.text(titulo), findsOneWidget);
+
+      expect(notificaciones.avisadas, isEmpty);
+      expect(notificaciones.tardias, isEmpty);
+      expect(notificaciones.reaperturas, isEmpty);
+      expect(notificaciones.reaperturasTardias, isEmpty);
+      expect(notificaciones.reaperturasTardiasSinHora, isEmpty);
+      expect(push.suscripciones, 0);
+    });
+  });
+}
+
+/// Turnos que fallan para cualquier mes que no sea octubre de 2026: el mes
+/// del calendario anda y el aviso, que también pide noviembre, no.
+class _TurnosSoloDeOctubre implements TurnosRepository {
+  _TurnosSoloDeOctubre(this._real);
+
+  final TurnosRepository _real;
+  final List<DateTime> fallidos = [];
+
+  @override
+  bool get sinConexion => _real.sinConexion;
+
+  @override
+  Future<List<Turno>> obtenerTurnos(DateTime mes, {bool refrescar = false}) {
+    if (mes != DateTime(2026, 10)) {
+      fallidos.add(mes);
+      return Future.error(Exception('sin conexión'));
+    }
+    return _real.obtenerTurnos(mes, refrescar: refrescar);
+  }
+
+  @override
+  Future<Turno> anotarse(Vecino vecino, DateTime fecha, Franja franja) =>
+      _real.anotarse(vecino, fecha, franja);
+
+  @override
+  Future<Turno> salir(Vecino vecino, DateTime fecha, Franja franja) =>
+      _real.salir(vecino, fecha, franja);
 }
 
 /// [AlertasFalsas] que no responde a `crearAlerta` hasta que la prueba

@@ -8,6 +8,7 @@ import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/domain/reglas_alertas.dart';
 import 'package:barrio_seguro/domain/reglas_turnos.dart';
+import 'package:barrio_seguro/domain/turno_incompleto.dart';
 import 'package:barrio_seguro/ui/core/formato.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -858,6 +859,298 @@ void main() {
       expect(
         cuerpoAvisoReapertura(alertaDePrueba(direccion: '  ')),
         'Tocá para ver dónde.',
+      );
+    });
+  });
+
+  group('Horarios de las franjas', () {
+    final nueve = DateTime(2026, 10, 9);
+
+    test('Temprano del 9 va de 20:00 a 22:00 del 9', () {
+      expect(Franja.temprano.inicioEn(nueve), DateTime(2026, 10, 9, 20));
+      expect(Franja.temprano.finEn(nueve), DateTime(2026, 10, 9, 22));
+    });
+
+    test('Noche del 9 va de 22:00 del 9 a 00:00 del 10', () {
+      expect(Franja.noche.inicioEn(nueve), DateTime(2026, 10, 9, 22));
+      expect(Franja.noche.finEn(nueve), DateTime(2026, 10, 10));
+    });
+
+    test('Madrugada del 9 va de 00:00 a 02:00 del 10 (la noche del 9 al '
+        '10)', () {
+      expect(Franja.madrugada.inicioEn(nueve), DateTime(2026, 10, 10));
+      expect(Franja.madrugada.finEn(nueve), DateTime(2026, 10, 10, 2));
+    });
+
+    test('Madrugada del 31 de octubre empieza el 1 de noviembre', () {
+      final turno = Turno(
+        fecha: DateTime(2026, 10, 31),
+        franja: Franja.madrugada,
+      );
+      expect(turno.inicio, DateTime(2026, 11, 1));
+      expect(turno.fin, DateTime(2026, 11, 1, 2));
+    });
+
+    test('Madrugada del 31 de diciembre empieza el 1 de enero del año '
+        'siguiente', () {
+      final turno = Turno(
+        fecha: DateTime(2026, 12, 31),
+        franja: Franja.madrugada,
+      );
+      expect(turno.inicio, DateTime(2027, 1, 1));
+      expect(turno.fin, DateTime(2027, 1, 1, 2));
+    });
+
+    test('los textos de horario no cambian', () {
+      expect(Franja.temprano.horario, '20:00 - 22:00');
+      expect(Franja.noche.horario, '22:00 - 00:00');
+      expect(Franja.madrugada.horario, '00:00 - 02:00');
+    });
+
+    test('un turno leído del JSON calcula inicio y fin de su franja', () {
+      final turno = Turno.fromJson({
+        'fecha': '2026-10-09',
+        'franja': 'noche',
+        'patrulleros': [vecinaDePrueba.toJson()],
+        'guardia_ventana': null,
+      });
+      expect(turno.inicio, DateTime(2026, 10, 9, 22));
+      expect(turno.fin, DateTime(2026, 10, 10));
+    });
+  });
+
+  group('Personas anotadas y turno incompleto', () {
+    Turno noche({List<Vecino> patrulleros = const [], Vecino? guardia}) =>
+        Turno(
+          fecha: DateTime(2026, 10, 9),
+          franja: Franja.noche,
+          patrulleros: patrulleros,
+          guardiaVentana: guardia,
+        );
+
+    test('sin nadie: 0 personas, no está incompleto ni se realiza', () {
+      final turno = noche();
+      expect(turno.personasAnotadas, 0);
+      expect(ReglasTurnoIncompleto.estaIncompleto(turno), isFalse);
+      expect(ReglasTurnoIncompleto.seRealiza(turno), isFalse);
+    });
+
+    test('un patrullero solo está incompleto y no se realiza', () {
+      final turno = noche(patrulleros: [vecinaDePrueba]);
+      expect(turno.personasAnotadas, 1);
+      expect(ReglasTurnoIncompleto.estaIncompleto(turno), isTrue);
+      expect(ReglasTurnoIncompleto.seRealiza(turno), isFalse);
+    });
+
+    test('un guardia de ventana solo está incompleto y no se realiza', () {
+      final turno = noche(guardia: vecinoMayor);
+      expect(turno.personasAnotadas, 1);
+      expect(ReglasTurnoIncompleto.estaIncompleto(turno), isTrue);
+      expect(ReglasTurnoIncompleto.seRealiza(turno), isFalse);
+    });
+
+    test('un patrullero y un guardia de ventana se realiza', () {
+      final turno = noche(patrulleros: [vecinaDePrueba], guardia: vecinoMayor);
+      expect(turno.personasAnotadas, 2);
+      expect(ReglasTurnoIncompleto.estaIncompleto(turno), isFalse);
+      expect(ReglasTurnoIncompleto.seRealiza(turno), isTrue);
+    });
+
+    test('dos patrulleros se realiza', () {
+      final turno = noche(patrulleros: [vecinaDePrueba, miembroDeLaComision]);
+      expect(turno.personasAnotadas, 2);
+      expect(ReglasTurnoIncompleto.estaIncompleto(turno), isFalse);
+      expect(ReglasTurnoIncompleto.seRealiza(turno), isTrue);
+    });
+
+    test('dos patrulleros y un guardia de ventana: 3 personas, se realiza', () {
+      final turno = noche(
+        patrulleros: [vecinaDePrueba, miembroDeLaComision],
+        guardia: vecinoMayor,
+      );
+      expect(turno.personasAnotadas, 3);
+      expect(ReglasTurnoIncompleto.estaIncompleto(turno), isFalse);
+      expect(ReglasTurnoIncompleto.seRealiza(turno), isTrue);
+    });
+  });
+
+  group('Ventana de aviso de turno incompleto', () {
+    Turno turno(Franja franja, {List<Vecino>? patrulleros, Vecino? guardia}) =>
+        Turno(
+          fecha: DateTime(2026, 10, 9),
+          franja: franja,
+          patrulleros: patrulleros ?? [vecinaDePrueba],
+          guardiaVentana: guardia,
+        );
+
+    final noche = turno(Franja.noche);
+    bool enVentana(Turno t, DateTime ahora) =>
+        ReglasTurnoIncompleto.estaEnVentanaDeAviso(t, ahora);
+
+    test('a las 21:29 no está en ventana', () {
+      expect(enVentana(noche, DateTime(2026, 10, 9, 21, 29)), isFalse);
+    });
+
+    test('a las 21:30 justas está en ventana', () {
+      expect(enVentana(noche, DateTime(2026, 10, 9, 21, 30)), isTrue);
+    });
+
+    test('a las 23:59 está en ventana', () {
+      expect(enVentana(noche, DateTime(2026, 10, 9, 23, 59)), isTrue);
+    });
+
+    test('a las 00:00 del 10 ya no está en ventana', () {
+      expect(enVentana(noche, DateTime(2026, 10, 10)), isFalse);
+    });
+
+    test('Madrugada del 9: 23:29 del 9 no, 23:30 del 9 sí, 01:59 del 10 sí, '
+        '02:00 del 10 no', () {
+      final madrugada = turno(Franja.madrugada);
+      expect(enVentana(madrugada, DateTime(2026, 10, 9, 23, 29)), isFalse);
+      expect(enVentana(madrugada, DateTime(2026, 10, 9, 23, 30)), isTrue);
+      expect(enVentana(madrugada, DateTime(2026, 10, 10, 1, 59)), isTrue);
+      expect(enVentana(madrugada, DateTime(2026, 10, 10, 2)), isFalse);
+    });
+
+    List<Turno> paraAvisar(List<Turno> turnos, DateTime ahora) =>
+        ReglasTurnoIncompleto.paraAvisar(
+          turnos: turnos,
+          vecino: vecinaDePrueba,
+          ahora: ahora,
+        );
+
+    test('paraAvisar devuelve el turno incompleto del vecino en ventana', () {
+      expect(paraAvisar([noche], DateTime(2026, 10, 9, 21, 30)), [noche]);
+    });
+
+    test('paraAvisar no devuelve el turno incompleto de otro vecino', () {
+      final deOtro = turno(Franja.noche, patrulleros: [miembroDeLaComision]);
+      expect(paraAvisar([deOtro], DateTime(2026, 10, 9, 21, 30)), isEmpty);
+    });
+
+    test('paraAvisar no devuelve un turno del vecino con un guardia de '
+        'ventana', () {
+      final completo = turno(Franja.noche, guardia: vecinoMayor);
+      expect(paraAvisar([completo], DateTime(2026, 10, 9, 21, 30)), isEmpty);
+    });
+
+    test('paraAvisar no devuelve un turno incompleto fuera de ventana', () {
+      expect(paraAvisar([noche], DateTime(2026, 10, 9, 21, 29)), isEmpty);
+      expect(paraAvisar([noche], DateTime(2026, 10, 10)), isEmpty);
+    });
+
+    test('paraAvisar ordena por inicio y no repite (Temprano y Noche del '
+        'mismo día a las 21:45)', () {
+      final resultado = paraAvisar([
+        noche,
+        turno(Franja.temprano),
+        turno(Franja.noche),
+      ], DateTime(2026, 10, 9, 21, 45));
+      expect(resultado.map((t) => t.franja), [Franja.temprano, Franja.noche]);
+    });
+
+    test('tieneTurnoEnVentana es true con un turno completo del vecino en '
+        'ventana y false fuera de ventana o sin el vecino', () {
+      bool tiene(Turno t, DateTime ahora) =>
+          ReglasTurnoIncompleto.tieneTurnoEnVentana(
+            turnos: [t],
+            vecino: vecinaDePrueba,
+            ahora: ahora,
+          );
+      final completo = turno(Franja.noche, guardia: vecinoMayor);
+      expect(tiene(completo, DateTime(2026, 10, 9, 21, 30)), isTrue);
+      expect(tiene(completo, DateTime(2026, 10, 9, 21, 29)), isFalse);
+      final sinElVecino = turno(
+        Franja.noche,
+        patrulleros: [miembroDeLaComision],
+      );
+      expect(tiene(sinElVecino, DateTime(2026, 10, 9, 21, 30)), isFalse);
+    });
+
+    test('mesesParaAvisar el 9/10 a las 21:30 da solo octubre', () {
+      expect(
+        ReglasTurnoIncompleto.mesesParaAvisar(DateTime(2026, 10, 9, 21, 30)),
+        [DateTime(2026, 10)],
+      );
+    });
+
+    test('mesesParaAvisar el 1/11 a las 00:30 da noviembre y octubre', () {
+      expect(
+        ReglasTurnoIncompleto.mesesParaAvisar(DateTime(2026, 11, 1, 0, 30)),
+        [DateTime(2026, 11), DateTime(2026, 10)],
+      );
+    });
+
+    test('mesesParaAvisar el 1/1/2027 a la 01:00 da enero de 2027 y '
+        'diciembre de 2026', () {
+      expect(ReglasTurnoIncompleto.mesesParaAvisar(DateTime(2027, 1, 1, 1)), [
+        DateTime(2027, 1),
+        DateTime(2026, 12),
+      ]);
+    });
+  });
+
+  group('Lugar en el turno y clave de cierre', () {
+    test('esGuardiaVentanaEn es true para la guardia de ventana del turno y '
+        'false para un patrullero', () {
+      final turno = Turno(
+        fecha: DateTime(2026, 10, 9),
+        franja: Franja.noche,
+        patrulleros: [vecinaDePrueba],
+        guardiaVentana: vecinoMayor,
+      );
+      expect(
+        ReglasTurnoIncompleto.esGuardiaVentanaEn(turno, vecinoMayor),
+        isTrue,
+      );
+      expect(
+        ReglasTurnoIncompleto.esGuardiaVentanaEn(turno, vecinaDePrueba),
+        isFalse,
+      );
+    });
+
+    test('un mayor de 70 con guardia normal anotado como patrullero no es '
+        'guardia de ventana en ese turno', () {
+      final mayorConGuardiaNormal = Vecino.fromJson({
+        ...vecinoMayor.toJson(),
+        'guardia_normal': true,
+      });
+      final turno = Turno(
+        fecha: DateTime(2026, 10, 9),
+        franja: Franja.noche,
+        patrulleros: [mayorConGuardiaNormal],
+      );
+      expect(
+        ReglasTurnoIncompleto.esGuardiaVentanaEn(turno, mayorConGuardiaNormal),
+        isFalse,
+      );
+    });
+
+    test('claveDeCierre da "<id>|2026-10-09|noche"', () {
+      final noche = Turno(fecha: DateTime(2026, 10, 9), franja: Franja.noche);
+      expect(
+        ReglasTurnoIncompleto.claveDeCierre(vecinaDePrueba, noche),
+        'clara|2026-10-09|noche',
+      );
+      final enero = Turno(
+        fecha: DateTime(2026, 1, 5),
+        franja: Franja.madrugada,
+      );
+      expect(
+        ReglasTurnoIncompleto.claveDeCierre(vecinaDePrueba, enero),
+        'clara|2026-01-05|madrugada',
+      );
+    });
+
+    test('dos vecinos en el mismo turno tienen claves distintas', () {
+      final turno = Turno(
+        fecha: DateTime(2026, 10, 9),
+        franja: Franja.noche,
+        patrulleros: [vecinaDePrueba, miembroDeLaComision],
+      );
+      expect(
+        ReglasTurnoIncompleto.claveDeCierre(vecinaDePrueba, turno),
+        isNot(ReglasTurnoIncompleto.claveDeCierre(miembroDeLaComision, turno)),
       );
     });
   });

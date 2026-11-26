@@ -141,6 +141,43 @@ void main() {
     );
   });
 
+  group('Avisos de turno cerrados', () {
+    test('sin datos da un conjunto vacío', () async {
+      final preferencias = preferenciasEnMemoria();
+      expect(await preferencias.avisosTurnoCerrados(), isEmpty);
+    });
+
+    test('guardar y leer devuelve las mismas claves', () async {
+      final preferencias = preferenciasEnMemoria();
+      await preferencias.guardarAvisosTurnoCerrados({
+        'clara|2026-10-09|noche',
+        'clara|2026-10-09|madrugada',
+      });
+      expect(await preferencias.avisosTurnoCerrados(), {
+        'clara|2026-10-09|noche',
+        'clara|2026-10-09|madrugada',
+      });
+    });
+
+    test('un dato que no se puede leer da un conjunto vacío', () async {
+      final preferencias = preferenciasEnMemoria({
+        Preferencias.claveAvisosTurnoCerrados: '{roto',
+      });
+      expect(await preferencias.avisosTurnoCerrados(), isEmpty);
+    });
+
+    test('olvidarTodo borra los cierres', () async {
+      final preferencias = preferenciasEnMemoria();
+      await preferencias.guardarAvisosTurnoCerrados({'clara|2026-10-09|noche'});
+      await preferencias.olvidarTodo();
+      expect(await preferencias.avisosTurnoCerrados(), isEmpty);
+      expect(
+        Preferencias.todasLasClaves,
+        contains(Preferencias.claveAvisosTurnoCerrados),
+      );
+    });
+  });
+
   group('Sesión', () {
     late Preferencias preferencias;
     late AlmacenSeguro almacen;

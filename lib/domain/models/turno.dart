@@ -4,13 +4,47 @@ import 'vecino.dart';
 
 /// Franjas horarias en las que se patrulla.
 enum Franja {
-  temprano('20:00 - 22:00'),
-  noche('22:00 - 00:00'),
-  madrugada('00:00 - 02:00');
+  temprano('20:00 - 22:00', horaInicio: 20),
+  noche('22:00 - 00:00', horaInicio: 22),
+  madrugada('00:00 - 02:00', horaInicio: 0, empiezaAlDiaSiguiente: true);
 
-  const Franja(this.horario);
+  const Franja(
+    this.horario, {
+    required this.horaInicio,
+    this.empiezaAlDiaSiguiente = false,
+  });
 
   final String horario;
+
+  /// Hora (0 a 23) en que empieza la franja.
+  final int horaInicio;
+
+  /// True si la franja de la fecha D empieza el día D+1 (la Madrugada: la
+  /// noche del 9 al 10 es la madrugada del 9).
+  final bool empiezaAlDiaSiguiente;
+
+  /// Todas las franjas duran 2 horas.
+  static const duracionEnHoras = 2;
+
+  /// Inicio de la franja del turno de [fecha], hora local.
+  ///
+  /// Usa el constructor de `DateTime` con el día y la hora "desbordados"
+  /// (Dart los pasa al día, mes o año siguiente) en vez de sumar
+  /// `Duration` de 24 horas, que fallarían en un cambio de horario.
+  DateTime inicioEn(DateTime fecha) => DateTime(
+    fecha.year,
+    fecha.month,
+    fecha.day + (empiezaAlDiaSiguiente ? 1 : 0),
+    horaInicio,
+  );
+
+  /// Fin de la franja del turno de [fecha] (excluido), hora local.
+  DateTime finEn(DateTime fecha) => DateTime(
+    fecha.year,
+    fecha.month,
+    fecha.day + (empiezaAlDiaSiguiente ? 1 : 0),
+    horaInicio + duracionEnHoras,
+  );
 
   /// Busca la franja por su nombre en la API; null si no existe.
   static Franja? desdeNombre(String nombre) {
@@ -64,6 +98,16 @@ class Turno {
   final Vecino? guardiaVentana;
 
   bool get vacio => patrulleros.isEmpty && guardiaVentana == null;
+
+  /// Patrulleros más el guardia de ventana, si hay: cuentan igual.
+  int get personasAnotadas =>
+      patrulleros.length + (guardiaVentana != null ? 1 : 0);
+
+  /// Inicio de la franja de este turno, hora local.
+  DateTime get inicio => franja.inicioEn(fecha);
+
+  /// Fin de la franja de este turno (excluido), hora local.
+  DateTime get fin => franja.finEn(fecha);
 
   bool incluye(Vecino vecino) =>
       patrulleros.any((p) => p.id == vecino.id) ||

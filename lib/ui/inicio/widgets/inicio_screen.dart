@@ -13,6 +13,8 @@ import '../../core/widgets/tarjeta_alerta.dart';
 import '../../core/widgets/tarjeta_tocable.dart';
 import '../../principal/pestanias.dart';
 import '../../reportar_alerta/widgets/reportar_alerta_screen.dart';
+import '../../turno_incompleto/view_models/turno_incompleto_view_model.dart';
+import '../../turno_incompleto/widgets/tarjeta_turno_incompleto.dart';
 import '../view_models/inicio_view_model.dart';
 
 class InicioScreen extends StatelessWidget {
@@ -21,6 +23,8 @@ class InicioScreen extends StatelessWidget {
     required this.viewModel,
     required this.dependencias,
     required this.onIrA,
+    required this.turnoIncompleto,
+    required this.onVerTurno,
   });
 
   final InicioViewModel viewModel;
@@ -28,6 +32,12 @@ class InicioScreen extends StatelessWidget {
 
   /// Permite cambiar de pestaña desde el inicio (por ejemplo, abrir el mapa).
   final ValueChanged<Pestania> onIrA;
+
+  /// El aviso de turno incompleto, compartido con la pestaña Turnos.
+  final TurnoIncompletoViewModel turnoIncompleto;
+
+  /// Abre Turnos en el día del turno del aviso.
+  final ValueChanged<DateTime> onVerTurno;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +65,8 @@ class InicioScreen extends StatelessWidget {
             viewModel: viewModel,
             dependencias: dependencias,
             onIrA: onIrA,
+            turnoIncompleto: turnoIncompleto,
+            onVerTurno: onVerTurno,
           ),
         },
       ),
@@ -67,11 +79,15 @@ class _ContenidoInicio extends StatelessWidget {
     required this.viewModel,
     required this.dependencias,
     required this.onIrA,
+    required this.turnoIncompleto,
+    required this.onVerTurno,
   });
 
   final InicioViewModel viewModel;
   final Dependencias dependencias;
   final ValueChanged<Pestania> onIrA;
+  final TurnoIncompletoViewModel turnoIncompleto;
+  final ValueChanged<DateTime> onVerTurno;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +102,24 @@ class _ContenidoInicio extends StatelessWidget {
           const AvisoSinConexion(),
           const SizedBox(height: 16),
         ],
+        // Primero de todo (después de "Sin conexión"): el lector lo lee
+        // antes que el resto.
+        ListenableBuilder(
+          listenable: turnoIncompleto,
+          builder: (context, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final aviso in turnoIncompleto.avisos) ...[
+                TarjetaTurnoIncompleto(
+                  aviso: aviso,
+                  onTap: () => onVerTurno(aviso.fecha),
+                  onCerrar: () => turnoIncompleto.cerrar(aviso),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ],
+          ),
+        ),
         if (activas > 0) ...[
           _BannerAlertas(cantidad: activas, onTap: () => onIrA(Pestania.mapa)),
           const SizedBox(height: 16),

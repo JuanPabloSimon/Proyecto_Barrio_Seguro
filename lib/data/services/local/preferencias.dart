@@ -22,6 +22,7 @@ class Preferencias {
   static const claveVecino = 'vecino';
   static const claveAvisosRecibidos = 'avisos_recibidos';
   static const claveDesfaseReloj = 'desfase_reloj';
+  static const claveAvisosTurnoCerrados = 'avisos_turno_cerrados';
 
   static const todasLasClaves = {
     claveCompartirUbicacion,
@@ -29,6 +30,7 @@ class Preferencias {
     claveVecino,
     claveAvisosRecibidos,
     claveDesfaseReloj,
+    claveAvisosTurnoCerrados,
   };
 
   /// Arranca apagado: la ubicación exacta se comparte recién cuando el
@@ -91,6 +93,25 @@ class Preferencias {
 
   Future<void> guardarDesfaseReloj(int milisegundos) =>
       _prefs.setInt(claveDesfaseReloj, milisegundos);
+
+  /// Claves de los avisos de turno incompleto que el vecino cerró con
+  /// "Entendido". {} si falta o no se puede leer.
+  Future<Set<String>> avisosTurnoCerrados() async {
+    final texto = await _prefs.getString(claveAvisosTurnoCerrados);
+    if (texto == null) return {};
+    try {
+      final datos = jsonDecode(texto) as List<dynamic>;
+      return {
+        for (final clave in datos)
+          if (clave is String) clave,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> guardarAvisosTurnoCerrados(Set<String> claves) =>
+      _prefs.setString(claveAvisosTurnoCerrados, jsonEncode(claves.toList()));
 
   /// Borra solo las claves de esta clase, no las de otros paquetes.
   Future<void> olvidarTodo() => _prefs.clear(allowList: todasLasClaves);
