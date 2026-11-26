@@ -49,3 +49,52 @@ class ReglasTurnos {
     return null;
   }
 }
+
+/// Reglas para crear una alerta nueva. Son las mismas que aplica la app
+/// (lib/domain/reglas_alertas.dart), con los mismos mensajes, y se copian
+/// por la misma razón que [ReglasTurnos]. Si cambia una regla, hay que
+/// cambiarla en los dos lados.
+class ReglasAlertas {
+  static const maxTitulo = 60;
+  static const maxDescripcion = 500;
+  static const maxDireccion = 120;
+
+  /// Las que se pueden crear: `sos` (el botón SOS) y los tipos de
+  /// "Reportar alerta". `arrebato` ya no se crea; las alertas viejas de
+  /// arrebato se siguen leyendo.
+  static const categorias = {
+    'sos',
+    'actividad_sospechosa',
+    'vehiculo',
+    'robo',
+    'ruidos',
+  };
+
+  static const mensajeCategoria = 'Elegí qué tipo de alerta es.';
+  static const mensajeTituloVacio = 'Escribí un título para la alerta.';
+  static const mensajeTituloLargo =
+      'Acortá el título: puede tener hasta $maxTitulo letras.';
+  static const mensajeDescripcionLarga =
+      'Acortá la descripción: puede tener hasta $maxDescripcion letras.';
+  static const mensajeDireccionLarga =
+      'Acortá la dirección: puede tener hasta $maxDireccion letras.';
+
+  /// Letras sin los espacios de los extremos (runas, igual que la app).
+  static int largo(String texto) => texto.trim().runes.length;
+
+  /// El primer motivo para rechazar una alerta nueva, o null si es válida.
+  /// Orden: categoría, título, descripción, dirección.
+  static String? motivoRechazo({
+    required String categoria,
+    required String tipo,
+    required String descripcion,
+    required String direccion,
+  }) {
+    if (!categorias.contains(categoria)) return mensajeCategoria;
+    if (tipo.trim().isEmpty) return mensajeTituloVacio;
+    if (largo(tipo) > maxTitulo) return mensajeTituloLargo;
+    if (largo(descripcion) > maxDescripcion) return mensajeDescripcionLarga;
+    if (largo(direccion) > maxDireccion) return mensajeDireccionLarga;
+    return null;
+  }
+}

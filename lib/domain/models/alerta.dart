@@ -21,12 +21,18 @@ enum CategoriaAlerta {
   actividadSospechosa('actividad_sospechosa'),
   vehiculo('vehiculo'),
   robo('robo'),
+
+  /// Solo para leer alertas viejas: ya no se puede reportar (no está en
+  /// [paraReportar] y el servidor la rechaza al crear).
   arrebato('arrebato'),
   ruidos('ruidos');
 
   const CategoriaAlerta(this.valorApi);
 
   final String valorApi;
+
+  /// Los tipos que el vecino puede elegir en "Reportar alerta", en orden.
+  static const paraReportar = [actividadSospechosa, vehiculo, robo, ruidos];
 
   static CategoriaAlerta desdeApi(String valor) =>
       values.firstWhere((c) => c.valorApi == valor, orElse: () => sos);

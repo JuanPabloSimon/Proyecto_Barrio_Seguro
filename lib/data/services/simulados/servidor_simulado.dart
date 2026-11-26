@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../../../domain/models/turno.dart';
 import '../../../domain/models/vecino.dart';
+import '../../../domain/reglas_alertas.dart';
 import '../../../domain/reglas_turnos.dart';
 import '../error_del_servidor.dart';
 import '../reloj.dart';
@@ -203,7 +204,21 @@ class ServidorSimulado {
     for (final a in _alertas) _conNombre(a),
   ];
 
+  /// Aplica las mismas reglas que `POST /alertas` y responde con el mismo
+  /// mensaje si la rechaza.
   Map<String, dynamic> crearAlerta(Map<String, dynamic> datos) {
+    String texto(String campo) {
+      final valor = datos[campo];
+      return valor is String ? valor : '';
+    }
+
+    final motivo = ReglasAlertas.motivoRechazo(
+      categoria: texto('categoria'),
+      tipo: texto('tipo'),
+      descripcion: texto('descripcion'),
+      direccion: texto('direccion'),
+    );
+    if (motivo != null) throw ErrorDelServidor(motivo);
     final alerta = {
       ...datos,
       'id': _nuevoId('alerta'),
@@ -455,8 +470,8 @@ const _alertasDeEjemplo = <Map<String, dynamic>>[
   },
   {
     'id': 'a4',
-    'categoria': 'arrebato',
-    'tipo': 'Arrebato',
+    'categoria': 'robo',
+    'tipo': 'Robo de celular',
     'descripcion':
         'Le sacaron el celular a una vecina en la parada del colectivo.',
     'direccion': 'Parada de colectivo de Carlos W. Lencinas',

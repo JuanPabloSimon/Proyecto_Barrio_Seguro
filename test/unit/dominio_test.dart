@@ -1,12 +1,15 @@
 // Pruebas de la capa de dominio: reglas y cálculos puros, sin Flutter.
 
+import 'package:barrio_seguro/domain/avisos_tardios.dart';
 import 'package:barrio_seguro/domain/fechas.dart';
 import 'package:barrio_seguro/domain/informe_alertas.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
 import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
+import 'package:barrio_seguro/domain/reglas_alertas.dart';
 import 'package:barrio_seguro/domain/reglas_turnos.dart';
 import 'package:barrio_seguro/ui/core/formato.dart';
+import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -249,6 +252,153 @@ void main() {
         expect(copia.rol, rol);
         expect(copia.toJson()['rol'], rol.json);
       }
+    });
+  });
+
+  group('Tipos para reportar', () {
+    test('los tipos para reportar son actividad sospechosa, vehículo, robo y '
+        'ruidos, en ese orden y sin arrebato', () {
+      expect(CategoriaAlerta.paraReportar, [
+        CategoriaAlerta.actividadSospechosa,
+        CategoriaAlerta.vehiculo,
+        CategoriaAlerta.robo,
+        CategoriaAlerta.ruidos,
+      ]);
+      expect(
+        CategoriaAlerta.paraReportar,
+        isNot(contains(CategoriaAlerta.arrebato)),
+      );
+      expect(CategoriaAlerta.paraReportar.map((c) => c.nombreCorto), [
+        'Actividad sospechosa',
+        'Vehículo sospechoso',
+        'Robo',
+        'Ruidos',
+      ]);
+    });
+
+    test('una alerta de arrebato de la API se lee como arrebato', () {
+      final json = alertaDePrueba(
+        categoria: CategoriaAlerta.arrebato,
+        tipo: 'Arrebato',
+      ).toJson();
+      expect(json['categoria'], 'arrebato');
+
+      final deLaApi = Alerta.fromJson(json);
+      expect(deLaApi.categoria, CategoriaAlerta.arrebato);
+      expect(deLaApi.tipo, 'Arrebato');
+
+      final deLaCopiaLocal = Alerta.fromMap(deLaApi.toMap());
+      expect(deLaCopiaLocal.categoria, CategoriaAlerta.arrebato);
+      expect(deLaCopiaLocal.tipo, 'Arrebato');
+    });
+  });
+
+  group('ReglasAlertas', () {
+    String letras(int n) => 'a' * n;
+
+    String? motivo({
+      String categoria = 'robo',
+      String tipo = 'Robo',
+      String descripcion = '',
+      String direccion = '',
+    }) => ReglasAlertas.motivoRechazo(
+      categoria: categoria,
+      tipo: tipo,
+      descripcion: descripcion,
+      direccion: direccion,
+    );
+
+    test('un título vacío o solo con espacios no pasa', () {
+      expect(
+        ReglasAlertas.errorTitulo(''),
+        'Escribí un título para la alerta.',
+      );
+      expect(
+        ReglasAlertas.errorTitulo('   '),
+        'Escribí un título para la alerta.',
+      );
+      expect(motivo(tipo: '  '), 'Escribí un título para la alerta.');
+    });
+
+    test('un título de 60 letras pasa y uno de 61 no', () {
+      expect(ReglasAlertas.errorTitulo(letras(60)), isNull);
+      expect(
+        ReglasAlertas.errorTitulo(letras(61)),
+        'Acortá el título: puede tener hasta 60 letras.',
+      );
+      expect(
+        motivo(tipo: letras(61)),
+        'Acortá el título: puede tener hasta 60 letras.',
+      );
+    });
+
+    test('los espacios de los extremos no cuentan', () {
+      expect(ReglasAlertas.largo('  Robo  '), 4);
+      expect(ReglasAlertas.errorTitulo('   ${letras(60)}   '), isNull);
+      expect(ReglasAlertas.errorDescripcion(' ${letras(500)} '), isNull);
+      expect(ReglasAlertas.errorDireccion(' ${letras(120)} '), isNull);
+    });
+
+    test('una descripción de 500 letras pasa y una de 501 no', () {
+      expect(ReglasAlertas.errorDescripcion(letras(500)), isNull);
+      expect(
+        ReglasAlertas.errorDescripcion(letras(501)),
+        'Acortá la descripción: puede tener hasta 500 letras.',
+      );
+      expect(
+        motivo(descripcion: letras(501)),
+        'Acortá la descripción: puede tener hasta 500 letras.',
+      );
+    });
+
+    test('una dirección de 120 letras pasa y una de 121 no', () {
+      expect(ReglasAlertas.errorDireccion(letras(120)), isNull);
+      expect(
+        ReglasAlertas.errorDireccion(letras(121)),
+        'Acortá la dirección: puede tener hasta 120 letras.',
+      );
+      expect(
+        motivo(direccion: letras(121)),
+        'Acortá la dirección: puede tener hasta 120 letras.',
+      );
+    });
+
+    test('la descripción y la dirección vacías pasan', () {
+      expect(ReglasAlertas.errorDescripcion(''), isNull);
+      expect(ReglasAlertas.errorDireccion(''), isNull);
+      expect(motivo(), isNull);
+    });
+
+    test(
+      'motivoRechazo rechaza arrebato y una categoría inventada y acepta sos',
+      () {
+        expect(motivo(categoria: 'arrebato'), 'Elegí qué tipo de alerta es.');
+        expect(motivo(categoria: 'inventada'), 'Elegí qué tipo de alerta es.');
+        expect(motivo(categoria: ''), 'Elegí qué tipo de alerta es.');
+        expect(motivo(categoria: 'sos'), isNull);
+        for (final c in CategoriaAlerta.paraReportar) {
+          expect(motivo(categoria: c.valorApi), isNull);
+        }
+      },
+    );
+
+    test('la categoría se revisa antes que el título', () {
+      expect(
+        motivo(categoria: 'arrebato', tipo: ''),
+        'Elegí qué tipo de alerta es.',
+      );
+    });
+
+    test('los valores del SOS pasan', () {
+      expect(
+        motivo(
+          categoria: 'sos',
+          tipo: tipoAlertaSos,
+          descripcion: descripcionAlertaSos,
+          direccion: 'Barrio Soberanía (zona aproximada)',
+        ),
+        isNull,
+      );
     });
   });
 

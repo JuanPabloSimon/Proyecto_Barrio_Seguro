@@ -12,6 +12,7 @@ import '../../core/widgets/objetivo_tactil.dart';
 import '../../core/widgets/tarjeta_alerta.dart';
 import '../../core/widgets/tarjeta_tocable.dart';
 import '../../principal/pestanias.dart';
+import '../../reportar_alerta/widgets/reportar_alerta_screen.dart';
 import '../view_models/inicio_view_model.dart';
 
 class InicioScreen extends StatelessWidget {
@@ -139,21 +140,26 @@ class _ContenidoInicio extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        // Con el ancho de su texto: el SOS tiene que ser el botón más grande.
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: () => mostrarDialogo911(
-              context,
-              capacidades: dependencias.capacidades,
-              telefono: dependencias.telefono,
-            ),
-            icon: const Icon(Icons.phone),
-            label: const Text('Llamar al 911'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.emergencia,
-              side: const BorderSide(color: AppColors.emergencia, width: 1.5),
-            ),
+        // "Reportar alerta" y "Llamar al 911" tienen el ancho del mapa, pero
+        // el alto del tema (52 dp): el SOS sigue siendo el botón más grande
+        // por alto (104 dp), tamaño de texto, color y sombra.
+        FilledButton.icon(
+          onPressed: () => ReportarAlertaScreen.abrir(context, dependencias),
+          icon: const Icon(Icons.add_alert_outlined),
+          label: const Text('Reportar alerta'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => mostrarDialogo911(
+            context,
+            capacidades: dependencias.capacidades,
+            telefono: dependencias.telefono,
+          ),
+          icon: const Icon(Icons.phone),
+          label: const Text('Llamar al 911'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.emergencia,
+            side: const BorderSide(color: AppColors.emergencia, width: 1.5),
           ),
         ),
         const SizedBox(height: 24),

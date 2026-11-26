@@ -112,3 +112,15 @@
   - En el detalle y el resumen de un SOS el lector también lee la descripción fija "Un vecino pidió ayuda con el botón SOS.".
   - Falta commitear el trabajo de la rama `feature/sos_mejorado`.
 - **Próximo:** feature 18 (`reportar_alerta`).
+
+## 2026-11-26 — Feature 18 (`reportar_alerta`): Reportar alertas desde el inicio
+
+- **Quién:** equipo + agentes SDD (`spec_author`, `implementer`, `reviewer`).
+- **Resultado:** Spec en `specs/reportar_alerta/` (T1–T34, R1–R53). En el inicio, debajo del mapa, "Reportar alerta" (`FilledButton.icon`) y "Llamar al 911" pasan a ocupar el ancho del mapa, con 12 dp entre cada uno. El formulario (`lib/ui/reportar_alerta/`: `ReportarAlertaViewModel`, `ReportarAlertaScreen`, `confirmarDescarte`) deja elegir el tipo (Actividad sospechosa, Vehículo sospechoso, Robo o Ruidos, `CategoriaAlerta.paraReportar`), sugiere el título según el tipo si el vecino no lo tocó, pide descripción y dirección opcional, y manda la ubicación exacta o la zona del barrio con `UbicacionDeAlerta` (`lib/ui/core/ubicacion_de_alerta.dart`, lógica movida del SOS sin cambiar su comportamiento). Al enviar, la alerta queda Activa y aparece en la lista y el mapa sin recargar; si falla, el formulario lo dice sin perder lo escrito; la X, "Cancelar" y Atrás piden confirmar el descarte si hay datos. Validaciones compartidas en `ReglasAlertas` (app en `lib/domain/reglas_alertas.dart`, backend en `backend/lib/src/reglas.dart`; el servidor simulado y `POST /alertas` las usan). Se quitó Arrebato de los tipos para elegir: la API rechaza una alerta nueva de arrebato y las que ya existen se siguen viendo; `a4` de los datos de ejemplo pasa a "Robo de celular" (backend y simulado). `BotonSos` pasa a 216 x 104 dp con texto 32. README del backend con la fila de `POST /alertas`.
+- **Verificación:** `./init.sh` verde (`flutter analyze` y `dart analyze` sin avisos, 411 pruebas en la app y 62 en el backend). Review aprobado en `progress/review_reportar_alerta.md`.
+- **Pendientes (no bloquean):**
+  - Prueba manual sin hacer (sin emulador): reportar una alerta con el servidor simulado y con la API, probar el descarte con la X y con Atrás, y mirar el SOS nuevo con el texto al 200 %. Un `backend/datos/barrio.json` creado antes conserva su `a4` de arrebato (esperado, R41); para ver los datos nuevos hay que borrarlo.
+  - Backend: si falta el campo `tipo` en el JSON, `POST /alertas` responde "Falta el dato "tipo"." antes de validar la categoría (decisión 7 de `progress/impl_reportar_alerta.md`).
+  - `progress/review_reportar_alerta.md` menciona una "observación 1" (en R36) que no figura en el archivo.
+  - Falta commitear el trabajo de la rama `feature/reportar_alerta`.
+- **Próximo:** feature 19 (`estado_alerta`).

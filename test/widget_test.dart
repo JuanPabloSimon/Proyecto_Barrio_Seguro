@@ -2,10 +2,13 @@
 // conexión que tapa a todas las demás y el informe mensual de alertas
 // para la comisión.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
+import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/simulados/conexion_service_simulado.dart';
 import 'package:barrio_seguro/dependencias.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
@@ -19,14 +22,19 @@ import 'package:barrio_seguro/ui/core/widgets/marca_sos.dart';
 import 'package:barrio_seguro/ui/core/widgets/marca_tardia.dart';
 import 'package:barrio_seguro/ui/core/widgets/pin_alerta.dart';
 import 'package:barrio_seguro/ui/core/widgets/tarjeta_alerta.dart';
+import 'package:barrio_seguro/ui/core/widgets/tarjeta_tocable.dart';
 import 'package:barrio_seguro/ui/core/tema/app_theme.dart';
+import 'package:barrio_seguro/ui/core/ubicacion_de_alerta.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:barrio_seguro/ui/perfil/widgets/perfil_screen.dart';
+import 'package:barrio_seguro/ui/reportar_alerta/view_models/reportar_alerta_view_model.dart';
+import 'package:barrio_seguro/ui/reportar_alerta/widgets/reportar_alerta_screen.dart';
 import 'package:barrio_seguro/ui/sos/view_models/sos_view_model.dart';
 import 'package:barrio_seguro/ui/sos/widgets/sos_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'ayudas/app_de_prueba.dart';
 import 'ayudas/bases_de_prueba.dart';
@@ -265,6 +273,58 @@ void main() {
       expect(find.text(tituloSinConexion), findsNothing);
       expect(find.text('2615550123'), findsOneWidget);
     });
+
+    testWidgets(
+      'el formulario de reportar alerta conserva lo escrito al volver la '
+      'conexión',
+      (tester) async {
+        final conexion = ConexionServiceSimulado();
+        await tester.pumpWidget(appDePrueba(conexion: conexion));
+        await tester.pumpAndSettle();
+        await ingresar(tester);
+        await _tocar(
+          tester,
+          find.ancestor(
+            of: find.text('Reportar alerta'),
+            matching: find.byWidgetPredicate((w) => w is FilledButton),
+          ),
+        );
+        await _tocar(
+          tester,
+          find.widgetWithText(RadioListTile<CategoriaAlerta>, 'Ruidos'),
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Título'),
+          'Ruidos en el baldío',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Descripción (opcional)'),
+          'Golpes y linternas.',
+        );
+        await tester.pump();
+
+        conexion.conectado = false;
+        await esperarComprobacion(tester);
+        expect(find.text(tituloSinConexion), findsOneWidget);
+        expect(find.text('Ruidos en el baldío'), findsNothing);
+
+        conexion.conectado = true;
+        await esperarComprobacion(tester, cada: const Duration(seconds: 5));
+
+        expect(find.text(tituloSinConexion), findsNothing);
+        expect(find.byType(ReportarAlertaScreen), findsOneWidget);
+        expect(find.text('Ruidos en el baldío'), findsOneWidget);
+        expect(find.text('Golpes y linternas.'), findsOneWidget);
+        expect(
+          tester
+              .widget<RadioGroup<CategoriaAlerta>>(
+                find.byType(RadioGroup<CategoriaAlerta>),
+              )
+              .groupValue,
+          CategoriaAlerta.ruidos,
+        );
+      },
+    );
 
     testWidgets('"Llamar al 911" sin conexión abre el teléfono con el 911', (
       tester,
@@ -1188,4 +1248,748 @@ void main() {
       handle.dispose();
     });
   });
+
+  group('Reportar alerta', () {
+    late AlertasFalsas alertas;
+    late ReportarAlertaViewModel vm;
+
+    // skipOffstage: false para encontrar también lo que quedó fuera de la
+    // vista al desplazar el formulario.
+    Finder campo(String etiqueta) => find.ancestor(
+      of: find.text(etiqueta, skipOffstage: false),
+      matching: find.byType(TextField, skipOffstage: false),
+    );
+
+    Future<void> escribir(
+      WidgetTester tester,
+      String etiqueta,
+      String texto,
+    ) async {
+      await tester.ensureVisible(campo(etiqueta));
+      await tester.pumpAndSettle();
+      await tester.enterText(campo(etiqueta), texto);
+      await tester.pump();
+    }
+
+    Future<void> tocarEnviar(WidgetTester tester) =>
+        _tocar(tester, find.text('Enviar alerta', skipOffstage: false));
+
+    String textoDe(WidgetTester tester, String etiqueta) =>
+        tester.widget<TextField>(campo(etiqueta)).controller!.text;
+
+    Finder tipo(String nombre) => find.ancestor(
+      of: find.text(nombre, skipOffstage: false),
+      matching: find.byType(
+        RadioListTile<CategoriaAlerta>,
+        skipOffstage: false,
+      ),
+    );
+
+    RadioGroup<CategoriaAlerta> grupo(WidgetTester tester) =>
+        tester.widget<RadioGroup<CategoriaAlerta>>(
+          find.byType(RadioGroup<CategoriaAlerta>, skipOffstage: false),
+        );
+
+    Finder botonEnviar() => find.ancestor(
+      of: find.text('Enviar alerta'),
+      matching: find.byWidgetPredicate(
+        (w) => w is FilledButton,
+        skipOffstage: false,
+      ),
+    );
+
+    /// Una pantalla base con un botón que empuja el formulario, como hace
+    /// el inicio: así se ve si el formulario se cierra y qué aviso queda.
+    Future<void> abrirFormulario(
+      WidgetTester tester, {
+      AlertasFalsas? repositorio,
+      bool conUbicacionExacta = true,
+    }) async {
+      alertas = repositorio ?? AlertasFalsas();
+      vm = ReportarAlertaViewModel(
+        alertas: alertas,
+        sesion: SesionFalsa(vecinaDePrueba),
+        bus: BusDeEventos(),
+        ubicacion: UbicacionDeAlerta(
+          capacidades: const CapacidadesFalsas(),
+          preferencias: preferenciasEnMemoria({
+            Preferencias.claveCompartirUbicacion: conUbicacionExacta,
+          }),
+          ubicacion: UbicacionFalsa(),
+        ),
+      );
+      addTearDown(vm.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => ReportarAlertaScreen(viewModel: vm),
+                    ),
+                  ),
+                  child: const Text('Pantalla base'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Pantalla base'));
+      await tester.pumpAndSettle();
+      await vm.cargar();
+      await tester.pumpAndSettle();
+      expect(find.text('¿Qué pasó?'), findsOneWidget);
+    }
+
+    void formularioAbierto() {
+      expect(find.byType(ReportarAlertaScreen), findsOneWidget);
+      expect(find.text('Pantalla base'), findsNothing);
+    }
+
+    void formularioCerrado() {
+      expect(find.text('¿Qué pasó?'), findsNothing);
+      expect(find.text('Pantalla base'), findsOneWidget);
+    }
+
+    /// Elige Robo y escribe en los tres campos.
+    Future<void> completar(WidgetTester tester) async {
+      await _tocar(tester, tipo('Robo'));
+      await escribir(tester, 'Título', 'Robo de bicicleta');
+      await escribir(
+        tester,
+        'Descripción (opcional)',
+        'Se llevaron una bici del patio.',
+      );
+      await escribir(
+        tester,
+        'Dirección o referencia (opcional)',
+        'Cabildo de Mendoza y Ascasubi',
+      );
+      await tester.pump();
+    }
+
+    void conservaLoEscrito(WidgetTester tester) {
+      expect(vm.tipo, CategoriaAlerta.robo);
+      expect(grupo(tester).groupValue, CategoriaAlerta.robo);
+      expect(textoDe(tester, 'Título'), 'Robo de bicicleta');
+      expect(
+        textoDe(tester, 'Descripción (opcional)'),
+        'Se llevaron una bici del patio.',
+      );
+      expect(
+        textoDe(tester, 'Dirección o referencia (opcional)'),
+        'Cabildo de Mendoza y Ascasubi',
+      );
+    }
+
+    // --- Tipos, título y ubicación (R6, R7, R8, R10, R11, R12) ---
+
+    testWidgets('muestra los cuatro tipos sin ninguno elegido y los campos '
+        'vacíos', (tester) async {
+      await abrirFormulario(tester);
+
+      final nombres = tester
+          .widgetList<RadioListTile<CategoriaAlerta>>(
+            find.byType(RadioListTile<CategoriaAlerta>),
+          )
+          .map((t) => (t.title! as Text).data)
+          .toList();
+      expect(nombres, [
+        'Actividad sospechosa',
+        'Vehículo sospechoso',
+        'Robo',
+        'Ruidos',
+      ]);
+      expect(find.text('Arrebato'), findsNothing);
+      expect(grupo(tester).groupValue, isNull);
+      expect(textoDe(tester, 'Título'), '');
+      expect(textoDe(tester, 'Descripción (opcional)'), '');
+      expect(textoDe(tester, 'Dirección o referencia (opcional)'), '');
+    });
+
+    testWidgets('elegir "Robo" completa el título con "Robo"', (tester) async {
+      await abrirFormulario(tester);
+
+      await _tocar(tester, tipo('Robo'));
+
+      expect(grupo(tester).groupValue, CategoriaAlerta.robo);
+      expect(textoDe(tester, 'Título'), 'Robo');
+
+      // Con el título sin tocar, otro tipo cambia la sugerencia.
+      await _tocar(tester, tipo('Ruidos'));
+      expect(textoDe(tester, 'Título'), 'Ruidos');
+    });
+
+    testWidgets('el vecino puede cambiar el título', (tester) async {
+      await abrirFormulario(tester);
+      await _tocar(tester, tipo('Robo'));
+
+      await escribir(tester, 'Título', 'Robo de bicicleta');
+      await tester.pump();
+      expect(textoDe(tester, 'Título'), 'Robo de bicicleta');
+
+      // Otro tipo ya no lo pisa (R9).
+      await _tocar(tester, tipo('Vehículo sospechoso'));
+      expect(textoDe(tester, 'Título'), 'Robo de bicicleta');
+    });
+
+    testWidgets(
+      'con ubicación exacta dice "Vamos a mandar tu ubicación exacta."',
+      (tester) async {
+        await abrirFormulario(tester);
+        expect(
+          find.text('Vamos a mandar tu ubicación exacta.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'Vamos a mandar la zona del barrio, no tu ubicación exacta.',
+          ),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'sin ubicación exacta dice "Vamos a mandar la zona del barrio, no tu '
+      'ubicación exacta."',
+      (tester) async {
+        await abrirFormulario(tester, conUbicacionExacta: false);
+        expect(
+          find.text(
+            'Vamos a mandar la zona del barrio, no tu ubicación exacta.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Vamos a mandar tu ubicación exacta.'), findsNothing);
+      },
+    );
+
+    // --- Envío (R20, R22, R23) ---
+
+    testWidgets(
+      'enviar cierra el formulario y muestra "Reportaste la alerta. Ya '
+      'aparece en la lista y el mapa."',
+      (tester) async {
+        await abrirFormulario(tester);
+        await completar(tester);
+
+        await tocarEnviar(tester);
+
+        formularioCerrado();
+        expect(
+          find.text('Reportaste la alerta. Ya aparece en la lista y el mapa.'),
+          findsOneWidget,
+        );
+        final creada = alertas.creadas.single;
+        expect(creada.categoria, CategoriaAlerta.robo);
+        expect(creada.tipo, 'Robo de bicicleta');
+        expect(creada.direccion, 'Cabildo de Mendoza y Ascasubi');
+      },
+    );
+
+    testWidgets(
+      'mientras envía, "Enviar alerta" está deshabilitado con "Enviando la '
+      'alerta" y Atrás no cierra',
+      (tester) async {
+        final lentas = _AlertasLentas();
+        await abrirFormulario(tester, repositorio: lentas);
+        await completar(tester);
+
+        await tester.ensureVisible(
+          find.text('Enviar alerta', skipOffstage: false),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Enviar alerta'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(vm.enviando, isTrue);
+        expect(
+          tester.widget<ButtonStyleButton>(botonEnviar()).onPressed,
+          isNull,
+        );
+        expect(
+          find.bySemanticsLabel(RegExp('Enviando la alerta')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.close))
+              .onPressed,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<OutlinedButton>(
+                find.widgetWithText(OutlinedButton, 'Cancelar'),
+              )
+              .onPressed,
+          isNull,
+        );
+
+        final atendido = await tester.binding.handlePopRoute();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(atendido, isTrue);
+        formularioAbierto();
+        expect(find.text('¿Descartar la alerta?'), findsNothing);
+
+        lentas.soltar.complete();
+        await tester.pumpAndSettle();
+        formularioCerrado();
+      },
+    );
+
+    // --- Errores (R24 a R29, R32 a R34) ---
+
+    testWidgets(
+      'enviar vacío muestra "Elegí qué tipo de alerta es." y "Escribí un '
+      'título para la alerta." y lleva el foco al primer tipo',
+      (tester) async {
+        await abrirFormulario(tester);
+
+        await tocarEnviar(tester);
+
+        formularioAbierto();
+        expect(find.text('Elegí qué tipo de alerta es.'), findsOneWidget);
+        expect(find.text('Escribí un título para la alerta.'), findsOneWidget);
+        final primerTipo = tester.widget<RadioListTile<CategoriaAlerta>>(
+          tipo('Actividad sospechosa'),
+        );
+        expect(primerTipo.focusNode!.hasPrimaryFocus, isTrue);
+        expect(alertas.creadas, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'un título de 61 letras muestra "Acortá el título: puede tener hasta 60 '
+      'letras." y lleva el foco al Título',
+      (tester) async {
+        await abrirFormulario(tester);
+        await _tocar(tester, tipo('Robo'));
+        await escribir(tester, 'Título', 'a' * 61);
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pump();
+
+        await tocarEnviar(tester);
+
+        expect(
+          find.text('Acortá el título: puede tener hasta 60 letras.'),
+          findsOneWidget,
+        );
+        expect(
+          tester.widget<TextField>(campo('Título')).focusNode!.hasFocus,
+          isTrue,
+        );
+        expect(alertas.creadas, isEmpty);
+      },
+    );
+
+    testWidgets('descripción y dirección largas muestran sus mensajes', (
+      tester,
+    ) async {
+      await abrirFormulario(tester);
+      await _tocar(tester, tipo('Robo'));
+      await escribir(tester, 'Descripción (opcional)', 'a' * 501);
+      await escribir(tester, 'Dirección o referencia (opcional)', 'a' * 121);
+      await tester.pump();
+
+      await tocarEnviar(tester);
+
+      expect(
+        find.text('Acortá la descripción: puede tener hasta 500 letras.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Acortá la dirección: puede tener hasta 120 letras.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextField>(campo('Descripción (opcional)'))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      expect(alertas.creadas, isEmpty);
+    });
+
+    testWidgets(
+      'si la API rechaza, el formulario muestra el mensaje y conserva tipo, '
+      'título, descripción y dirección',
+      (tester) async {
+        await abrirFormulario(
+          tester,
+          repositorio: AlertasFalsas()
+            ..errorAlCrear = const ErrorDelServidor(
+              'Elegí qué tipo de alerta es.',
+            ),
+        );
+        await completar(tester);
+
+        await tocarEnviar(tester);
+
+        formularioAbierto();
+        expect(find.text('Elegí qué tipo de alerta es.'), findsOneWidget);
+        conservaLoEscrito(tester);
+      },
+    );
+
+    testWidgets(
+      'sin conexión el formulario muestra el error de red y conserva lo '
+      'escrito',
+      (tester) async {
+        await abrirFormulario(tester, repositorio: AlertasFalsas([], true));
+        await completar(tester);
+
+        await tocarEnviar(tester);
+
+        formularioAbierto();
+        expect(
+          find.text(
+            'No pudimos enviar la alerta. Revisá tu conexión y probá de '
+            'nuevo.',
+          ),
+          findsOneWidget,
+        );
+        conservaLoEscrito(tester);
+      },
+    );
+
+    // --- Cerrar (R36 a R39) ---
+
+    testWidgets('la X sin datos cierra sin preguntar', (tester) async {
+      await abrirFormulario(tester);
+
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('¿Descartar la alerta?'), findsNothing);
+      formularioCerrado();
+    });
+
+    testWidgets('"Cancelar" con un tipo elegido pide "¿Descartar la alerta?"', (
+      tester,
+    ) async {
+      await abrirFormulario(tester);
+      await _tocar(tester, tipo('Ruidos'));
+      // Solo el tipo: sin texto escrito.
+      await escribir(tester, 'Título', '');
+      await tester.pump();
+
+      await _tocar(tester, find.text('Cancelar', skipOffstage: false));
+
+      expect(find.text('¿Descartar la alerta?'), findsOneWidget);
+      expect(
+        find.text(
+          'Todavía no la enviaste. Si salís, se borra lo que escribiste.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(OutlinedButton, 'Seguir escribiendo'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(FilledButton, 'Sí, descartar'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Atrás con texto escrito pide "¿Descartar la alerta?"', (
+      tester,
+    ) async {
+      await abrirFormulario(tester);
+      await escribir(tester, 'Descripción (opcional)', 'Algo raro');
+      await tester.pump();
+
+      final atendido = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(atendido, isTrue);
+      expect(find.text('¿Descartar la alerta?'), findsOneWidget);
+    });
+
+    testWidgets('"Sí, descartar" cierra sin crear ninguna alerta', (
+      tester,
+    ) async {
+      await abrirFormulario(tester);
+      await completar(tester);
+
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      await _tocar(tester, find.text('Sí, descartar'));
+
+      formularioCerrado();
+      expect(alertas.creadas, isEmpty);
+      expect(alertas.alertas, isEmpty);
+    });
+
+    testWidgets('"Seguir escribiendo" vuelve con todo lo escrito', (
+      tester,
+    ) async {
+      await abrirFormulario(tester);
+      await completar(tester);
+
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      await _tocar(tester, find.text('Seguir escribiendo'));
+
+      expect(find.text('¿Descartar la alerta?'), findsNothing);
+      formularioAbierto();
+      conservaLoEscrito(tester);
+
+      // Atrás en el diálogo también vuelve al formulario.
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('¿Descartar la alerta?'), findsNothing);
+      formularioAbierto();
+      conservaLoEscrito(tester);
+    });
+
+    testWidgets('tocar fuera del diálogo vuelve con todo lo escrito', (
+      tester,
+    ) async {
+      await abrirFormulario(tester);
+      await completar(tester);
+
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+
+      expect(find.text('¿Descartar la alerta?'), findsNothing);
+      formularioAbierto();
+      conservaLoEscrito(tester);
+    });
+  });
+
+  group('Inicio: reportar alerta', () {
+    Finder boton(String texto, bool Function(Widget) tipo) => find.ancestor(
+      of: find.text(texto, skipOffstage: false),
+      matching: find.byWidgetPredicate(tipo, skipOffstage: false),
+    );
+
+    Finder reportar() => boton('Reportar alerta', (w) => w is FilledButton);
+    Finder llamar() => boton('Llamar al 911', (w) => w is OutlinedButton);
+    Finder mapa() => find.ancestor(
+      of: find.text('Abrir el mapa de alertas', skipOffstage: false),
+      matching: find.byType(TarjetaTocable, skipOffstage: false),
+    );
+
+    Future<void> abrirInicio(WidgetTester tester) async {
+      await tester.pumpWidget(appDePrueba());
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+      await tester.ensureVisible(llamar());
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      '"Reportar alerta" está debajo del mapa y arriba de "Llamar al 911"',
+      (tester) async {
+        await abrirInicio(tester);
+
+        expect(reportar(), findsOneWidget);
+        expect(
+          tester.getTopLeft(reportar()).dy,
+          greaterThanOrEqualTo(tester.getBottomLeft(mapa()).dy),
+        );
+        expect(
+          tester.getBottomLeft(reportar()).dy,
+          lessThanOrEqualTo(tester.getTopLeft(llamar()).dy),
+        );
+      },
+    );
+
+    testWidgets(
+      '"Reportar alerta" y "Llamar al 911" tienen el ancho de la tarjeta del '
+      'mapa',
+      (tester) async {
+        await abrirInicio(tester);
+
+        final anchoMapa = tester.getSize(mapa()).width;
+        expect(tester.getSize(reportar()).width, anchoMapa);
+        expect(tester.getSize(llamar()).width, anchoMapa);
+        expect(tester.getTopLeft(reportar()).dx, tester.getTopLeft(mapa()).dx);
+        expect(tester.getTopLeft(llamar()).dx, tester.getTopLeft(mapa()).dx);
+      },
+    );
+
+    testWidgets('los dos botones son más bajos que el botón SOS', (
+      tester,
+    ) async {
+      await abrirInicio(tester);
+
+      final altoSos = tester.getSize(find.byType(BotonSos)).height;
+      expect(altoSos, 104);
+      expect(tester.getSize(reportar()).height, 52);
+      expect(tester.getSize(llamar()).height, 52);
+      expect(tester.getSize(reportar()).height, lessThan(altoSos));
+      expect(tester.getSize(llamar()).height, lessThan(altoSos));
+    });
+
+    testWidgets('"Reportar alerta" abre el formulario', (tester) async {
+      await abrirInicio(tester);
+
+      await _tocar(tester, reportar());
+
+      expect(find.byType(ReportarAlertaScreen), findsOneWidget);
+      expect(find.text('¿Qué pasó?'), findsOneWidget);
+      expect(find.byTooltip('Cerrar'), findsOneWidget);
+      // Pantalla completa: el inicio queda tapado.
+      expect(find.text('Hola, Clara'), findsNothing);
+    });
+
+    testWidgets(
+      'una alerta reportada aparece en "Alertas cerca tuyo" y en el mapa',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await abrirInicio(tester);
+        await _tocar(tester, reportar());
+
+        await _tocar(
+          tester,
+          find.widgetWithText(
+            RadioListTile<CategoriaAlerta>,
+            'Vehículo sospechoso',
+          ),
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Título'),
+          'Auto gris dando vueltas',
+        );
+        await tester.pump();
+        await _tocar(tester, find.text('Enviar alerta', skipOffstage: false));
+
+        expect(find.byType(ReportarAlertaScreen), findsNothing);
+        expect(
+          find.text('Reportaste la alerta. Ya aparece en la lista y el mapa.'),
+          findsOneWidget,
+        );
+
+        final tarjeta = find.ancestor(
+          of: find.text('Auto gris dando vueltas'),
+          matching: find.byType(TarjetaAlerta),
+        );
+        await tester.scrollUntilVisible(tarjeta, 200);
+        expect(tarjeta, findsOneWidget);
+        final alerta = tester.widget<TarjetaAlerta>(tarjeta).alerta;
+        expect(alerta.estado, EstadoAlerta.activa);
+        expect(alerta.categoria, CategoriaAlerta.vehiculo);
+
+        await _tocar(
+          tester,
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.text('Mapa'),
+          ),
+        );
+        expect(
+          find.bySemanticsLabel(RegExp('^Alerta: Auto gris dando vueltas')),
+          findsOneWidget,
+        );
+        handle.dispose();
+      },
+    );
+  });
+
+  testWidgets(
+    'una alerta de arrebato guardada se ve con su título y el ícono de '
+    'arrebato',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: TarjetaAlerta(
+              alerta: alertaDePrueba(
+                categoria: CategoriaAlerta.arrebato,
+                tipo: 'Arrebato',
+              ),
+              hace: 'Hace 5 minutos',
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Arrebato'), findsOneWidget);
+      expect(find.byIcon(Icons.phone_android), findsOneWidget);
+    },
+  );
+  group('Botón SOS', () {
+    testWidgets('el SOS mide 216 x 104 dp con el texto "SOS" en 32', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 3;
+      tester.view.physicalSize = const Size(360 * 3, 640 * 3);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(appDePrueba());
+      await tester.pumpAndSettle();
+      await ingresar(tester);
+
+      expect(tester.getSize(find.byType(BotonSos)), const Size(216, 104));
+      final texto = tester.widget<Text>(
+        find.descendant(of: find.byType(BotonSos), matching: find.text('SOS')),
+      );
+      expect(texto.style!.fontSize, 32);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('BotonSos.altoActual es 104 al 100 % y al 200 %', (
+      tester,
+    ) async {
+      final altos = <double, double>{};
+      for (final escala in [1.0, 2.0]) {
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(escala)),
+            child: Builder(
+              builder: (context) {
+                altos[escala] = BotonSos.altoActual(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+      }
+      expect(altos, {1.0: 104, 2.0: 104});
+    });
+  });
+}
+
+/// [AlertasFalsas] que no responde a `crearAlerta` hasta que la prueba
+/// completa [soltar].
+class _AlertasLentas extends AlertasFalsas {
+  final soltar = Completer<void>();
+
+  @override
+  Future<Alerta> crearAlerta({
+    required CategoriaAlerta categoria,
+    required String tipo,
+    required String descripcion,
+    required String direccion,
+    required LatLng ubicacion,
+    required String reportadaPor,
+  }) async {
+    await soltar.future;
+    return super.crearAlerta(
+      categoria: categoria,
+      tipo: tipo,
+      descripcion: descripcion,
+      direccion: direccion,
+      ubicacion: ubicacion,
+      reportadaPor: reportadaPor,
+    );
+  }
 }

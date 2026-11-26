@@ -7,14 +7,14 @@ import '../tema/app_colors.dart';
 /// donde se envía la alerta con otro toque: es lo más fácil para personas
 /// mayores (no exige mantener el dedo apretado) y evita envíos accidentales.
 ///
-/// Es el botón más grande de las pantallas principales (mínimo 184x88 dp)
+/// Es el botón más grande de las pantallas principales (mínimo 216x104 dp)
 /// y crece con el tamaño de texto del sistema.
 class BotonSos extends StatelessWidget {
   const BotonSos({super.key, required this.onPressed});
 
-  static const anchoMinimo = 184.0;
-  static const altoMinimo = 88.0;
-  static const _tamanioTexto = 30.0;
+  static const anchoMinimo = 216.0;
+  static const altoMinimo = 104.0;
+  static const _tamanioTexto = 32.0;
   static const _relleno = 12.0;
 
   /// Alto que ocupa el botón con el tamaño de texto actual. Lo usa el mapa
@@ -60,7 +60,7 @@ class BotonSos extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.campaign, color: AppColors.sobreColor, size: 34),
+                  Icon(Icons.campaign, color: AppColors.sobreColor, size: 36),
                   SizedBox(width: 10),
                   Text(
                     'SOS',

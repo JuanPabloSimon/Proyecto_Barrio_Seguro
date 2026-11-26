@@ -83,7 +83,7 @@ El vecino (en `{token, vecino}`, `GET /vecinos/yo` y `PUT /vecinos/<id>`) trae e
 | `GET /vecinos/yo` | Los datos del vecino de la sesión | vecino |
 | `PUT /vecinos/<id>` | Cambiar nombre, teléfono, calle o cuadra (solo los propios). Si trae un `rol` distinto del actual, 403 | vecino |
 | `GET /alertas` | Todas, de la más nueva a la más vieja | lista de alertas |
-| `POST /alertas` | Crear: `{categoria, tipo, descripcion, direccion, latitud, longitud}` | 201 alerta |
+| `POST /alertas` | Crear: `{categoria, tipo, descripcion, direccion, latitud, longitud}`. `categoria`: `sos`, `actividad_sospechosa`, `vehiculo`, `robo` o `ruidos` (`arrebato` ya no se crea: 400 "Elegí qué tipo de alerta es."; las viejas se siguen leyendo). `tipo` (el título) es obligatorio, hasta 60 letras; `descripcion` hasta 500 y `direccion` hasta 120, las dos opcionales. Las letras se cuentan sin los espacios de los extremos. Mismas reglas y mensajes que la app | 201 alerta |
 | `PATCH /alertas/<id>` | Cambiar el estado: `{estado}` (solo quien la reportó) | alerta |
 | `GET /turnos?anio=2026&mes=10` | Turnos del mes, con los vecinos adentro (sin `rol`) | lista de turnos |
 | `PUT /turnos/<fecha>/<franja>/vecinos/<id>` | Anotarse (solo uno mismo) | turno |
