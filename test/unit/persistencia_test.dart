@@ -6,13 +6,16 @@
 // persistencia funciona.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/error_del_servidor.dart';
 import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
 import 'package:barrio_seguro/data/services/local/almacen_seguro.dart';
+import 'package:barrio_seguro/data/services/local/base_de_datos.dart';
 import 'package:barrio_seguro/data/services/local/preferencias.dart';
 import 'package:barrio_seguro/data/services/local/turnos_dao.dart';
 import 'package:barrio_seguro/data/services/simulados/servidor_simulado.dart';
@@ -24,6 +27,7 @@ import 'package:barrio_seguro/domain/models/turno.dart';
 import 'package:barrio_seguro/domain/models/vecino.dart';
 import 'package:barrio_seguro/ui/perfil/view_models/perfil_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../ayudas/app_de_prueba.dart';
@@ -51,6 +55,26 @@ class TurnosServiceSinConexion implements TurnosService {
     required String franja,
     required String vecinoId,
   }) => throw Exception('sin conexión');
+}
+
+/// Servicio de turnos cuya API responde siempre con un error.
+class TurnosServiceQueRechaza extends TurnosServiceSinConexion {
+  @override
+  Future<List<Map<String, dynamic>>> obtenerTurnos({
+    required int anio,
+    required int mes,
+  }) => throw const ErrorDelServidor('No se pudo.');
+}
+
+/// Las tablas que tiene la base, según sqlite_master.
+Future<List<String>> tablasDe(Database db) async {
+  final filas = await db.query(
+    'sqlite_master',
+    columns: ['name'],
+    where: 'type = ?',
+    whereArgs: ['table'],
+  );
+  return [for (final f in filas) f['name']! as String];
 }
 
 void main() {
@@ -331,6 +355,189 @@ void main() {
 
       expect(turnos, isNotEmpty);
       expect(alAbrir.sinConexion, isTrue);
+    });
+  });
+
+  group('Sin envío diferido', () {
+    Future<Alerta> crearSos(AlertasRepository repositorio) =>
+        repositorio.crearAlerta(
+          categoria: CategoriaAlerta.sos,
+          tipo: 'Pedido de ayuda (SOS)',
+          descripcion: '',
+          direccion: 'Barrio Soberanía',
+          ubicacion: const LatLng(-32.876568, -68.870672),
+          reportadaPor: 'clara',
+        );
+
+    test(
+      'crear una alerta sin red lanza el error y no guarda nada en el teléfono',
+      () async {
+        final conexion = ConexionRepositoryFalsa(hay: false);
+        final repositorio = AlertasRepositoryRemoto(
+          service: AlertasServiceQueFalla(const SocketException('sin señal')),
+          dao: AlertasDao(db),
+          conexion: conexion,
+        );
+
+        await expectLater(
+          crearSos(repositorio),
+          throwsA(isA<SocketException>()),
+        );
+
+        expect(await db.query('alertas'), isEmpty);
+        expect(await tablasDe(db), isNot(contains('alertas_pendientes')));
+        // Y la falla de red dispara una comprobación de la conexión.
+        expect(conexion.comprobaciones, 1);
+      },
+    );
+
+    test('si la API rechaza la alerta, el error llega tal cual', () async {
+      final repositorio = AlertasRepositoryRemoto(
+        service: AlertasServiceQueFalla(const ErrorDelServidor('No.')),
+        dao: AlertasDao(db),
+      );
+
+      await expectLater(
+        crearSos(repositorio),
+        throwsA(isA<ErrorDelServidor>()),
+      );
+      expect(await db.query('alertas'), isEmpty);
+    });
+
+    test('si falla la red al pedir alertas se comprueba la conexión', () async {
+      final conexion = ConexionRepositoryFalsa(hay: false);
+      final repositorio = AlertasRepositoryRemoto(
+        service: AlertasServiceContador()..falla = true,
+        dao: AlertasDao(db),
+        conexion: conexion,
+      );
+
+      await expectLater(repositorio.obtenerAlertas(), throwsException);
+
+      expect(conexion.comprobaciones, 1);
+    });
+
+    test('si falla la red al pedir turnos se comprueba la conexión', () async {
+      final conexion = ConexionRepositoryFalsa(hay: false);
+      final repositorio = TurnosRepositoryRemoto(
+        service: TurnosServiceSinConexion(),
+        dao: TurnosDao(db),
+        conexion: conexion,
+      );
+
+      await expectLater(
+        repositorio.obtenerTurnos(DateTime(2026, 10)),
+        throwsException,
+      );
+
+      expect(conexion.comprobaciones, 1);
+    });
+
+    test('un ErrorDelServidor no dispara la comprobación', () async {
+      final conexion = ConexionRepositoryFalsa();
+      final alertas = AlertasRepositoryRemoto(
+        service: AlertasServiceQueFalla(const ErrorDelServidor('No.')),
+        conexion: conexion,
+      );
+      final turnos = TurnosRepositoryRemoto(
+        service: TurnosServiceQueRechaza(),
+        conexion: conexion,
+      );
+
+      await expectLater(
+        alertas.obtenerAlertas(),
+        throwsA(isA<ErrorDelServidor>()),
+      );
+      await expectLater(crearSos(alertas), throwsA(isA<ErrorDelServidor>()));
+      await expectLater(
+        turnos.obtenerTurnos(DateTime(2026, 10)),
+        throwsA(isA<ErrorDelServidor>()),
+      );
+
+      expect(conexion.comprobaciones, 0);
+    });
+  });
+
+  group('Esquema de la base', () {
+    late Directory carpeta;
+    late String ruta;
+
+    setUp(() {
+      sqfliteFfiInit();
+      carpeta = Directory.systemTemp.createTempSync('barrio_seguro');
+      ruta = '${carpeta.path}/barrio_seguro.db';
+    });
+    tearDown(() => carpeta.deleteSync(recursive: true));
+
+    test('una base nueva no tiene tabla de alertas pendientes', () async {
+      final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
+      addTearDown(nueva.close);
+
+      expect(await nueva.getVersion(), 3);
+      final tablas = await tablasDe(nueva);
+      expect(tablas, containsAll(['alertas', 'turnos']));
+      expect(tablas, isNot(contains('alertas_pendientes')));
+    });
+
+    test('la migración de la v2 a la v3 borra alertas_pendientes y conserva alertas y turnos', () async {
+      // Una base de la versión 2 de la app, con una alerta, un turno y
+      // una alerta pendiente de envío.
+      final vieja = await databaseFactoryFfi.openDatabase(
+        ruta,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (db, _) async {
+            await db.execute(sqlCrearAlertas);
+            await db.execute(sqlCrearTurnos);
+            await db.execute(
+              'CREATE TABLE alertas_pendientes ('
+              'id INTEGER PRIMARY KEY AUTOINCREMENT, datos TEXT NOT NULL)',
+            );
+          },
+        ),
+      );
+      await vieja.insert('alertas', alertaDePrueba().toMap());
+      await TurnosDao(vieja).guardar(
+        Turno(
+          fecha: DateTime(2026, 10, 9),
+          franja: Franja.noche,
+          patrulleros: [vecinaDePrueba],
+        ),
+      );
+      await vieja.insert('alertas_pendientes', {
+        'datos': jsonEncode({'categoria': 'sos'}),
+      });
+      await vieja.close();
+
+      final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
+      addTearDown(nueva.close);
+
+      expect(await nueva.getVersion(), versionDelEsquema);
+      expect(await tablasDe(nueva), isNot(contains('alertas_pendientes')));
+      expect(await AlertasDao(nueva).listar(), hasLength(1));
+      expect(await TurnosDao(nueva).delMes(DateTime(2026, 10)), hasLength(1));
+    });
+
+    test('la migración de la v1 a la v3 conserva las alertas', () async {
+      final vieja = await databaseFactoryFfi.openDatabase(
+        ruta,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: (db, _) async {
+            await db.execute(sqlCrearAlertas);
+            await db.execute(sqlCrearTurnos);
+          },
+        ),
+      );
+      await vieja.insert('alertas', alertaDePrueba().toMap());
+      await vieja.close();
+
+      final nueva = await abrirBaseDeDatos(databaseFactoryFfi, ruta);
+      addTearDown(nueva.close);
+
+      expect(await nueva.getVersion(), versionDelEsquema);
+      expect(await AlertasDao(nueva).listar(), hasLength(1));
+      expect(await tablasDe(nueva), isNot(contains('alertas_pendientes')));
     });
   });
 }

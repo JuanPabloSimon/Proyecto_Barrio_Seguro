@@ -77,7 +77,6 @@ class SosScreen extends StatelessWidget {
                     listenable: viewModel,
                     builder: (context, _) => viewModel.paso == PasoSos.enviada
                         ? _VistaSosEnviada(
-                            pendiente: viewModel.pendiente,
                             conUbicacionExacta: viewModel.conUbicacionExacta,
                             capacidades: capacidades,
                             telefono: telefono,
@@ -224,14 +223,12 @@ class _VistaConfirmarSos extends StatelessWidget {
 
 class _VistaSosEnviada extends StatelessWidget {
   const _VistaSosEnviada({
-    required this.pendiente,
     required this.conUbicacionExacta,
     required this.capacidades,
     required this.telefono,
     required this.onCerrarAlerta,
   });
 
-  final bool pendiente;
   final bool conUbicacionExacta;
   final Capacidades capacidades;
   final TelefonoService telefono;
@@ -258,10 +255,10 @@ class _VistaSosEnviada extends StatelessWidget {
         Semantics(
           header: true,
           liveRegion: true,
-          child: Text(
-            pendiente ? 'Alerta guardada' : 'Alerta enviada',
+          child: const Text(
+            'Alerta enviada',
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.sobreColor,
               fontSize: 30,
               fontWeight: FontWeight.w800,
@@ -270,10 +267,7 @@ class _VistaSosEnviada extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          pendiente
-              ? 'No hay señal. La alerta se va a enviar sola apenas vuelva '
-                    'la conexión. Si estás en peligro, llamá al 911.'
-              : conUbicacionExacta
+          conUbicacionExacta
               ? 'Avisamos a los vecinos de tu zona con tu ubicación exacta. '
                     'Si estás en peligro, llamá al 911.'
               : 'Avisamos a los vecinos de tu zona. Les mandamos la zona del '

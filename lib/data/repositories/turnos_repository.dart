@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import '../../domain/models/turno.dart';
 import '../../domain/models/vecino.dart';
+import '../services/error_del_servidor.dart';
 import '../services/local/turnos_dao.dart';
 import '../services/turnos_service.dart';
+import 'conexion_repository.dart';
 import 'futuro_con_estado.dart';
 
 /// Fuente de verdad de los turnos de patrullaje.
 abstract class TurnosRepository {
   /// Turnos con al menos un vecino anotado en el mes de [mes].
   ///
-  /// Sin conexión devuelve la copia guardada en el teléfono, si hay una.
+  /// Si el pedido falla, devuelve la copia guardada en el teléfono (la
+  /// caché), si hay una, y marca [sinConexion].
   Future<List<Turno>> obtenerTurnos(DateTime mes, {bool refrescar = false});
 
   /// True si lo último que devolvió [obtenerTurnos] es la copia guardada
@@ -22,12 +27,14 @@ abstract class TurnosRepository {
 
 /// Como `AlertasRepositoryRemoto`: mantiene un [FuturoConEstado] por mes
 /// (para deduplicar pedidos concurrentes y guardar caché en memoria) y una
-/// copia en el teléfono con [dao] para ver los turnos sin conexión.
+/// copia en el teléfono con [dao] que sirve de caché. Con [conexion], si el
+/// pedido falla por la red, pide una comprobación de la conexión.
 class TurnosRepositoryRemoto implements TurnosRepository {
-  TurnosRepositoryRemoto({required this._service, this._dao});
+  TurnosRepositoryRemoto({required this._service, this._dao, this._conexion});
 
   final TurnosService _service;
   final TurnosDao? _dao;
+  final ConexionRepository? _conexion;
 
   bool _sinConexion = false;
   @override
@@ -62,7 +69,13 @@ class TurnosRepositoryRemoto implements TurnosRepository {
     final List<Map<String, dynamic>> crudos;
     try {
       crudos = await _service.obtenerTurnos(anio: mes.year, mes: mes.month);
-    } catch (_) {
+    } catch (error) {
+      // Un error de red (no uno de la API) puede querer decir que se cortó
+      // la conexión: se comprueba ya, sin esperar el resultado.
+      final conexion = _conexion;
+      if (error is! ErrorDelServidor && conexion != null) {
+        unawaited(conexion.comprobar());
+      }
       final guardados = await _leerCopia(mes);
       if (guardados.isEmpty) rethrow;
       _sinConexion = true;

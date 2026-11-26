@@ -3,27 +3,29 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/repositories/alertas_repository.dart';
+import 'data/repositories/conexion_repository.dart';
 import 'data/repositories/sesion_repository.dart';
 import 'data/repositories/turnos_repository.dart';
 import 'data/services/alertas_service.dart';
 import 'data/services/bus_de_eventos.dart';
+import 'data/services/conexion_service.dart';
 import 'data/services/http/alertas_service_http.dart';
 import 'data/services/http/cliente_api.dart';
+import 'data/services/http/conexion_service_http.dart';
 import 'data/services/http/turnos_service_http.dart';
 import 'data/services/http/vecinos_service_http.dart';
 import 'data/services/local/alertas_dao.dart';
 import 'data/services/local/almacen_seguro.dart';
-import 'data/services/local/pendientes_dao.dart';
 import 'data/services/local/preferencias.dart';
 import 'data/services/notificaciones_service.dart';
 import 'data/services/push_service.dart';
 import 'data/services/local/turnos_dao.dart';
 import 'data/services/reloj.dart';
 import 'data/services/simulados/alertas_service_simulado.dart';
+import 'data/services/simulados/conexion_service_simulado.dart';
 import 'data/services/simulados/servidor_simulado.dart';
 import 'data/services/simulados/turnos_service_simulado.dart';
 import 'data/services/simulados/vecinos_service_simulado.dart';
-import 'data/services/tareas/tareas_service.dart';
 import 'data/services/telefono_service.dart';
 import 'data/services/turnos_service.dart';
 import 'data/services/ubicacion_service.dart';
@@ -41,6 +43,7 @@ import 'plataforma/politicas.dart';
 /// entera de cuál se usa.
 class Dependencias {
   Dependencias({
+    required this.conexion,
     required this.alertas,
     required this.turnos,
     required this.sesion,
@@ -60,8 +63,11 @@ class Dependencias {
   /// capacidades, las políticas, el teléfono y el almacenamiento son los
   /// verdaderos, salvo que una prueba pase otros.
   ///
-  /// Con [alertasDao] y [turnosDao] se guarda una copia en el teléfono para
-  /// usar sin conexión; sin ellos (en la web o en pruebas), solo memoria.
+  /// Con [alertasDao] y [turnosDao] se guarda una copia en el teléfono que
+  /// sirve de caché; sin ellos (en la web o en pruebas), solo memoria.
+  ///
+  /// El servidor simulado no usa la red: [conexion] (por defecto, siempre
+  /// conectado) decide si la app "llega" al servidor.
   factory Dependencias.simuladas({
     Reloj reloj = const RelojDelSistema(),
     Duration demora = const Duration(milliseconds: 400),
@@ -72,12 +78,11 @@ class Dependencias {
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
     PushService push = const PushServiceNinguno(),
-    TareasService tareas = const TareasNinguna(),
+    ConexionService? conexion,
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
     TurnosDao? turnosDao,
-    PendientesDao? pendientesDao,
   }) {
     final servidor = ServidorSimulado(
       reloj: reloj,
@@ -88,6 +93,7 @@ class Dependencias {
       alertasService: AlertasServiceSimulado(servidor),
       turnosService: TurnosServiceSimulado(servidor),
       vecinosService: VecinosServiceSimulado(servidor),
+      conexionService: conexion ?? ConexionServiceSimulado(),
       reloj: reloj,
       capacidades: capacidades,
       politicas: politicas,
@@ -95,17 +101,16 @@ class Dependencias {
       ubicacion: ubicacion,
       notificaciones: notificaciones,
       push: push,
-      tareas: tareas,
       preferencias: preferencias,
       almacenSeguro: almacenSeguro,
       alertasDao: alertasDao,
       turnosDao: turnosDao,
-      pendientesDao: pendientesDao,
     );
   }
 
   /// Los datos vienen de la API en [urlBase], por HTTP. Con [cliente] las
-  /// pruebas pueden responder sin red.
+  /// pruebas pueden responder sin red (también al `GET /salud` con que se
+  /// comprueba la conexión).
   factory Dependencias.conApi({
     required Uri urlBase,
     http.Client? cliente,
@@ -116,12 +121,10 @@ class Dependencias {
     UbicacionService ubicacion = const UbicacionServiceGeolocator(),
     NotificacionesService notificaciones = const NotificacionesServiceNinguno(),
     PushService push = const PushServiceNinguno(),
-    TareasService tareas = const TareasNinguna(),
     Preferencias? preferencias,
     AlmacenSeguro? almacenSeguro,
     AlertasDao? alertasDao,
     TurnosDao? turnosDao,
-    PendientesDao? pendientesDao,
   }) {
     final almacen =
         almacenSeguro ?? AlmacenSeguro(const FlutterSecureStorage());
@@ -130,6 +133,7 @@ class Dependencias {
       alertasService: AlertasServiceHttp(api),
       turnosService: TurnosServiceHttp(api),
       vecinosService: VecinosServiceHttp(api),
+      conexionService: ConexionServiceHttp(api),
       reloj: reloj,
       capacidades: capacidades,
       politicas: politicas,
@@ -137,12 +141,10 @@ class Dependencias {
       ubicacion: ubicacion,
       notificaciones: notificaciones,
       push: push,
-      tareas: tareas,
       preferencias: preferencias,
       almacenSeguro: almacen,
       alertasDao: alertasDao,
       turnosDao: turnosDao,
-      pendientesDao: pendientesDao,
     );
   }
 
@@ -151,6 +153,7 @@ class Dependencias {
     required AlertasService alertasService,
     required TurnosService turnosService,
     required VecinosService vecinosService,
+    required ConexionService conexionService,
     required Reloj reloj,
     required Capacidades capacidades,
     required Politicas politicas,
@@ -158,23 +161,27 @@ class Dependencias {
     required UbicacionService ubicacion,
     required NotificacionesService notificaciones,
     required PushService push,
-    required TareasService tareas,
     required Preferencias? preferencias,
     required AlmacenSeguro? almacenSeguro,
     required AlertasDao? alertasDao,
     required TurnosDao? turnosDao,
-    required PendientesDao? pendientesDao,
   }) {
     final prefs = preferencias ?? Preferencias(SharedPreferencesAsync());
+    // Primero la conexión: los repositorios de alertas y turnos le avisan
+    // cuando un pedido falla por la red.
+    final conexion = ConexionRepositoryRemoto(service: conexionService);
     return Dependencias(
+      conexion: conexion,
       alertas: AlertasRepositoryRemoto(
         service: alertasService,
         dao: alertasDao,
-        pendientes: pendientesDao,
-        tareas: tareas,
-        reloj: reloj,
+        conexion: conexion,
       ),
-      turnos: TurnosRepositoryRemoto(service: turnosService, dao: turnosDao),
+      turnos: TurnosRepositoryRemoto(
+        service: turnosService,
+        dao: turnosDao,
+        conexion: conexion,
+      ),
       sesion: SesionRepositoryRemoto(
         service: vecinosService,
         preferencias: prefs,
@@ -193,6 +200,9 @@ class Dependencias {
       push: push,
     );
   }
+
+  /// Si la app llega a su servidor. Sin conexión, la app no se usa.
+  final ConexionRepository conexion;
 
   final AlertasRepository alertas;
   final TurnosRepository turnos;

@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
+import 'package:barrio_seguro/data/repositories/conexion_repository.dart';
 import 'package:barrio_seguro/data/repositories/sesion_repository.dart';
 import 'package:barrio_seguro/data/repositories/turnos_repository.dart';
 import 'package:barrio_seguro/data/services/alertas_service.dart';
+import 'package:barrio_seguro/data/services/conexion_service.dart';
+import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
+import 'package:barrio_seguro/data/services/local/turnos_dao.dart';
 import 'package:barrio_seguro/data/services/notificaciones_service.dart';
 import 'package:barrio_seguro/data/services/push_service.dart';
-import 'package:barrio_seguro/data/services/tareas/tareas_service.dart';
 import 'package:barrio_seguro/data/services/telefono_service.dart';
 import 'package:barrio_seguro/data/services/ubicacion_service.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
@@ -101,14 +104,6 @@ class AlertasFalsas implements AlertasRepository {
 
   @override
   bool sinConexion = false;
-
-  int enviosDePendientes = 0;
-
-  @override
-  bool estaPendiente(String id) => false;
-
-  @override
-  Future<void> enviarPendientes() async => enviosDePendientes++;
 
   void _quizasFallar() {
     if (falla) throw Exception('sin conexión');
@@ -210,6 +205,25 @@ class AlertasServiceContador implements AlertasService {
       throw UnimplementedError();
 }
 
+/// Servicio de alertas que siempre falla con [error]: un error de red
+/// (SocketException) o una respuesta de error de la API (ErrorDelServidor).
+class AlertasServiceQueFalla implements AlertasService {
+  AlertasServiceQueFalla(this.error);
+
+  final Object error;
+
+  @override
+  Future<List<Map<String, dynamic>>> obtenerAlertas() async => throw error;
+
+  @override
+  Future<Map<String, dynamic>> crearAlerta(Map<String, dynamic> datos) async =>
+      throw error;
+
+  @override
+  Future<Map<String, dynamic>> cambiarEstado(String id, String estado) async =>
+      throw error;
+}
+
 /// Cumple el contrato de Capacidades, pero cada respuesta la decide la
 /// prueba. Un campo final alcanza para implementar un getter.
 class CapacidadesFalsas implements Capacidades {
@@ -218,7 +232,6 @@ class CapacidadesFalsas implements Capacidades {
     this.muestraNotificaciones = true,
     this.tieneBaseDeDatosLocal = false,
     this.tieneGps = true,
-    this.correTareasEnSegundoPlano = false,
     this.recibeAvisosPush = true,
   });
 
@@ -233,9 +246,6 @@ class CapacidadesFalsas implements Capacidades {
 
   @override
   final bool tieneGps;
-
-  @override
-  final bool correTareasEnSegundoPlano;
 
   @override
   final bool recibeAvisosPush;
@@ -324,13 +334,6 @@ class NotificacionesFalsas implements NotificacionesService {
   Future<String?> alertaQueAbrioLaApp() async => abrioLaApp;
 }
 
-class TareasFalsas implements TareasService {
-  int programadas = 0;
-
-  @override
-  Future<void> programarEnvioDePendientes() async => programadas++;
-}
-
 /// Simula el servicio de avisos push (FCM) sin red ni Firebase.
 class PushFalso implements PushService {
   PushFalso({this.abrioLaApp, this.falla = false});
@@ -375,4 +378,103 @@ class PushFalso implements PushService {
 
   @override
   Future<String?> alertaQueAbrioLaApp() async => abrioLaApp;
+}
+
+/// El `GET /salud` de prueba: responde [hay] y cuenta las [comprobaciones].
+/// Con [demora], la respuesta tarda ese tiempo (para probar pedidos en
+/// vuelo).
+class ConexionFalsa implements ConexionService {
+  ConexionFalsa({this.hay = true, this.demora = Duration.zero});
+
+  bool hay;
+  Duration demora;
+  int comprobaciones = 0;
+
+  @override
+  Future<bool> hayConexion() async {
+    comprobaciones++;
+    if (demora > Duration.zero) await Future<void>.delayed(demora);
+    return hay;
+  }
+}
+
+/// Repositorio de conexión en memoria: [comprobar] responde [hay], cuenta
+/// las [comprobaciones] y emite en [cambios] cuando el resultado cambia.
+class ConexionRepositoryFalsa implements ConexionRepository {
+  ConexionRepositoryFalsa({this.hay = true});
+
+  bool hay;
+  int comprobaciones = 0;
+  final _cambios = StreamController<bool>.broadcast();
+
+  @override
+  bool? hayConexion;
+
+  @override
+  Stream<bool> get cambios => _cambios.stream;
+
+  /// Si alguien sigue escuchando [cambios] (para probar `dispose`).
+  bool get tieneOyentes => _cambios.hasListener;
+
+  @override
+  Future<bool> comprobar() async {
+    comprobaciones++;
+    final cambio = hay != hayConexion;
+    hayConexion = hay;
+    if (cambio) _cambios.add(hay);
+    return hay;
+  }
+}
+
+/// Copia local de alertas en memoria, para las pruebas de widgets: SQLite
+/// hace I/O real, que no avanza con el tiempo falso de testWidgets.
+class AlertasDaoEnMemoria implements AlertasDao {
+  AlertasDaoEnMemoria([List<Alerta>? iniciales]) : guardadas = [...?iniciales];
+
+  final List<Alerta> guardadas;
+
+  @override
+  Future<List<Alerta>> listar() async => List.unmodifiable(guardadas);
+
+  @override
+  Future<void> reemplazarTodas(List<Alerta> alertas) async {
+    guardadas
+      ..clear()
+      ..addAll(alertas);
+  }
+
+  @override
+  Future<void> guardar(Alerta alerta) async {
+    guardadas
+      ..removeWhere((a) => a.id == alerta.id)
+      ..insert(0, alerta);
+  }
+}
+
+/// Copia local de turnos en memoria (ver [AlertasDaoEnMemoria]).
+class TurnosDaoEnMemoria implements TurnosDao {
+  TurnosDaoEnMemoria([List<Turno>? iniciales]) : guardados = [...?iniciales];
+
+  final List<Turno> guardados;
+
+  bool _delMes(Turno t, DateTime mes) =>
+      t.fecha.year == mes.year && t.fecha.month == mes.month;
+
+  @override
+  Future<List<Turno>> delMes(DateTime mes) async =>
+      List.unmodifiable(guardados.where((t) => _delMes(t, mes)));
+
+  @override
+  Future<void> reemplazarMes(DateTime mes, List<Turno> turnos) async {
+    guardados
+      ..removeWhere((t) => _delMes(t, mes))
+      ..addAll(turnos);
+  }
+
+  @override
+  Future<void> guardar(Turno turno) async {
+    guardados
+      ..removeWhere((t) => t.fecha == turno.fecha && t.franja == turno.franja)
+      ..add(turno);
+  }
 }

@@ -1,7 +1,11 @@
 // Pruebas de los ViewModels con repositorios falsos: sin servidor, sin
 // widgets y con un reloj fijo, así los resultados no dependen del día.
 
+import 'dart:io';
+
+import 'package:barrio_seguro/data/repositories/alertas_repository.dart';
 import 'package:barrio_seguro/data/services/bus_de_eventos.dart';
+import 'package:barrio_seguro/data/services/local/alertas_dao.dart';
 import 'package:barrio_seguro/data/services/reloj.dart';
 import 'package:barrio_seguro/domain/evento_de_app.dart';
 import 'package:barrio_seguro/domain/models/alerta.dart';
@@ -164,6 +168,32 @@ void main() {
       );
       await vm.enviar();
       expect(vm.paso, PasoSos.error);
+    });
+
+    test('el SOS sin red queda en error y no se guarda', () async {
+      final db = await baseEnMemoria();
+      addTearDown(db.close);
+      final repositorio = AlertasRepositoryRemoto(
+        service: AlertasServiceQueFalla(const SocketException('sin señal')),
+        dao: AlertasDao(db),
+      );
+      final vm = SosViewModel(
+        alertas: repositorio,
+        sesion: SesionFalsa(vecinaDePrueba),
+        bus: bus,
+        preferencias: preferenciasEnMemoria(),
+        ubicacion: UbicacionFalsa(),
+        capacidades: const CapacidadesFalsas(),
+      );
+      final eventos = <Object>[];
+      bus.eventos.listen(eventos.add);
+
+      await vm.enviar();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.paso, PasoSos.error);
+      expect(await db.query('alertas'), isEmpty);
+      expect(eventos, isEmpty);
     });
 
     test('"Ya estoy a salvo" deja la alerta resuelta', () async {

@@ -49,10 +49,10 @@ Sin cambios: `GET /salud` ya existe (`backend/lib/src/api.dart`) y tiene su prue
 
 ## Botón Atrás sin conexión (R25, agregado después de la revisión)
 
-- [ ] T25 — Crear `AtrasSinConexion` en `lib/ui/conexion/widgets/atras_sin_conexion.dart` (`StatefulWidget` con `WidgetsBindingObserver`: `addObserver` en `initState`, `removeObserver` en `dispose`, `didPopRoute()` devuelve `viewModel.sinConexion`). En `lib/main.dart`, subir el `ConViewModel<ConexionViewModel>` por encima de `MaterialApp` y envolver `MaterialApp` con `AtrasSinConexion`; `MaterialApp.builder` usa el mismo `vm` para `CompuertaDeConexion`. Comentario en `BarrioSeguroApp` de por qué el observador va por encima de `MaterialApp` (orden de los observadores). Cubre: R25.
-- [ ] T26 — Pruebas en `test/widget_test.dart` con `tester.binding.handlePopRoute()`: `sin conexión el botón Atrás no cierra el SOS tapado y al volver se ve el SOS` (devuelve `true`, sigue la pantalla sin conexión y al volver se ve "¿Enviar alerta SOS?"); `sin conexión el botón Atrás en el inicio no cierra la app` (devuelve `true` y al volver se ve la principal); `con conexión el botón Atrás cierra el SOS como siempre` (control). Confirmar que siguen verdes las pruebas existentes de la compuerta y de accesibilidad. Cubre: R25.
+- [x] T25 — Crear `AtrasSinConexion` en `lib/ui/conexion/widgets/atras_sin_conexion.dart` (`StatefulWidget` con `WidgetsBindingObserver`: `addObserver` en `initState`, `removeObserver` en `dispose`, `didPopRoute()` devuelve `viewModel.sinConexion`). En `lib/main.dart`, subir el `ConViewModel<ConexionViewModel>` por encima de `MaterialApp` y envolver `MaterialApp` con `AtrasSinConexion`; `MaterialApp.builder` usa el mismo `vm` para `CompuertaDeConexion`. Comentario en `BarrioSeguroApp` de por qué el observador va por encima de `MaterialApp` (orden de los observadores). Cubre: R25.
+- [x] T26 — Pruebas en `test/widget_test.dart` con `tester.binding.handlePopRoute()`: `sin conexión el botón Atrás no cierra el SOS tapado y al volver se ve el SOS` (devuelve `true`, sigue la pantalla sin conexión y al volver se ve "¿Enviar alerta SOS?"); `sin conexión el botón Atrás en el inicio no cierra la app` (devuelve `true` y al volver se ve la principal); `con conexión el botón Atrás cierra el SOS como siempre` (control). Confirmar que siguen verdes las pruebas existentes de la compuerta y de accesibilidad. Cubre: R25.
 
 ## Cierre
 
-- [ ] T23 — Trazabilidad `R<n>` → prueba en `progress/impl_requiere_conexion.md` (sumar R25), y nota en `progress/history.md` de que se quitó el paquete `workmanager`.
-- [ ] T24 — `./init.sh` verde.
+- [x] T23 — Trazabilidad `R<n>` → prueba en `progress/impl_requiere_conexion.md` (sumar R25), y nota en `progress/history.md` de que se quitó el paquete `workmanager`.
+- [x] T24 — `./init.sh` verde.

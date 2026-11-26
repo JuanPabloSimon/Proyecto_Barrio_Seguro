@@ -51,8 +51,6 @@ dependencies:
   geolocator: ^14.0.2
   # Avisos de alertas nuevas (apunte de notificaciones).
   flutter_local_notifications: ^22.3.2
-  # Mandar alertas pendientes cuando vuelve la señal (apunte de segundo plano).
-  workmanager: ^0.10.3
   # Avisos push con la app cerrada (Firebase Cloud Messaging).
   firebase_core: ^4.1.0
   firebase_messaging: ^16.0.0
