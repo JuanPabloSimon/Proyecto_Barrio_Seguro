@@ -222,6 +222,39 @@
       ],
       "sdd": true,
       "status": "done"
+    },
+    {
+      "id": 20,
+      "name": "guardia_normal_mayores",
+      "title": "Guardia normal opcional para mayores de 70",
+      "description": "Los vecinos de 70 años o más hacen guardia de ventana por defecto, pero pueden elegir en el perfil hacer la guardia normal (patrulla) si quieren.",
+      "acceptance": [
+        "En el perfil, un vecino de 70 años o más tiene una opción para habilitar la guardia normal (patrulla); los menores de 70 no la ven",
+        "Por defecto la opción está desactivada y el vecino sigue haciendo guardia de ventana",
+        "Con la opción activada, al anotarse en un turno ocupa un lugar de la patrulla con las mismas reglas que el resto",
+        "La API aplica la misma regla y guarda la preferencia del vecino",
+        "La opción cumple las reglas de accesibilidad del proyecto",
+        "Pruebas en la app y en el backend"
+      ],
+      "sdd": true,
+      "status": "in_progress"
+    },
+    {
+      "id": 21,
+      "name": "aviso_turno_incompleto",
+      "title": "Aviso de turno incompleto dentro de la app",
+      "description": "Un turno no se puede realizar con una sola persona anotada (patrulleros y guardia de ventana cuentan igual). Desde 30 minutos antes, la app le avisa al vecino que quedó solo que la guardia no se va a hacer. Sin push ni avisos programados: el aviso se ve dentro de la app.",
+      "acceptance": [
+        "Un turno con una sola persona anotada (contando patrulleros y guardia de ventana) está incompleto y no se realiza; con dos o más personas, sí",
+        "La franja Madrugada 00:00 - 02:00 de un día empieza a las 00:00 del día siguiente (la noche del 9 al 10 es la madrugada del 9)",
+        "Desde 30 minutos antes del inicio de un turno incompleto, al entrar en la app el vecino anotado ve un aviso de que la guardia no se va a hacer",
+        "Si alguien más se anota, el aviso deja de mostrarse",
+        "No se avisa a los demás vecinos ni se mandan avisos push",
+        "El aviso cumple las reglas de accesibilidad del proyecto",
+        "Pruebas en la app"
+      ],
+      "sdd": true,
+      "status": "pending"
     }
   ]
 }
